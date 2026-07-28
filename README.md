@@ -1,56 +1,74 @@
-# Welcome to your Expo app 👋
+# Aria — a proactive assistant for students
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aria watches a student's calendar and deadlines, plans ahead, and **offers to do the work — always asking first, and always taking "no" for an answer.** Tell it what's on your plate (by typing or voice); on the day, Aria surfaces the task and offers to help: draft and send a birthday message, work through an essay part‑by‑part, plan a task, and more.
 
-## Get started
+Built with **Expo + React Native**. Real message/assignment drafting is powered by the **Claude API** through server‑only API routes, with offline heuristic fallbacks so the whole app demos without a key.
 
-1. Install dependencies
+> Demo build. The persona is **Maya**, a university student. Voice input is simulated (it feeds a real transcript into the same pipeline). The "simulated date" control lets you jump to a task's day to trigger Aria's proactive flows.
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- **Natural‑language capture** — "remind me to email Prof. Lee Friday at 5pm." Aria parses date, time, category, priority, and how to handle it, then lets Maya **review and confirm** before saving.
+- **Categories** — Task · Reminder · Event · Birthday · Anniversary · Assignment · Project, each with its own "how should Aria handle it?" options.
+- **Proactive, consent‑first flows** — on the assigned day a task appears on **Today** with an offer. Example: _"Want me to draft a birthday card for Jane and send it?"_ → draft → review/rewrite → **approve** → send → auto‑checked off.
+- **Handling methods** — Text · Email · Card · Call for people (contact picker + required email for email); Outline · Full draft · Step‑by‑step · Reminder for assignments; Plan · Draft · Reminder for tasks.
+- **Assignment walkthrough** — generates a checklist of parts, drafts each one, offers per‑subtask **research help**, compiles a draft, and **saves it to your Notes app** via the share sheet.
+- **Contacts** — Maya's own saved contacts (a new account starts empty); add people manually and Aria remembers them.
+- **Calendar** — month / week / day views with an agenda; **rebalance a packed week** by moving events to another day or time.
+- **Onboarding** — new sign‑ups get a welcome, a "how it works" intro, and a clean, empty slate.
+- **Aria chat** — a floating assistant; type or tap the mic. Understands small talk (yes / no / thanks / hold on).
+- Light & dark themes, priority, subtasks, Upcoming / Done / Late views, haptics.
 
-   ```bash
-   npx expo start
-   ```
+## Tech stack
 
-In the output, you'll find options to open the app in a
+- [Expo](https://expo.dev) SDK 54 · [Expo Router](https://docs.expo.dev/router/introduction/) (file‑based routing + server API routes)
+- React Native 0.81 · React 19
+- [NativeWind](https://www.nativewind.dev/) v4 (Tailwind for RN) + a small design‑token system
+- [Zustand](https://github.com/pmndrs/zustand) (persisted via AsyncStorage)
+- [Anthropic Claude API](https://docs.anthropic.com/) (`@anthropic-ai/sdk`) via `/api/*` routes
+- `date-fns`, `lucide-react-native`, Reanimated
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Getting started
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+**Prerequisites:** Node 18+ and the [Expo Go](https://expo.dev/go) app on your phone.
 
 ```bash
-npm run reset-project
+git clone https://github.com/toyosidesign/Aria-Demo.git
+cd Aria-Demo
+npm install
+npx expo start        # then scan the QR with Expo Go (Camera app on iOS)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Enabling real Claude drafting (optional)
 
-### Other setup steps
+The app works fully without a key (drafts come from built‑in fallbacks). For smarter, tailored drafting, add a **server‑only** key:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+# .env.local  (gitignored — never bundled into the app)
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-## Learn more
+Restart the dev server after adding it. The key is read only inside the server routes (`src/app/api/draft+api.ts`, `src/app/api/assistant+api.ts`) and is **not** exposed to the client. Get a key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
 
-To learn more about developing your project with Expo, look at the following resources:
+## Project structure
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```
+src/
+  app/                 # routes (expo-router)
+    (tabs)/            # Today · Calendar · Tasks · Settings · Profile
+    api/               # server-only Claude routes (draft, assistant)
+    aria/[taskId].tsx  # the proactive draft -> review -> send flow
+    task/              # create + task detail
+    chat.tsx           # Aria assistant chat
+    rebalance.tsx      # interactive week rebalancing
+    welcome.tsx        # new-user onboarding
+  components/          # UI kit + feature components
+  lib/                 # aria-actions, assistant parsing, dates, contacts, colors
+  store/               # zustand store (tasks, contacts, profile, settings)
+```
 
-## Join the community
+## Notes
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **Sign in vs. Create account:** signing in loads the seeded Maya demo (sample tasks + contacts); creating an account starts fresh (empty) with the welcome flow.
+- Sending messages, saving to Notes, etc. use the OS **share sheet** — Apple doesn't allow apps to write to Messages/Mail/Notes silently, so this is the genuine, sanctioned path.
+- Reset the demo data anytime from **Settings → Reset demo data**.
