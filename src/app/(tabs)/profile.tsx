@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Alert, Platform, Pressable, ScrollView, View } from 'react-native';
 
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
+import { WorkloadChart } from '@/components/workload-chart';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
@@ -89,6 +90,9 @@ export default function ProfileScreen() {
           <View className="w-px bg-border" />
           <Stat value={ariaAssists} label="Aria assists" />
         </View>
+
+        {/* Burnout / wellbeing monitor */}
+        <WorkloadChart />
 
         {/* Sign out (demo) */}
         <SettingsGroup>

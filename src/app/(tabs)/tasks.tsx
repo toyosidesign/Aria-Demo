@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
-import { TaskCard } from '@/components/task-card';
+import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
@@ -50,7 +50,7 @@ export default function TasksScreen() {
       <FlatList
         data={list}
         keyExtractor={(t) => t.id}
-        renderItem={({ item }) => <TaskCard task={item} />}
+        renderItem={({ item }) => <SwipeableTaskCard task={item} />}
         contentContainerStyle={{ gap: 12, paddingTop: 16, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

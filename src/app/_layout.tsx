@@ -80,6 +80,7 @@ export default function RootLayout() {
             <Stack.Screen name="aria/[taskId]" options={{ presentation: 'card' }} />
             <Stack.Screen name="chat" options={{ presentation: 'modal' }} />
             <Stack.Screen name="rebalance" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="reschedule" options={{ presentation: 'modal' }} />
             <Stack.Screen name="profile/edit" options={{ presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>

@@ -1,5 +1,6 @@
+import { addDays, parseISO } from 'date-fns';
 import { router } from 'expo-router';
-import { CheckCircle2, ChevronRight, Sparkles } from 'lucide-react-native';
+import { CheckCircle2, ChevronRight, Sparkles, X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
@@ -7,14 +8,20 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaTodayCard } from '@/components/aria-today-card';
 import { DemoDateBar } from '@/components/demo-date-bar';
-import { TaskCard } from '@/components/task-card';
+import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { ariaActionFor } from '@/lib/aria-actions';
 import { useColors } from '@/lib/colors';
-import { formatLong } from '@/lib/dates';
-import { selectToday, selectUpcoming, selectWeekLoad, useAriaStore } from '@/store/aria-store';
+import { formatLong, toISODate } from '@/lib/dates';
+import {
+  selectToday,
+  selectUpcoming,
+  selectWeekLoad,
+  useAriaStore,
+  type Task,
+} from '@/store/aria-store';
 
 function greeting() {
   const h = new Date().getHours();
@@ -29,9 +36,16 @@ export default function TodayScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const proactive = useAriaStore((s) => s.settings.proactiveAria);
+  const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
 
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [deferredMsg, setDeferredMsg] = useState<string | null>(null);
+
+  // "Not now" on an offer defers the task to the next day and tells Maya.
+  function defer(task: Task) {
+    rescheduleTask(task.id, toISODate(addDays(parseISO(task.date), 1)));
+    setDeferredMsg(`No problem — I've moved “${task.title}” to tomorrow. I'll remind you then.`);
+  }
 
   const today = useMemo(() => selectToday(tasks, demoDate), [tasks, demoDate]);
   const upcoming = useMemo(() => selectUpcoming(tasks, demoDate), [tasks, demoDate]);
@@ -85,6 +99,22 @@ export default function TodayScreen() {
           </Animated.View>
         ) : null}
 
+        {/* "Not now" confirmation — task deferred to another day */}
+        {deferredMsg ? (
+          <Animated.View
+            entering={FadeIn.duration(250)}
+            exiting={FadeOut.duration(200)}
+            className="flex-row items-center gap-2.5 rounded-2xl border border-accent/25 bg-accent-soft p-4">
+            <AriaAvatar size={26} />
+            <Text variant="small" className="flex-1 leading-5">
+              {deferredMsg}
+            </Text>
+            <Pressable onPress={() => setDeferredMsg(null)} hitSlop={8} className="active:opacity-60">
+              <X size={16} color={c.muted} />
+            </Pressable>
+          </Animated.View>
+        ) : null}
+
         {/* Today — warm welcome for a fresh account, otherwise the day's tasks */}
         {hasNoTasks ? (
           <Animated.View
@@ -129,23 +159,17 @@ export default function TodayScreen() {
             ) : (
               today.map((task) => {
                 const action = ariaActionFor(task);
-                if (proactive && action && !dismissed.has(task.id)) {
+                if (proactive && action) {
                   return (
                     <AriaTodayCard
                       key={task.id}
                       task={task}
                       action={action}
-                      onDismiss={() =>
-                        setDismissed((prev) => {
-                          const next = new Set(prev);
-                          next.add(task.id);
-                          return next;
-                        })
-                      }
+                      onDismiss={() => defer(task)}
                     />
                   );
                 }
-                return <TaskCard key={task.id} task={task} />;
+                return <SwipeableTaskCard key={task.id} task={task} />;
               })
             )}
           </View>
@@ -168,7 +192,7 @@ export default function TodayScreen() {
               </Pressable>
             </View>
             {comingUp.map((task) => (
-              <TaskCard key={task.id} task={task} />
+              <SwipeableTaskCard key={task.id} task={task} />
             ))}
           </View>
         ) : null}
