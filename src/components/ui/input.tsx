@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 
 import { cn } from '@/lib/cn';
@@ -7,17 +8,25 @@ import { Text } from './text';
 export interface InputProps extends TextInputProps {
   label?: string;
   multiline?: boolean;
+  /** Optional element rendered on the right (e.g. a show-password eye). */
+  rightSlot?: ReactNode;
 }
 
-export function Input({ label, className, multiline, style, ...props }: InputProps) {
+export function Input({ label, className, multiline, style, rightSlot, ...props }: InputProps) {
   const c = useColors();
-  return (
-    <View className="gap-2">
-      {label ? (
-        <Text variant="label" tone="muted">
-          {label}
-        </Text>
-      ) : null}
+
+  const field =
+    rightSlot && !multiline ? (
+      <View className="h-12 flex-row items-center rounded-2xl border border-border bg-surface pr-1.5">
+        <TextInput
+          placeholderTextColor={c.faint}
+          className={cn('h-12 flex-1 px-4 text-base text-ink', className)}
+          style={style}
+          {...props}
+        />
+        {rightSlot}
+      </View>
+    ) : (
       <TextInput
         placeholderTextColor={c.faint}
         multiline={multiline}
@@ -29,6 +38,16 @@ export function Input({ label, className, multiline, style, ...props }: InputPro
         style={[multiline ? { minHeight: 96, textAlignVertical: 'top' } : null, style]}
         {...props}
       />
+    );
+
+  return (
+    <View className="gap-2">
+      {label ? (
+        <Text variant="label" tone="muted">
+          {label}
+        </Text>
+      ) : null}
+      {field}
     </View>
   );
 }

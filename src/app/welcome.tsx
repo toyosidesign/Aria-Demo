@@ -20,12 +20,12 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: MessageCircle,
     title: 'Just tell me what you need',
-    body: 'Type or speak it — “remind me to email Prof. Lee Friday at 5pm” — and I’ll set it up with the right date and time.',
+    body: 'Type or speak it, like “remind me to email Prof. Lee Friday at 5pm,” and I’ll set it up with the right date and time.',
   },
   {
     Icon: Sparkles,
     title: 'I plan ahead',
-    body: 'On the day, I’ll surface your task and offer to help — draft a message, work through an assignment, and more.',
+    body: 'On the day, I’ll surface your task and offer to help: draft a message, work through an assignment, and more.',
   },
   {
     Icon: ShieldCheck,
@@ -35,7 +35,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: CalendarDays,
     title: 'See it all on your Calendar',
-    body: 'Everything you add shows up by day, week, and month — and I’ll help you rebalance a packed week.',
+    body: 'Everything you add shows up by day, week, and month. I’ll help you rebalance a packed week.',
   },
 ];
 
@@ -61,7 +61,7 @@ export default function WelcomeScreen() {
           <View className="items-center gap-1.5">
             <Text variant="title">Hi {firstName} 👋</Text>
             <Text tone="muted" className="text-center">
-              I&apos;m Aria — here&apos;s how I can help.
+              I&apos;m Aria. Here&apos;s how I can help.
             </Text>
           </View>
         </View>
@@ -85,7 +85,7 @@ export default function WelcomeScreen() {
         <View className="mt-auto gap-3">
           <Button title="Get started" block size="lg" onPress={start} />
           <Text variant="caption" tone="faint" className="text-center">
-            You don&apos;t have any tasks yet — add your first one whenever you&apos;re ready.
+            You don&apos;t have any tasks yet. Add your first one whenever you&apos;re ready.
           </Text>
         </View>
       </ScrollView>

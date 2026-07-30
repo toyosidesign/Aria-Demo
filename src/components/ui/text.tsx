@@ -5,15 +5,25 @@ import { cn } from '@/lib/cn';
 
 const textVariants = cva('text-ink', {
   variants: {
+    // Sizes in px rather than a mix of Tailwind tokens and literals, so the
+    // whole ramp reads at once and the gaps between steps stay deliberate. Line
+    // heights move with the sizes: raising text without raising leading makes it
+    // cramped rather than easier to read.
+    //
+    // The headings sit between where they started and a first, too-large pass:
+    // 32px titles overwhelmed the screens they sat on. Body and small are back
+    // at their original sizes — the readability problem on Settings and Profile
+    // was descriptions being set in `caption`, not the scale itself, and that's
+    // fixed by using `small` there instead.
     variant: {
-      display: 'text-[34px] leading-[40px] font-bold tracking-tight',
-      title: 'text-[28px] leading-[34px] font-bold tracking-tight',
-      heading: 'text-xl leading-7 font-semibold',
-      subtitle: 'text-[17px] leading-6 font-semibold',
-      body: 'text-base leading-6',
-      small: 'text-sm leading-5',
-      caption: 'text-xs leading-4',
-      label: 'text-[11px] leading-4 font-semibold uppercase tracking-wider',
+      display: 'text-[36px] leading-[42px] font-bold tracking-tight',
+      title: 'text-[30px] leading-[36px] font-bold tracking-tight',
+      heading: 'text-[22px] leading-[30px] font-semibold',
+      subtitle: 'text-[18px] leading-[25px] font-semibold',
+      body: 'text-[16px] leading-[24px]',
+      small: 'text-[14px] leading-[21px]',
+      caption: 'text-[13px] leading-[18px]',
+      label: 'text-[12px] leading-[16px] font-semibold uppercase tracking-wider',
     },
     tone: {
       default: 'text-ink',

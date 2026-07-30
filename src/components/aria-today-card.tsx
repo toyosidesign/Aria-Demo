@@ -1,14 +1,18 @@
 import { router } from 'expo-router';
-import { Sparkles } from 'lucide-react-native';
-import { View } from 'react-native';
+import { ChevronRight, Sparkles } from 'lucide-react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeOutUp } from 'react-native-reanimated';
 
 import { AriaAvatar } from '@/components/aria-avatar';
+import { SendCardSheet } from '@/components/send-card-sheet';
+import { SendPhotoSheet } from '@/components/send-photo-sheet';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import type { AriaAction } from '@/lib/aria-actions';
 import { useColors } from '@/lib/colors';
-import type { Task } from '@/store/aria-store';
+import { formatRelative, formatTime } from '@/lib/dates';
+import { useAriaStore, type Task } from '@/store/aria-store';
 
 /** A proactive Aria offer surfaced on Today — consent-first: has a clear decline. */
 export function AriaTodayCard({
@@ -21,12 +25,17 @@ export function AriaTodayCard({
   onDismiss: () => void;
 }) {
   const c = useColors();
+  const demoDate = useAriaStore((s) => s.demoDate);
+  const [sendOpen, setSendOpen] = useState(false);
   return (
     <Animated.View
       entering={FadeIn.duration(320)}
       exiting={FadeOutUp.duration(220)}
       className="gap-3 rounded-3xl border border-accent/25 bg-accent-soft p-5">
-      <View className="flex-row items-center gap-2.5">
+      <Pressable
+        onPress={() => router.push(`/task/${task.id}`)}
+        accessibilityLabel="Open task to view or edit"
+        className="flex-row items-center gap-2.5 active:opacity-70">
         <AriaAvatar size={34} />
         <View className="flex-1">
           <Text variant="label" tone="accent">
@@ -35,8 +44,13 @@ export function AriaTodayCard({
           <Text variant="subtitle" numberOfLines={1}>
             {task.title}
           </Text>
+          <Text variant="caption" tone="muted">
+            {formatRelative(task.date, demoDate)}
+            {task.time ? ` · ${formatTime(task.time)}` : ''}
+          </Text>
         </View>
-      </View>
+        <ChevronRight size={18} color={c.muted} />
+      </Pressable>
 
       <Text className="leading-6">
         It&apos;s on your list for today. {action.offer} I&apos;ll show you everything before
@@ -47,11 +61,21 @@ export function AriaTodayCard({
         <Button
           title={action.cta}
           leftIcon={<Sparkles size={17} color={c.accentInk} />}
-          onPress={() => router.push(`/aria/${task.id}`)}
+          onPress={() =>
+            action.readyToSend ? setSendOpen(true) : router.push(`/aria/${task.id}`)
+          }
           className="flex-1"
         />
         <Button title="Not now" variant="secondary" onPress={onDismiss} />
       </View>
+
+      {action.readyToSend ? (
+        task.method === 'photo' ? (
+          <SendPhotoSheet task={task} visible={sendOpen} onClose={() => setSendOpen(false)} />
+        ) : (
+          <SendCardSheet task={task} visible={sendOpen} onClose={() => setSendOpen(false)} />
+        )
+      ) : null}
     </Animated.View>
   );
 }

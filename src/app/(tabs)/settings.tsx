@@ -1,31 +1,39 @@
-import {
-  Bell,
-  CalendarClock,
-  Info,
-  RotateCcw,
-  Smartphone,
-  Sparkles,
-  Vibrate,
-} from 'lucide-react-native';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { RotateCcw } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
+import { DemoDateBar } from '@/components/demo-date-bar';
+import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
 import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
-import { formatLong } from '@/lib/dates';
+import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
-import { DEFAULT_DEMO_DATE, useAriaStore, type ThemePref } from '@/store/aria-store';
+import { biometricSupport } from '@/lib/biometrics';
+import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
+import { useAriaStore, type ThemePref } from '@/store/aria-store';
 
 export default function SettingsScreen() {
   const c = useColors();
   const settings = useAriaStore((s) => s.settings);
   const setSetting = useAriaStore((s) => s.setSetting);
   const demoDate = useAriaStore((s) => s.demoDate);
-  const setDemoDate = useAriaStore((s) => s.setDemoDate);
+  const simulating = demoDate !== realToday();
+
+  // Offer the lock only where it can work — a device with no enrolled
+  // biometrics would show a switch that locks you out of your own account.
+  const [bio, setBio] = useState<{ available: boolean; label: string } | null>(null);
+  useEffect(() => {
+    void biometricSupport().then(setBio);
+  }, []);
   const resetDemo = useAriaStore((s) => s.resetDemo);
+  const pro = useAriaStore((s) => s.pro);
+  const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
+  const setPro = useAriaStore((s) => s.setPro);
 
   function confirmReset() {
     const doReset = () => {
@@ -54,11 +62,13 @@ export default function SettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40, gap: 22 }}
+        // Sections need clear air now that each one ends in a grey footnote and
+        // the next begins with a grey heading: at 22 the two ran together.
+        contentContainerStyle={{ paddingBottom: 40, gap: 32 }}
         showsVerticalScrollIndicator={false}>
         {/* Appearance */}
         <View className="gap-2 pt-2">
-          <Text variant="label" tone="muted" className="px-1">
+          <Text variant="label" tone="muted">
             Appearance
           </Text>
           <Segmented<ThemePref>
@@ -73,21 +83,68 @@ export default function SettingsScreen() {
               { value: 'dark', label: 'Dark' },
             ]}
           />
-          <Text variant="caption" tone="faint" className="px-1">
+          <Text variant="small" tone="muted">
             {settings.theme === 'system'
               ? 'Follows your device appearance.'
               : `Always ${settings.theme}.`}
           </Text>
         </View>
 
-        {/* Aria */}
-        <SettingsGroup title="Aria">
+        {/* Automation — lead with what it does, not what tier it sits in.
+            "Free plan" told users nothing and hid the feature entirely. */}
+        {/* "PRO" and "ON THE LIST" said nothing about what the feature is, what it
+            costs, or what tapping would do, and the footnote described it as
+            though it already worked. State goes inside the box in plain words;
+            the footnote says what it will do and that it isn't open yet. */}
+        <SettingsGroup
+          title="Automation"
+          footnote="Schedule a message and Aria sends it at the time you pick, then reports back. It's part of Aria Pro, which isn't open to everyone yet.">
           <SettingsRow
             first
-            icon={Sparkles}
-            iconColor={c.accent}
-            label="Proactive help"
-            description="Let Aria surface tasks and offer to act on Today"
+            label="Let Aria send things for you"
+            description={
+              pro
+                ? 'Active, including every app connection.'
+                : proWaitlisted
+                  ? 'You’re on the waiting list. I’ll tell you the moment it opens.'
+                  : 'Not available yet. Tap to join the waiting list.'
+            }
+            onPress={pro ? undefined : () => promptProUpgrade(PRO_PITCH)}
+            showChevron={!pro}
+            right={
+              pro ? (
+                <Text variant="small" tone="accent" className="font-semibold">
+                  On
+                </Text>
+              ) : null
+            }
+          />
+          {pro ? (
+            <SettingsRow
+              label="Aria Pro"
+              right={
+                <Text
+                  variant="small"
+                  tone="accent"
+                  className="font-semibold"
+                  onPress={() => {
+                    setPro(false);
+                    hapticSelect();
+                  }}>
+                  Cancel
+                </Text>
+              }
+            />
+          ) : null}
+        </SettingsGroup>
+
+        {/* Aria */}
+        <SettingsGroup
+          title="Aria"
+          footnote="Aria suggests what it can do on Today. Turn this off and it waits until you ask.">
+          <SettingsRow
+            first
+            label="Let Aria offer to help"
             right={
               <Switch
                 value={settings.proactiveAria}
@@ -98,12 +155,14 @@ export default function SettingsScreen() {
         </SettingsGroup>
 
         {/* General */}
-        <SettingsGroup title="General">
+        {/* One card per toggle, each explained underneath. Three switches sharing
+            a card meant three descriptions squeezed beside three switches. */}
+        <SettingsGroup
+          title="General"
+          footnote="Task alarms and nudges for anything Aria has scheduled.">
           <SettingsRow
             first
-            icon={Bell}
             label="Notifications"
-            description="Remind me when tasks are due"
             right={
               <Switch
                 value={settings.notifications}
@@ -111,10 +170,27 @@ export default function SettingsScreen() {
               />
             }
           />
+        </SettingsGroup>
+
+        {bio?.available ? (
+          <SettingsGroup footnote="Ask for it each time Aria opens.">
+            <SettingsRow
+              first
+              label={`Unlock with ${bio.label}`}
+              right={
+                <Switch
+                  value={settings.biometricLock}
+                  onValueChange={(v) => setSetting('biometricLock', v)}
+                />
+              }
+            />
+          </SettingsGroup>
+        ) : null}
+
+        <SettingsGroup footnote="Vibrate on taps and confirmations.">
           <SettingsRow
-            icon={Vibrate}
+            first
             label="Haptics"
-            description="Vibrate on taps and confirmations"
             right={
               <Switch value={settings.haptics} onValueChange={(v) => setSetting('haptics', v)} />
             }
@@ -122,38 +198,73 @@ export default function SettingsScreen() {
         </SettingsGroup>
 
         {/* Demo */}
-        <SettingsGroup title="Demo">
+        <View className="gap-2">
+          <Text variant="label" tone="muted">
+            Demo
+          </Text>
+          <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
+            {/* Three tiers, each a step down in both size and contrast: the card's
+                name, then what the date currently is, then the ambient
+                explanation. Previously the explanation was 14px and the status
+                line 13px, both muted, so the least important text was the
+                largest and nothing told them apart. */}
+            <View className="gap-0.5">
+              <Text className="text-[16px] font-semibold leading-[23px]">
+                Pretend it&apos;s another day
+              </Text>
+              <Text
+                variant="small"
+                tone={simulating ? 'accent' : 'muted'}
+                className="text-[14px] leading-[20px]">
+                {simulating
+                  ? `Simulating ${formatLong(demoDate)}`
+                  : `On the real date, ${formatLong(demoDate)}`}
+              </Text>
+            </View>
+
+            {/* Same banner as Today and Calendar, so the fix is one tap wherever
+                you notice the date is off. */}
+            <SimulatedDateBanner />
+
+            <Text variant="caption" tone="faint" className="text-[13px] leading-[19px]">
+              Jump to a date where a task is waiting, so you can see how Aria offers to help
+              without waiting for the real day to arrive.
+            </Text>
+            <DemoDateBar compact />
+          </View>
+        </View>
+
+        {/* Self-contained: the text sits in the box with the label, and the red
+            glyph sits on the right where the other rows keep their control. It's
+            the one destructive action here, so it reads as its own thing rather
+            than as another harmless setting. */}
+        <SettingsGroup>
           <SettingsRow
             first
-            icon={CalendarClock}
-            label="Simulated date"
-            description={formatLong(demoDate)}
-            right={
-              demoDate !== DEFAULT_DEMO_DATE ? (
-                <Text
-                  variant="small"
-                  tone="accent"
-                  className="font-semibold"
-                  onPress={() => setDemoDate(DEFAULT_DEMO_DATE)}>
-                  Reset
-                </Text>
-              ) : undefined
-            }
-          />
-          <SettingsRow
-            icon={RotateCcw}
-            iconColor={c.danger}
             label="Reset demo data"
-            description="Restore the original sample tasks"
+            description="Restore the original sample tasks."
+            right={<RotateCcw size={19} color={c.danger} />}
             onPress={confirmReset}
+          />
+        </SettingsGroup>
+
+        {/* Support */}
+        <SettingsGroup title="Support">
+          {/* Text in the box, chevron on the right: it goes somewhere, so it
+              gets the affordance that says so. */}
+          <SettingsRow
+            first
+            label="Send feedback"
+            description="Share an idea or report an issue, straight to the team."
+            onPress={() => router.push('/support')}
+            showChevron
           />
         </SettingsGroup>
 
         {/* About */}
         <SettingsGroup title="About">
-          <SettingsRow first icon={Info} label="Version" right={<Text tone="muted" variant="small">1.0.0</Text>} />
+          <SettingsRow first label="Version" right={<Text tone="muted" variant="small">1.0.0</Text>} />
           <SettingsRow
-            icon={Smartphone}
             label="Built with"
             right={
               <Text tone="muted" variant="small">
@@ -163,8 +274,9 @@ export default function SettingsScreen() {
           />
         </SettingsGroup>
 
-        <Text variant="caption" tone="faint" className="text-center">
-          Aria plans ahead — and always takes no for an answer.
+        {/* Same line, same treatment as the home screen footer. */}
+        <Text variant="small" tone="faint" className="text-center">
+          Aria plans ahead, and always takes no for an answer.
         </Text>
       </ScrollView>
     </Screen>

@@ -1,9 +1,13 @@
 import { router } from 'expo-router';
-import { CalendarCheck, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { CalendarCheck, Trash2, X } from 'lucide-react-native';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { AriaAvatar } from '@/components/aria-avatar';
+import { SwipeAction, SWIPE_ACTION_WIDTH } from '@/components/swipe-action';
 import { HeaderButton } from '@/components/header-button';
 import { MonthCalendar } from '@/components/month-calendar';
 import { TimeField } from '@/components/time-field';
@@ -14,7 +18,44 @@ import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
 import { formatFull, formatTime } from '@/lib/dates';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
-import { selectWeekLoad, useAriaStore, type Task } from '@/store/aria-store';
+import { selectWeekLoad, sortByDate, useAriaStore, type Task } from '@/store/aria-store';
+
+/**
+ * One task in the week, swipeable to drop it. Easing an overloaded week often
+ * means deciding something isn't happening, not just moving it along.
+ */
+function RebalanceRow({
+  children,
+  onDelete,
+}: {
+  children: React.ReactNode;
+  onDelete: () => void;
+}) {
+  const c = useColors();
+  const ref = useRef<SwipeableMethods>(null);
+  return (
+    <ReanimatedSwipeable
+      ref={ref}
+      friction={1}
+      rightThreshold={SWIPE_ACTION_WIDTH * 0.55}
+      overshootRight={false}
+      renderRightActions={(progress) => (
+        <SwipeAction
+          progress={progress}
+          color={c.danger}
+          icon={Trash2}
+          label="Delete task"
+          onPress={() => {
+            ref.current?.close();
+            hapticSuccess();
+            onDelete();
+          }}
+        />
+      )}>
+      <View className="overflow-hidden rounded-2xl border border-border bg-surface">{children}</View>
+    </ReanimatedSwipeable>
+  );
+}
 
 export default function RebalanceScreen() {
   const c = useColors();
@@ -22,9 +63,10 @@ export default function RebalanceScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
   const updateTask = useAriaStore((s) => s.updateTask);
+  const deleteTask = useAriaStore((s) => s.deleteTask);
 
   const week = selectWeekLoad(tasks, demoDate);
-  const weekTasks = week.tasks.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const weekTasks = week.tasks.slice().sort(sortByDate);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draftDate, setDraftDate] = useState('');
@@ -66,22 +108,22 @@ export default function RebalanceScreen() {
         <View className="flex-row gap-3 rounded-2xl border border-accent/25 bg-accent-soft p-4">
           <AriaAvatar size={30} />
           <Text className="flex-1 leading-6">
-            Your week has {week.count} things on it — that&apos;s a lot. Move any event, project, or
-            task to another day or time, and I&apos;ll keep the rest as-is.
+            Your week has {week.count} things on it. That&apos;s a lot. Tap anything to move it to
+            another day or time, or swipe it left to drop it altogether.
           </Text>
         </View>
 
         {weekTasks.length === 0 ? (
           <View className="items-center gap-2 py-10">
             <CalendarCheck size={26} color={c.success} />
-            <Text tone="muted">Your week is clear — nothing to move.</Text>
+            <Text tone="muted">Your week is clear. Nothing to move.</Text>
           </View>
         ) : (
           weekTasks.map((t) => {
             const active = activeId === t.id;
             const movedTo = moved[t.id];
             return (
-              <View key={t.id} className="overflow-hidden rounded-2xl border border-border bg-surface">
+              <RebalanceRow key={t.id} onDelete={() => deleteTask(t.id)}>
                 <Pressable
                   onPress={() => toggle(t)}
                   className="flex-row items-center gap-3 p-4 active:opacity-70">
@@ -106,9 +148,15 @@ export default function RebalanceScreen() {
                       <Button title="Move here" onPress={() => apply(t)} className="flex-1" />
                       <Button title="Cancel" variant="secondary" onPress={() => setActiveId(null)} />
                     </View>
+                    <Button
+                      title="Edit full details"
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => router.push(`/task/new?editId=${t.id}`)}
+                    />
                   </View>
                 ) : null}
-              </View>
+              </RebalanceRow>
             );
           })
         )}

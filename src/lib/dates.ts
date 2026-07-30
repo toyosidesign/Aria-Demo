@@ -13,6 +13,17 @@ export function toISODate(date: Date) {
   return format(date, 'yyyy-MM-dd');
 }
 
+/**
+ * The real calendar date, read fresh every call.
+ *
+ * Deliberately not a module-level constant: those are evaluated once at import
+ * and go stale in a session left open across midnight, which is exactly how a
+ * date display drifts without anyone noticing.
+ */
+export function realToday(): string {
+  return toISODate(new Date());
+}
+
 export function formatFull(iso: string) {
   return format(parseISO(iso), 'EEE, MMM d');
 }
@@ -35,16 +46,36 @@ export function formatRelative(iso: string, fromISO: string) {
   return `${Math.abs(diff)} days ago`;
 }
 
+/**
+ * Has this calendar date (plus optional "HH:mm") already gone by?
+ *
+ * Compared against the real clock rather than the simulated demo date, because
+ * this is what decides whether an alarm can actually ring or a scheduled send
+ * can actually happen.
+ */
+export function isPastMoment(date: string, time?: string | null): boolean {
+  const d = parseISO(date);
+  if (Number.isNaN(d.getTime())) return false;
+  if (time) {
+    const [h, m] = time.split(':').map(Number);
+    d.setHours(h || 0, m || 0, 0, 0);
+  } else {
+    // With no time set, a day only counts as past once it's fully over.
+    d.setHours(23, 59, 59, 999);
+  }
+  return d.getTime() < Date.now();
+}
+
 export interface CalendarCell {
   date: Date;
   iso: string;
   inMonth: boolean;
 }
 
-/** Six-week matrix (Mon-start) covering the month that contains `cursor`. */
+/** Six-week matrix (Sun-start) covering the month that contains `cursor`. */
 export function monthMatrix(cursor: Date): CalendarCell[] {
   const first = startOfMonth(cursor);
-  const gridStart = startOfWeek(first, { weekStartsOn: 1 });
+  const gridStart = startOfWeek(first, { weekStartsOn: 0 });
   const monthEndISO = toISODate(endOfMonth(cursor));
   const cells: CalendarCell[] = [];
   for (let i = 0; i < 42; i += 1) {
@@ -55,7 +86,18 @@ export function monthMatrix(cursor: Date): CalendarCell[] {
   return cells;
 }
 
-export const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+/**
+ * The same six-week grid split into rows of 7. Always render a calendar this
+ * way — laying 42 cells out with `flex-wrap` and a `100/7`% width lets rounding
+ * push the seventh cell onto the next line, which silently shifts every date
+ * out from under its weekday heading.
+ */
+export function monthWeeks(cursor: Date): CalendarCell[][] {
+  const cells = monthMatrix(cursor);
+  return Array.from({ length: 6 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+}
+
+export const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 // ---- Time helpers ("HH:mm" 24-hour) ----
 

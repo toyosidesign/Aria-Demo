@@ -18,7 +18,13 @@ import { HeaderButton } from '@/components/header-button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TASK_KINDS } from '@/lib/aria-actions';
-import { requestAssistant, type AssistantTurn, type ParsedTask } from '@/lib/assistant';
+import {
+  TESTING_NOTICE,
+  requestAssistant,
+  wantsRealConversation,
+  type AssistantTurn,
+  type ParsedTask,
+} from '@/lib/assistant';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 import { formatFull, formatTime } from '@/lib/dates';
@@ -63,12 +69,14 @@ const mk = (from: Msg['from'], text: string, pending?: ParsedTask[]): Msg => ({
 export default function ChatScreen() {
   const c = useColors();
   const demoDate = useAriaStore((s) => s.demoDate);
+  const profileName = useAriaStore((s) => s.profile.name);
+  const profileContext = useAriaStore((s) => s.profile.context);
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
 
   const [messages, setMessages] = useState<Msg[]>([
     mk(
       'aria',
-      `Hi ${firstName}, I'm Aria. Pick a category below so I know what to focus on — or just tell me what you need, like “remind me to submit my lab report on Friday at 5pm.” You can type, or tap the mic to speak.`,
+      `Hi ${firstName}, I'm Aria. Pick a category below so I know what to focus on, or just tell me what you need, like “remind me to submit my lab report on Friday at 5pm.” You can type, or tap the mic to speak.`,
     ),
   ]);
   const [input, setInput] = useState('');
@@ -102,12 +110,18 @@ export default function ChatScreen() {
     setInput('');
     setSending(true);
 
-    const res = await requestAssistant(trimmed, demoDate, history, focus ?? undefined);
+    const res = await requestAssistant(trimmed, demoDate, history, focus ?? undefined, profileName, profileContext);
 
     setSending(false);
+    // Someone asking a real question, or asking Aria to go and do something,
+    // gets told where the product actually is. Only when nothing was captured:
+    // if a task came back, Aria understood them fine and the notice would just
+    // be in the way.
+    const reply =
+      res.tasks.length === 0 && wantsRealConversation(trimmed) ? TESTING_NOTICE : res.reply;
     setMessages((prev) => [
       ...prev,
-      mk('aria', res.reply, res.tasks.length ? res.tasks : undefined),
+      mk('aria', reply, res.tasks.length ? res.tasks : undefined),
     ]);
   }
 

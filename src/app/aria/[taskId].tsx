@@ -1,13 +1,25 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, NotebookPen, Send, Sparkles, X } from 'lucide-react-native';
+import {
+  CalendarClock,
+  Check,
+  CheckCircle2,
+  Lock,
+  Mail,
+  Send,
+  Share2,
+  Sparkles,
+  X,
+} from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   TextInput,
   View,
+  type View as RNView,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -26,10 +38,16 @@ import {
   requestDraft,
 } from '@/lib/aria-actions';
 import { detectSmallTalk } from '@/lib/assistant';
-import { saveDraftToNotes } from '@/lib/draft';
+import { WhatsAppIcon } from '@/components/brand-icons';
+import { CardCanvas } from '@/components/card-canvas';
+import { PhotoCanvas } from '@/components/photo-canvas';
+import { cardTemplate, renderCard } from '@/lib/cards';
+import { cardSharingAvailable, shareCardImage } from '@/lib/card-image';
+import { exportWork, sectionsToText } from '@/lib/export';
+import { emailSubject, openEmailDraft, openSmsDraft, openWhatsAppDraft } from '@/lib/send';
 import { useColors } from '@/lib/colors';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
-import { useAriaStore } from '@/store/aria-store';
+import { selectNextDue, useAriaStore } from '@/store/aria-store';
 
 type Phase = 'drafting' | 'review' | 'approve' | 'sending' | 'done' | 'declined';
 type Msg = { id: string; from: 'aria' | 'maya'; kind: 'text' | 'draft'; text: string };
@@ -62,10 +80,16 @@ export default function AriaFlowScreen() {
   const c = useColors();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
   const allTasks = useAriaStore((s) => s.tasks);
+  const demoDate = useAriaStore((s) => s.demoDate);
   const task = allTasks.find((t) => t.id === taskId);
   const completeTask = useAriaStore((s) => s.completeTask);
+  const reopenTask = useAriaStore((s) => s.reopenTask);
   const addDraftSection = useAriaStore((s) => s.addDraftSection);
   const toggleSubtask = useAriaStore((s) => s.toggleSubtask);
+  const pro = useAriaStore((s) => s.pro);
+  // Aria writes and signs as whoever is signed in, never the demo persona.
+  const senderName = useAriaStore((s) => s.profile.name) || ARIA_SENDER;
+  const senderContext = useAriaStore((s) => s.profile.context);
 
   const action = task ? ariaActionFor(task) : null;
 
@@ -75,7 +99,19 @@ export default function AriaFlowScreen() {
   const [draft, setDraft] = useState('');
   const [input, setInput] = useState('');
   const [activeSubId, setActiveSubId] = useState<string | null>(null);
+  /** Waiting to ask whether the handoff actually got sent. */
+  const [backCheck, setBackCheck] = useState(false);
+  /** Cards go out as text, so Maya picks Mail or WhatsApp to carry them. */
+  const [cardVia, setCardVia] = useState<'email' | 'whatsapp'>('email');
+  // Kept alongside sendCardImage below: the "send as a picture" CTA is out for
+  // now, and both are what a future one would call again.
+  const canShareCard = cardSharingAvailable();
+  // Essays and projects are worth keeping outside Aria; a sent text isn't.
+  const isAssignmentKind = task?.kind === 'assignment' || task?.kind === 'project';
+  const cardRef = useRef<RNView>(null);
+  const photoRef = useRef<RNView>(null);
   const startedRef = useRef(false);
+  const handedOffRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const push = (m: Msg) => setMessages((prev) => [...prev, m]);
@@ -91,7 +127,8 @@ export default function AriaFlowScreen() {
       title: task.title,
       description: task.description,
       subtaskTitle: sub.title,
-      senderName: ARIA_SENDER,
+      senderName,
+      senderContext,
       instruction,
       previousDraft: instruction ? draft : undefined,
     });
@@ -117,7 +154,8 @@ export default function AriaFlowScreen() {
       description: task.description,
       contactName: task.contactName,
       method: task.method,
-      senderName: ARIA_SENDER,
+      senderName,
+      senderContext,
       instruction,
       previousDraft: instruction ? draft : undefined,
     });
@@ -144,7 +182,7 @@ export default function AriaFlowScreen() {
     if (walkthrough) {
       const first = task.subtasks.find((s) => !s.done);
       if (!first) {
-        push(mk('aria', 'text', 'Every part of this is already done — nice work.'));
+        push(mk('aria', 'text', 'Every part of this is already done. Nice work.'));
         setPhase('done');
         return;
       }
@@ -152,12 +190,26 @@ export default function AriaFlowScreen() {
         mk(
           'aria',
           'text',
-          `Let’s work through this together — ${task.subtasks.length} parts. First up: “${first.title}.”`,
+          `Let’s work through this together, ${task.subtasks.length} parts. First up: “${first.title}.”`,
         ),
       );
       generateSub(first);
+    } else if (action.method === 'card' && task.description?.trim()) {
+      // The message was written on the task itself — use it rather than
+      // replacing what Maya already decided the card should say.
+      const written = task.description.trim();
+      setDraft(written);
+      push(mk('aria', 'draft', written));
+      push(
+        mk(
+          'aria',
+          'text',
+          'Here’s the message you wrote for the card. Send it as-is, or tell me how to change it.',
+        ),
+      );
+      setPhase('review');
     } else {
-      push(mk('aria', 'text', `On it — give me a second to write ${action.drafting}.`));
+      push(mk('aria', 'text', `On it. Give me a second to write ${action.drafting}.`));
       generate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,12 +221,38 @@ export default function AriaFlowScreen() {
     return () => clearTimeout(t);
   }, [messages, typing]);
 
+  // Coming back from Mail / Messages. Aria checked the task off when it opened
+  // the app, but it can't see whether Maya actually hit send — so ask, and give
+  // her a one-tap way to put it back if she didn't.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' || !handedOffRef.current) return;
+      handedOffRef.current = false;
+      push(mk('aria', 'text', 'Welcome back. Did that send OK?'));
+      setBackCheck(true);
+    });
+    return () => sub.remove();
+  }, []);
+
   if (!task || !action) {
     return (
       <Screen padded edges={['top', 'bottom']}>
-        <View className="flex-1 items-center justify-center gap-4">
-          <Text tone="muted">There’s nothing for Aria to do here.</Text>
-          <Button title="Go back" variant="secondary" onPress={() => router.back()} />
+        <View className="flex-1 items-center justify-center gap-5 px-6">
+          <Text tone="muted" className="text-center leading-6">
+            {task
+              ? 'There’s nothing for Aria to do on this one.'
+              : 'I can’t find that task any more. It may have been completed or deleted.'}
+          </Text>
+          {/* replace, not back: whatever was behind this may be gone too */}
+          <View className="w-full gap-2">
+            <Button title="Back to my tasks" block onPress={() => router.replace('/(tabs)/tasks')} />
+            <Button
+              title="Go home"
+              variant="secondary"
+              block
+              onPress={() => router.replace('/(tabs)')}
+            />
+          </View>
         </View>
       </Screen>
     );
@@ -183,7 +261,8 @@ export default function AriaFlowScreen() {
   const contact = task.contactName ?? 'them';
   const meta = isMessageMethod(action.method) ? METHOD_META[action.method] : null;
   const app = meta?.app ?? 'Messages';
-  const isCall = action.method === 'call';
+  const recipient =
+    action.method === 'email' ? task.contactEmail : action.method === 'sms' ? task.contactPhone : undefined;
   const hasText = input.trim().length > 0;
   const canCompose = (phase === 'review' || phase === 'approve') && !typing;
   const isWalkthrough = !!action.walkthrough;
@@ -222,7 +301,7 @@ export default function AriaFlowScreen() {
         mk(
           'aria',
           'text',
-          'That’s every part done — I’ve compiled it all into one draft and checked the assignment off. Want me to save it to your Notes app?',
+          'That’s every part done. I’ve compiled it all into one draft and checked the assignment off. Want me to save it to your Notes app?',
         ),
       );
       setPhase('done');
@@ -241,38 +320,188 @@ export default function AriaFlowScreen() {
         mk(
           'aria',
           'text',
-          isCall
-            ? `Ready when you are — may I open ${app} to call ${contact}?`
-            : `Ready when you are — may I open ${app} to send this to ${contact}${
-                action!.method === 'email' && task!.contactEmail ? ` (${task!.contactEmail})` : ''
-              }?`,
+          action!.method === 'photo'
+            ? `Ready when you are. I'll put your picture and the message together, then hand it to WhatsApp for ${contact}.`
+            : action!.method === 'card'
+            ? `Ready when you are. Shall it go to ${contact} by Mail or on WhatsApp?`
+            : `Ready when you are. May I open ${app} with this ready to send to ${contact}${
+                recipient ? ` (${recipient})` : ''
+              }? You'll tap send yourself, I never send anything on your behalf.`,
         ),
       );
       setPhase('approve');
     } else {
       // Assignment/task (no walkthrough): save the draft as a section.
-      push(mk('maya', 'text', 'Looks good — keep it.'));
+      push(mk('maya', 'text', 'Looks good. Keep it.'));
       addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
       push(
-        mk('aria', 'text', 'Saved it to this task — it’s in the “Aria’s draft” card whenever you need it.'),
+        mk(
+          'aria',
+          'text',
+          'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
+        ),
       );
       setPhase('done');
     }
   }
 
-  function approveAndSend() {
+  /** The finished text, wrapped in the chosen card design when there is one. */
+  function outgoingBody(): string {
+    const template = cardTemplate(task!.cardTemplateId);
+    if (action!.method !== 'card' || !template) return draft;
+    return renderCard({
+      template,
+      toName: task!.contactName,
+      body: draft,
+      fromName: senderName,
+    });
+  }
+
+  /**
+   * Share the picture with the message burned onto it.
+   *
+   * One image through the share sheet is what reaches WhatsApp, Facebook and
+   * Instagram alike — none of them accept a caption handed over from another
+   * app, so the words have to be part of the picture.
+   */
+  async function sharePhoto() {
     tap();
-    push(mk('maya', 'text', 'Approved — go ahead.'));
+    push(mk('maya', 'text', 'Share it.'));
     setPhase('sending');
     setTyping(true);
-    setTimeout(() => {
-      setTyping(false);
-      push(mk('aria', 'text', `✓ ${meta ? `${meta.sentPast} ${contact}` : `Sent to ${contact}`}.`));
-      completeTask(task!.id, { byAria: true });
-      hapticSuccess();
-      push(mk('aria', 'text', 'All done — I’ve checked this off and moved it to your Done list.'));
-      setPhase('done');
-    }, 1600);
+    addDraftSection(task!.id, { title: 'Message', content: draft });
+
+    const result = await shareCardImage(photoRef, { dialogTitle: `Share with ${contact}` });
+    setTyping(false);
+
+    if (result !== 'shared') {
+      push(mk('aria', 'text', 'I couldn’t put that together as an image. Want to try again?'));
+      setPhase('approve');
+      return;
+    }
+
+    handedOffRef.current = true;
+    push(
+      mk(
+        'aria',
+        'text',
+        `✓ Your picture and message are ready. Pick WhatsApp when the share sheet opens.`,
+      ),
+    );
+    completeTask(task!.id, { byAria: true });
+    hapticSuccess();
+    push(mk('aria', 'text', 'I’ve checked this off and moved it to your Done list.'));
+    setPhase('done');
+  }
+
+  /**
+   * Send the card as an actual image. No mail or message link can carry an
+   * attachment, so this goes through the system share sheet — which means the
+   * recipient is chosen there rather than pre-filled by Aria.
+   */
+  async function sendCardImage() {
+    tap();
+    push(mk('maya', 'text', 'Send it as a card.'));
+    setPhase('sending');
+    setTyping(true);
+    addDraftSection(task!.id, { title: 'Card', content: outgoingBody() });
+
+    const result = await shareCardImage(cardRef, { dialogTitle: `Send ${contact} a card` });
+    setTyping(false);
+
+    if (result !== 'shared') {
+      push(
+        mk(
+          'aria',
+          'text',
+          'I couldn’t turn that into an image here. You can still send it as a message instead.',
+        ),
+      );
+      setPhase('approve');
+      return;
+    }
+
+    handedOffRef.current = true;
+    push(
+      mk(
+        'aria',
+        'text',
+        `✓ Your card is ready to send to ${contact}. Pick where it goes and tap send.`,
+      ),
+    );
+    completeTask(task!.id, { byAria: true });
+    hapticSuccess();
+    push(mk('aria', 'text', 'I’ve checked this off and moved it to your Done list.'));
+    setPhase('done');
+  }
+
+  /** Hand the finished draft to the phone's own Mail / Messages app. */
+  async function approveAndSend() {
+    tap();
+    push(mk('maya', 'text', 'Approved. Go ahead.'));
+    setPhase('sending');
+    setTyping(true);
+
+    const body = outgoingBody();
+    // Keep a copy on the task — the draft shouldn't be lost in the handoff.
+    addDraftSection(task!.id, { title: meta?.label ?? 'Draft', content: body });
+
+    const method = action!.method;
+    // A card is plain text, so it rides on Mail or WhatsApp — never SMS, where
+    // the layout falls apart.
+    const res =
+      method === 'email' || (method === 'card' && cardVia === 'email')
+        ? await openEmailDraft({
+            to: task!.contactEmail,
+            subject: emailSubject(task!.title, task!.kind),
+            body,
+          })
+        : method === 'card'
+          ? await openWhatsAppDraft({ phone: task!.contactPhone, body })
+          : await openSmsDraft({ phone: task!.contactPhone, body });
+
+    // Only expect a return trip if we actually left the app.
+    handedOffRef.current = !res.copied;
+
+    setTyping(false);
+    const noun = meta?.short ?? 'message';
+    push(
+      mk(
+        'aria',
+        'text',
+        res.copied
+          ? `I couldn’t open ${res.app} on this device, so I’ve copied the ${noun} to your clipboard. Paste it in and send.`
+          : `✓ Opened ${res.app} with the ${noun} ready for ${contact}. Read it over and tap send.`,
+      ),
+    );
+    completeTask(task!.id, { byAria: true });
+    hapticSuccess();
+    push(mk('aria', 'text', 'I’ve checked this off and moved it to your Done list.'));
+    setPhase('done');
+  }
+
+  /** "Yes, it sent" — leave the task checked off. */
+  function confirmSent() {
+    tap();
+    push(mk('maya', 'text', 'Yes, it sent.'));
+    push(mk('aria', 'text', 'Lovely. That one’s off your plate.'));
+    setBackCheck(false);
+  }
+
+  /** "It didn't send" — put the task back so it isn't quietly lost. */
+  function undoSent() {
+    tap();
+    push(mk('maya', 'text', 'It didn’t send.'));
+    reopenTask(task!.id);
+    push(
+      mk(
+        'aria',
+        'text',
+        'No problem, I’ve put it back on your list. The draft is still here, tap Send it whenever you want another go.',
+      ),
+    );
+    setBackCheck(false);
+    setPhase('review');
   }
 
   function chooseRewrite(instruction: string, label: string) {
@@ -282,7 +511,7 @@ export default function AriaFlowScreen() {
     redraft(instruction);
   }
 
-  /** Maya's free-form instruction → re-draft with it (or reply to small talk). */
+  /** A free-form instruction → re-draft with it (or reply to small talk). */
   function sendInstruction() {
     const trimmed = input.trim();
     if (!trimmed || typing) return;
@@ -297,14 +526,28 @@ export default function AriaFlowScreen() {
     redraft(trimmed);
   }
 
-  /** After a completed task, jump to the next due task; else return. */
+  /** After a completed task, jump to the next due or late task; else return. */
   function finish() {
-    const next = allTasks
-      .filter((t) => t.status === 'todo' && t.id !== task!.id)
-      .sort((a, b) => a.date.localeCompare(b.date))[0];
+    const next = selectNextDue(allTasks, demoDate, task!.id);
     if (task!.status === 'done' && next)
       router.replace({ pathname: '/task/[id]', params: { id: next.id, advanced: '1' } });
     else router.back();
+  }
+
+  /**
+   * Check the task off from here.
+   *
+   * Drafting an assignment saves the work but leaves the task open, which is
+   * right: writing a section isn't finishing the essay. What was missing was any
+   * way to say it *is* finished without leaving for the task screen, so a task
+   * could sit labelled "Draft" with no route to done from where the work ended.
+   */
+  function markComplete() {
+    hapticSuccess();
+    const next = selectNextDue(allTasks, demoDate, task!.id);
+    completeTask(task!.id);
+    if (next) router.replace({ pathname: '/task/[id]', params: { id: next.id, advanced: '1' } });
+    else router.replace('/(tabs)/tasks');
   }
 
   function decline() {
@@ -314,7 +557,7 @@ export default function AriaFlowScreen() {
       mk(
         'aria',
         'text',
-        'No problem at all — I’ll leave this with you. Just tap me whenever you’re ready.',
+        'No problem at all. Want to put it in for another day and time instead? Otherwise I’ll leave it with you.',
       ),
     );
     setPhase('declined');
@@ -430,35 +673,146 @@ export default function AriaFlowScreen() {
                 />
                 <Button title="Not now" variant="secondary" onPress={decline} />
               </View>
+              {/* Hand the finished draft to Aria to send at a chosen moment. */}
+              {action.needsSend ? (
+                <Button
+                  title={pro ? 'Let Aria send it for you' : 'Let Aria send it for you · Pro'}
+                  variant="ghost"
+                  size="sm"
+                  block
+                  leftIcon={
+                    pro ? (
+                      <CalendarClock size={16} color={c.accent} />
+                    ) : (
+                      <Lock size={14} color={c.accent} />
+                    )
+                  }
+                  onPress={() => {
+                    tap();
+                    router.push({
+                      pathname: '/schedule',
+                      params: {
+                        taskId: task.id,
+                        body: draft,
+                        channel: action.method === 'email' ? 'email' : 'sms',
+                      },
+                    });
+                  }}
+                />
+              ) : null}
             </View>
           ) : null}
 
           {phase === 'approve' ? (
             <View className="gap-2">
-              <Button
-                title={isCall ? `Approve & call ${contact}` : `Approve & open ${app}`}
-                leftIcon={<Send size={18} color={c.accentInk} />}
-                block
-                onPress={approveAndSend}
-              />
+              {action.method === 'photo' ? (
+                <Button
+                  title="Share on WhatsApp"
+                  leftIcon={<WhatsAppIcon size={19} color={c.accentInk} />}
+                  block
+                  disabled={!task.photoUri}
+                  onPress={sharePhoto}
+                />
+              ) : action.method === 'card' ? (
+                <View className="gap-2">
+                  <Text variant="label" tone="muted">
+                    Send it via
+                  </Text>
+                  <View className="flex-row gap-2">
+                    <Button
+                      title="Mail"
+                      leftIcon={<Mail size={17} color={c.accentInk} />}
+                      className="flex-1"
+                      onPress={() => {
+                        setCardVia('email');
+                        void approveAndSend();
+                      }}
+                    />
+                    <Button
+                      title="WhatsApp"
+                      variant="secondary"
+                      leftIcon={<WhatsAppIcon size={18} />}
+                      className="flex-1"
+                      onPress={() => {
+                        setCardVia('whatsapp');
+                        void approveAndSend();
+                      }}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Button
+                  title={`Approve & open ${app}`}
+                  leftIcon={<Send size={18} color={c.accentInk} />}
+                  block
+                  onPress={approveAndSend}
+                />
+              )}
               <Button title="Not now" variant="ghost" size="sm" block onPress={decline} />
             </View>
           ) : null}
 
-          {phase === 'done' || phase === 'declined' ? (
+          {/* Just back from Mail / Messages — did it actually go? */}
+          {backCheck ? (
+            <View className="flex-row gap-2">
+              <Button
+                title="Yes, it sent"
+                leftIcon={<Check size={18} color={c.accentInk} />}
+                onPress={confirmSent}
+                className="flex-1"
+              />
+              <Button title="It didn’t" variant="secondary" onPress={undoSent} />
+            </View>
+          ) : null}
+
+          {!backCheck && (phase === 'done' || phase === 'declined') ? (
             <View className="gap-2">
-              {phase === 'done' && (task.draftSections?.length ?? 0) > 0 ? (
+              {/* Declining shouldn't dead-end — offer a new slot for it. */}
+              {phase === 'declined' ? (
                 <Button
-                  title="Save to Notes"
-                  leftIcon={<NotebookPen size={18} color={c.accentInk} />}
+                  title="Pick another day & time"
+                  leftIcon={<CalendarClock size={18} color={c.accentInk} />}
                   block
-                  onPress={() => saveDraftToNotes(task)}
+                  onPress={() => {
+                    tap();
+                    router.push({ pathname: '/reschedule', params: { id: task.id } });
+                  }}
                 />
               ) : null}
+              {/* Still open once Aria has finished its part: the work is saved
+                  but the task isn't over until the user says so. */}
+              {phase === 'done' && task.status === 'todo' ? (
+                <Button
+                  title="Mark complete"
+                  leftIcon={<CheckCircle2 size={19} color={c.accentInk} />}
+                  block
+                  size="lg"
+                  onPress={markComplete}
+                />
+              ) : null}
+              {phase === 'done' && isAssignmentKind && (task.draftSections?.length ?? 0) > 0 ? (
+                <Button
+                  title="Save to…"
+                  variant="secondary"
+                  leftIcon={<Share2 size={18} color={c.ink} />}
+                  block
+                  onPress={() =>
+                    void exportWork(task.title, sectionsToText(task.draftSections ?? []))
+                  }
+                />
+              ) : null}
+              {/* Calling this "Done" while the task is still open was the whole
+                  problem: it read as completion and only navigated away. */}
               <Button
-                title="Done"
+                title={
+                  phase === 'declined' || (phase === 'done' && task.status === 'todo')
+                    ? 'Leave it for now'
+                    : 'Done'
+                }
                 variant={
-                  phase === 'done' && (task.draftSections?.length ?? 0) > 0 ? 'secondary' : 'primary'
+                  phase === 'declined' || (phase === 'done' && task.status === 'todo')
+                    ? 'ghost'
+                    : 'primary'
                 }
                 block
                 size="lg"
@@ -472,6 +826,29 @@ export default function AriaFlowScreen() {
           ) : null}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Off-screen, but mounted: captureRef can only snapshot a live view. */}
+      {action.method === 'photo' ? (
+        <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
+          <PhotoCanvas
+            ref={photoRef}
+            photoUri={task.photoUri}
+            message={draft}
+            fromName={senderName}
+          />
+        </View>
+      ) : null}
+      {action.method === 'card' ? (
+        <View style={{ position: 'absolute', left: -9999, top: 0 }} pointerEvents="none">
+          <CardCanvas
+            ref={cardRef}
+            templateId={task.cardTemplateId}
+            toName={task.contactName}
+            message={draft}
+            fromName={senderName}
+          />
+        </View>
+      ) : null}
     </Screen>
   );
 }

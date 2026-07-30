@@ -1,3 +1,5 @@
+import { postJson } from '@/lib/api-client';
+
 export interface ChecklistRequest {
   title: string;
   description?: string;
@@ -6,11 +8,7 @@ export interface ChecklistRequest {
 /** Ask the server to break an assignment into a topic checklist; fall back locally. */
 export async function requestChecklist(req: ChecklistRequest): Promise<string[]> {
   try {
-    const res = await fetch('/api/subtasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    });
+    const res = await postJson('/api/subtasks', req);
     if (!res.ok) throw new Error(`checklist failed: ${res.status}`);
     const data = (await res.json()) as { items?: string[] };
     const items = (data.items ?? []).map((s) => s.trim()).filter(Boolean);

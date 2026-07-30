@@ -1,4 +1,5 @@
 import { defaultMethodFor, type Task, type TaskKind, type TaskMethod } from '@/store/aria-store';
+import { postJson } from '@/lib/api-client';
 
 export type AriaActionType = 'message' | 'assignment';
 
@@ -16,6 +17,8 @@ export interface AriaAction {
   method?: TaskMethod;
   /** Assignment with subtasks Aria should walk through one at a time. */
   walkthrough?: boolean;
+  /** Nothing left to write — go straight to choosing how it goes out. */
+  readyToSend?: boolean;
 }
 
 const SENDER = 'Maya';
@@ -23,8 +26,8 @@ export const ARIA_SENDER = SENDER;
 
 // ---- Methods ----
 
-export type MessageMethod = 'sms' | 'email' | 'card' | 'call';
-const MESSAGE_SET = new Set<TaskMethod>(['sms', 'email', 'card', 'call']);
+export type MessageMethod = 'sms' | 'email' | 'card' | 'photo' | 'call';
+const MESSAGE_SET = new Set<TaskMethod>(['sms', 'email', 'card', 'photo', 'call']);
 export function isMessageMethod(m?: TaskMethod): m is MessageMethod {
   return !!m && MESSAGE_SET.has(m);
 }
@@ -39,7 +42,8 @@ export interface MethodMeta {
 export const METHOD_META: Record<MessageMethod, MethodMeta> = {
   sms: { label: 'Text', short: 'text', app: 'Messages', sentPast: 'Texted' },
   email: { label: 'Email', short: 'email', app: 'Mail', sentPast: 'Emailed' },
-  card: { label: 'Card', short: 'card', app: 'Messages', sentPast: 'Sent a card to' },
+  card: { label: 'Card', short: 'card', app: 'Mail or WhatsApp', sentPast: 'Sent a card to' },
+  photo: { label: 'Picture', short: 'picture', app: 'your apps', sentPast: 'Shared a picture with' },
   call: { label: 'Call', short: 'call', app: 'Phone', sentPast: 'Ready to call' },
 };
 
@@ -48,6 +52,7 @@ export const METHOD_LABELS: Record<TaskMethod, string> = {
   sms: 'Text',
   email: 'Email',
   card: 'Card',
+  photo: 'Picture',
   call: 'Call',
   steps: 'Step by step',
   outline: 'Outline',
@@ -56,12 +61,60 @@ export const METHOD_LABELS: Record<TaskMethod, string> = {
   plan: 'Plan the steps',
 };
 
-/** Which handling options to offer for a given kind/contact in the Create screen. */
-export const MESSAGE_METHODS: TaskMethod[] = ['sms', 'email', 'card', 'call'];
-export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft', 'remind'];
-export const TASK_METHODS: TaskMethod[] = ['remind', 'plan', 'draft'];
+/** Which handling options to offer for a given kind/contact in the Create screen.
+ *  Text and Email are on every list: any task can end in a message Aria drafts
+ *  and hands off to Messages or Mail. */
+export const MESSAGE_METHODS: TaskMethod[] = ['sms', 'email', 'card', 'photo', 'call'];
 
-/** The full set of task categories, shown in the Create screen and the chat. */
+/**
+ * What an event can end in — general, birthday or anniversary alike.
+ *
+ * Narrower than a plain task's list on purpose: an occasion is marked by
+ * reaching someone, so drafting notes and planning steps have no place here.
+ */
+export const EVENT_METHODS: TaskMethod[] = ['sms', 'email', 'call', 'photo', 'card', 'remind'];
+export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft', 'remind', 'email', 'sms'];
+export const TASK_METHODS: TaskMethod[] = [
+  'remind',
+  'plan',
+  'draft',
+  'sms',
+  'email',
+  'card',
+  'photo',
+  'call',
+];
+
+/**
+ * Top-level categories in the Create screen.
+ *
+ * Birthday and anniversary aren't peers of "Event" — they're occasions *of* an
+ * event, so they sit underneath it rather than crowding the top row. The kinds
+ * themselves stay distinct in the model, because each one changes how Aria
+ * handles it: a birthday defaults to a card, an anniversary to a message.
+ */
+export const CATEGORY_KINDS: { value: TaskKind; label: string }[] = [
+  { value: 'general', label: 'Task' },
+  { value: 'reminder', label: 'Reminder' },
+  { value: 'event', label: 'Event' },
+  { value: 'assignment', label: 'Assignment' },
+  { value: 'project', label: 'Project' },
+];
+
+/** Everything that lives under the Event category. */
+export const EVENT_KINDS: TaskKind[] = ['event', 'birthday', 'anniversary'];
+
+export const EVENT_OCCASIONS: { value: TaskKind; label: string }[] = [
+  { value: 'event', label: 'General' },
+  { value: 'birthday', label: 'Birthday' },
+  { value: 'anniversary', label: 'Anniversary' },
+];
+
+export function isEventKind(kind: TaskKind): boolean {
+  return EVENT_KINDS.includes(kind);
+}
+
+/** The full set of task categories, shown in the chat's focus chips. */
 export const TASK_KINDS: { value: TaskKind; label: string }[] = [
   { value: 'general', label: 'Task' },
   { value: 'reminder', label: 'Reminder' },
@@ -75,10 +128,21 @@ export const TASK_KINDS: { value: TaskKind; label: string }[] = [
 const ASSIGNMENT_KINDS: TaskKind[] = ['assignment', 'project'];
 const TASKLIKE_KINDS: TaskKind[] = ['general', 'event', 'reminder'];
 
-export function methodOptionsFor(kind: TaskKind, hasContact: boolean): TaskMethod[] {
+/**
+ * Handling options for a category.
+ *
+ * Deliberately independent of whether a contact has been filled in: it's the
+ * chosen method that decides whether there's anyone to contact, not the other
+ * way round. Deriving this from the contact meant typing a name silently
+ * removed "Just remind me" from the list.
+ */
+export function methodOptionsFor(kind: TaskKind): TaskMethod[] {
   if (ASSIGNMENT_KINDS.includes(kind)) return ASSIGNMENT_METHODS;
-  if (TASKLIKE_KINDS.includes(kind) && !hasContact) return TASK_METHODS;
-  return MESSAGE_METHODS; // birthday, anniversary, or task-like with a contact
+  if (isEventKind(kind)) return EVENT_METHODS; // event, birthday, anniversary
+  // A reminder is the one category with nothing to decide: there's nothing to
+  // draft, plan or send, only a nudge at the right moment.
+  if (kind === 'reminder') return ['remind'];
+  return TASK_METHODS; // general task
 }
 
 function aOrAn(noun: string) {
@@ -97,20 +161,39 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
   const occasion = task.kind === 'birthday' ? 'birthday' : task.kind === 'anniversary' ? 'anniversary' : '';
   const forWho = who ? ` for ${who}` : '';
 
-  if (method === 'call') {
+  const noun = `${occasion} ${meta.short}`.trim();
+
+  // A card carries its own message, written on the task. Once that's there
+  // there's nothing left to draft — offering to write it again would suggest
+  // Aria is about to replace what Maya already decided it should say.
+  const written = !!task.description?.trim();
+  if (method === 'card' && written) {
     return {
       type: 'message',
       method,
       offer: who
-        ? `Want me to jot down a few talking points so you can call ${who}?`
-        : 'Want me to jot down a few talking points for your call?',
-      cta: 'Draft talking points',
+        ? `Your card for ${who} is written and ready. Want to send it?`
+        : 'Your card is written and ready. Want to send it?',
+      cta: 'Send it',
       needsSend: true,
-      drafting: who ? `a few talking points for your call with ${who}` : 'a few talking points',
+      readyToSend: true,
+      drafting: `the card${forWho}`,
+    };
+  }
+  if (method === 'photo' && written && !!task.photoUri) {
+    return {
+      type: 'message',
+      method,
+      offer: who
+        ? `Your picture and message for ${who} are ready. Want to share them?`
+        : 'Your picture and message are ready. Want to share them?',
+      cta: 'Share it',
+      needsSend: true,
+      readyToSend: true,
+      drafting: `the message${forWho}`,
     };
   }
 
-  const noun = `${occasion} ${meta.short}`.trim();
   return {
     type: 'message',
     method,
@@ -191,6 +274,12 @@ function taskAction(task: Task): AriaAction | null {
  */
 export function ariaActionFor(task: Task): AriaAction | null {
   const who = task.contactName;
+  // A call needs no drafting: there's nothing to write and Aria can't place it.
+  // The task detail shows a reminder and a shortcut to the dialer instead.
+  if (task.method === 'call') return null;
+  // Text / email / card is a message flow whatever the category is — an
+  // assignment can just as easily end in an email to a professor.
+  if (isMessageMethod(task.method)) return messageAction(task, who);
   switch (task.kind) {
     case 'birthday':
     case 'anniversary':
@@ -225,6 +314,8 @@ export interface DraftRequest {
   /** Research help: return notes/key points for the subtask rather than prose. */
   research?: boolean;
   senderName?: string;
+  /** One line on who the sender is, so drafts match how they'd write. */
+  senderContext?: string;
   /** Rewrite instruction, e.g. "make it warmer and shorter". */
   instruction?: string;
   previousDraft?: string;
@@ -239,11 +330,7 @@ export interface DraftResponse {
 /** Client helper: call the server route, with a local fallback if it fails. */
 export async function requestDraft(req: DraftRequest): Promise<DraftResponse> {
   try {
-    const res = await fetch('/api/draft', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    });
+    const res = await postJson('/api/draft', req);
     if (!res.ok) throw new Error(`draft failed: ${res.status}`);
     const data = (await res.json()) as DraftResponse;
     if (!data?.message) throw new Error('empty draft');
@@ -253,15 +340,85 @@ export async function requestDraft(req: DraftRequest): Promise<DraftResponse> {
   }
 }
 
+/**
+ * Scripted guidance for each of the suggested research questions.
+ *
+ * Every line is about *how* to answer the question for a given topic, never a
+ * claimed fact about it. That distinction is the whole point: a student may
+ * hand these notes in, so scaffolding they can work from is useful where
+ * invented dates and names would be a liability.
+ *
+ * Returns null for anything unrecognised, so the caller keeps its own default.
+ */
+function researchGuidance(instruction: string, topic: string): string | null {
+  const q = instruction.toLowerCase();
+
+  if (/facts?|dates?|timeline|when/.test(q)) {
+    return [
+      `Key facts and dates: ${topic}`,
+      '',
+      '• Pin down the start and end of the period, then the two or three turning points between them.',
+      '• For each, note what changed and who it affected. A date on its own earns no marks.',
+      '• Check your reading list first: the dates your lecturer stressed are the ones being examined.',
+      '• Cross-check anything you find against a second source before you rely on it.',
+    ].join('\n');
+  }
+
+  if (/who|people|figures?|person|involved/.test(q)) {
+    return [
+      `Main people: ${topic}`,
+      '',
+      '• Sort them into decision-makers, those who carried it out, and those it was done to.',
+      '• For each, note what they wanted and what they actually achieved. The gap is usually the argument.',
+      '• Include at least one figure whose account complicates the standard telling.',
+      '• Name checking is not analysis: tie every person back to your central point.',
+    ].join('\n');
+  }
+
+  if (/viewpoints?|perspectives?|arguments?|debate|interpretation|angles?/.test(q)) {
+    return [
+      `Main viewpoints: ${topic}`,
+      '',
+      '• Identify the conventional reading, then the strongest challenge to it.',
+      '• Ask what evidence each side leans on, and what each one has to explain away.',
+      '• Note where they actually agree. Overstated disagreement is a common trap.',
+      '• Say which you find more convincing and why. Marks come from taking a position.',
+    ].join('\n');
+  }
+
+  if (/read|look up|sources?|references?|bibliograph/.test(q)) {
+    return [
+      `Where to look: ${topic}`,
+      '',
+      '• Start with your module reading list, then follow the footnotes of anything useful.',
+      '• Aim for one primary source, one scholarly overview, and one recent journal article.',
+      '• Your library’s database beats a general web search for anything you plan to cite.',
+      '• Record the full reference as you go. Rebuilding a bibliography afterwards costs hours.',
+    ].join('\n');
+  }
+
+  return null;
+}
+
 /** Offline/no-key scripted draft so the UI always demos. */
 export function localFallbackDraft(req: DraftRequest): string {
   const who = req.contactName ?? 'there';
   const me = req.senderName ?? SENDER;
 
-  if (req.kind === 'assignment' || req.kind === 'project') {
+  const messaging = isMessageMethod(req.method);
+
+  if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
     if (req.subtaskTitle && req.research) {
+      // A follow-up gets guidance shaped to what was asked. Deliberately about
+      // how to find the answer rather than the answer itself: without a model
+      // there are no real facts to give, and inventing dates or names for a
+      // topic a student might hand in is far worse than admitting the gap.
+      if (req.instruction) {
+        const guide = researchGuidance(req.instruction, req.subtaskTitle);
+        if (guide) return guide;
+      }
       return [
-        `Research notes — ${req.subtaskTitle}`,
+        `Research notes: ${req.subtaskTitle}`,
         '',
         '• Key points to cover: the who/what/when, why it matters, and its impact.',
         '• Angles to explore: causes, consequences, and differing viewpoints.',
@@ -273,12 +430,12 @@ export function localFallbackDraft(req: DraftRequest): string {
       return [
         `${req.subtaskTitle}`,
         '',
-        `Open by making the point of this section clear in a sentence. Develop it with two or three specific ideas — use evidence or an example where you can — then connect it back to your overall argument for “${req.title}.” Tighten the wording on a second pass.`,
+        `Open by making the point of this section clear in a sentence. Develop it with two or three specific ideas, using evidence or an example where you can, then connect it back to your overall argument for “${req.title}.” Tighten the wording on a second pass.`,
       ].join('\n');
     }
     if (req.method === 'draft') {
       return [
-        `${req.title} — first draft`,
+        `${req.title}: first draft`,
         '',
         'Introduction. State the question and your thesis in a few sentences so the reader knows where this is going.',
         '',
@@ -290,29 +447,29 @@ export function localFallbackDraft(req: DraftRequest): string {
       ].join('\n');
     }
     return [
-      `Outline — ${req.title}`,
+      `Outline: ${req.title}`,
       '',
-      '1. Introduction — frame the question and your thesis.',
-      '2. Background — the key context a reader needs.',
-      '3. Main argument — 2–3 points, each with evidence.',
-      '4. Counterpoint — address the strongest objection.',
-      '5. Conclusion — restate the thesis and its significance.',
+      '1. Introduction: frame the question and your thesis.',
+      '2. Background: the key context a reader needs.',
+      '3. Main argument: 2–3 points, each with evidence.',
+      '4. Counterpoint: address the strongest objection.',
+      '5. Conclusion: restate the thesis and its significance.',
     ].join('\n');
   }
 
-  if (TASKLIKE_KINDS.includes(req.kind) && !req.contactName) {
+  if (!messaging && TASKLIKE_KINDS.includes(req.kind) && !req.contactName) {
     if (req.method === 'plan') {
       return [
-        `Plan — ${req.title}`,
+        `Plan: ${req.title}`,
         '',
         '1. Note down exactly what “done” looks like.',
-        '2. List what you need first — info, people, or things.',
+        '2. List what you need first: info, people, or things.',
         '3. Do the smallest first step today.',
         '4. Block time for the main task.',
         '5. Check it off when it’s finished.',
       ].join('\n');
     }
-    return `${req.title} — quick note:\n\nHere’s a starting point you can shape however you like. Capture the key details, who’s involved, and the deadline so nothing slips.`;
+    return `Quick note for ${req.title}:\n\nHere’s a starting point you can shape however you like. Capture the key details, who’s involved, and the deadline so nothing slips.`;
   }
 
   // Message tasks
@@ -325,19 +482,19 @@ export function localFallbackDraft(req: DraftRequest): string {
         : req.kind === 'anniversary'
           ? `Congratulate ${who} on the anniversary`
           : `Reason for the call: ${req.title.toLowerCase()}`;
-    return [`Talking points — call with ${who}`, '', `• ${opener}`, '• Ask how they’ve been', '• Suggest catching up soon'].join('\n');
+    return [`Talking points for a call with ${who}`, '', `• ${opener}`, '• Ask how they’ve been', '• Suggest catching up soon'].join('\n');
   }
 
   const body =
     req.kind === 'anniversary'
       ? `Happy anniversary, ${who}! Wishing you another year full of love and happy memories.`
       : req.kind === 'birthday'
-        ? `Happy birthday, ${who}! 🎉 Hope your day is as wonderful as you are — let’s celebrate soon.`
-        : `Hi ${who}, just wanted to reach out — ${req.title.toLowerCase()}.`;
+        ? `Happy birthday, ${who}! 🎉 Hope your day is as wonderful as you are. Let’s celebrate soon.`
+        : `Hi ${who}, just wanted to reach out about ${req.title.toLowerCase()}.`;
 
   if (method === 'email') {
     return [`Hi ${who},`, '', body, '', 'Talk soon,', me].join('\n');
   }
 
-  return `${body} — ${me}`;
+  return `${body}\n${me}`;
 }

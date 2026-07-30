@@ -30,9 +30,12 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — every variant, not just *.local. `.env*.local` alone left
+# .env.production and .env.development trackable, which is exactly where real
+# keys end up. A committed key has to be rotated and the history rewritten.
 .env
-.env*.local
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

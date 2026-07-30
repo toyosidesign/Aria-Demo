@@ -64,7 +64,7 @@ export default function TasksScreen() {
             <EmptyState
               icon={CheckCircle2}
               title="All caught up"
-              subtitle="No overdue tasks — nice work."
+              subtitle="No overdue tasks. Nice work."
             />
           ) : (
             <EmptyState

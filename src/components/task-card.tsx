@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { CalendarDays, ListTodo } from 'lucide-react-native';
+import { CalendarDays, FileText, ListTodo } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
 import { AriaAvatar } from '@/components/aria-avatar';
@@ -50,6 +50,16 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
             <ListTodo size={15} color={c.muted} />
             <Text variant="small" tone="muted">
               {doneCount}/{task.subtasks.length}
+            </Text>
+          </View>
+        ) : null}
+        {/* Aria wrote something and it's kept on the task — say so, or there's
+            no way to know it exists without opening every task. */}
+        {(task.draftSections?.length ?? 0) > 0 ? (
+          <View className="flex-row items-center gap-1.5">
+            <FileText size={15} color={c.accent} />
+            <Text variant="small" tone="accent" className="font-semibold">
+              Draft
             </Text>
           </View>
         ) : null}

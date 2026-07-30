@@ -1,15 +1,16 @@
 import { addDays, addMonths, addWeeks, format, parseISO, startOfWeek } from 'date-fns';
 import { router } from 'expo-router';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
-import { formatTime, monthMatrix, toISODate, WEEKDAY_LABELS } from '@/lib/dates';
+import { formatTime, monthWeeks, toISODate, WEEKDAY_LABELS } from '@/lib/dates';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useAriaStore, type Priority, type Task } from '@/store/aria-store';
 
@@ -20,11 +21,10 @@ function priorityDot(p: Priority) {
 }
 
 function agendaSort(a: Task, b: Task) {
-  const at = a.time ?? '';
-  const bt = b.time ?? '';
-  if (!at && bt) return -1; // all-day first
-  if (at && !bt) return 1;
-  return at.localeCompare(bt);
+  // Earliest appointed time first; untimed (all-day) tasks come after timed ones.
+  const at = a.time ?? '99:99';
+  const bt = b.time ?? '99:99';
+  return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
 function AgendaRow({ task }: { task: Task }) {
@@ -35,8 +35,15 @@ function AgendaRow({ task }: { task: Task }) {
     <Pressable
       onPress={() => router.push(`/task/${task.id}`)}
       className="flex-row items-center gap-3 active:opacity-70">
-      <View className="w-16">
-        <Text variant="small" tone={done ? 'faint' : 'muted'} className="font-semibold">
+      {/* Wide enough for the longest time ("12:00 PM") on one line, and pinned to
+          one line regardless: at 64px it wrapped to "4:00" / "PM", which read as
+          a stray indent rather than a time. */}
+      <View className="w-20">
+        <Text
+          numberOfLines={1}
+          variant="small"
+          tone={done ? 'faint' : 'muted'}
+          className="font-semibold">
           {task.time ? formatTime(task.time) : 'All day'}
         </Text>
       </View>
@@ -117,10 +124,9 @@ export default function CalendarScreen() {
     setSelected(iso);
   }
 
-  const weekStart = startOfWeek(cursor, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(cursor, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const monthCells = monthMatrix(cursor);
-  const weeks = Array.from({ length: 6 }, (_, i) => monthCells.slice(i * 7, i * 7 + 7));
+  const weeks = monthWeeks(cursor);
 
   const navTitle =
     view === 'month'
@@ -133,15 +139,26 @@ export default function CalendarScreen() {
     <Screen padded>
       <View className="flex-row items-center justify-between pb-3 pt-2">
         <Text variant="title">Calendar</Text>
-        <Pressable
-          onPress={goToday}
-          hitSlop={8}
-          className="rounded-full border border-border bg-surface px-3.5 py-1.5 active:opacity-70">
-          <Text variant="small" className="font-semibold">
-            Today
-          </Text>
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={goToday}
+            hitSlop={8}
+            className="rounded-full border border-border bg-surface px-3.5 py-1.5 active:opacity-70">
+            <Text variant="small" className="font-semibold">
+              Today
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push(`/task/new?date=${selected}`)}
+            hitSlop={8}
+            accessibilityLabel="Add a task on this day"
+            className="h-9 w-9 items-center justify-center rounded-full bg-accent active:opacity-80">
+            <Plus size={20} color={c.accentInk} />
+          </Pressable>
+        </View>
       </View>
+
+      <SimulatedDateBanner className="mb-3" />
 
       <Segmented<CalView>
         value={view}

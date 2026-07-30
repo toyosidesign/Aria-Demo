@@ -4,12 +4,13 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { HeaderButton } from '@/components/header-button';
+import { InlineError } from '@/components/inline-error';
 import { MonthCalendar } from '@/components/month-calendar';
 import { TimeField } from '@/components/time-field';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { formatFull, formatTime } from '@/lib/dates';
+import { formatFull, formatTime, isPastMoment } from '@/lib/dates';
 import { hapticSuccess } from '@/lib/haptics';
 import { useAriaStore } from '@/store/aria-store';
 
@@ -22,6 +23,7 @@ export default function RescheduleScreen() {
 
   const [date, setDate] = useState(task?.date ?? demoDate);
   const [time, setTime] = useState<string | null>(task?.time ?? null);
+  const past = isPastMoment(date, time);
 
   if (!task) {
     return (
@@ -35,6 +37,7 @@ export default function RescheduleScreen() {
   }
 
   function save() {
+    if (past) return;
     rescheduleTask(task!.id, date);
     updateTask(task!.id, { time: time ?? undefined });
     hapticSuccess();
@@ -72,10 +75,19 @@ export default function RescheduleScreen() {
         </View>
 
         <TimeField value={time} onChange={setTime} />
+
+        {/* Moving something into the past just loses it again. */}
+        {past ? (
+          <InlineError className="-mt-3">
+            {`${
+              time ? `${formatTime(time)} on ${formatFull(date)}` : formatFull(date)
+            } has already passed. Pick a later date or time.`}
+          </InlineError>
+        ) : null}
       </ScrollView>
 
       <View className="border-t border-border px-4 pb-6 pt-3">
-        <Button title="Move task" block size="lg" onPress={save} />
+        <Button title="Move task" block size="lg" disabled={past} onPress={save} />
       </View>
     </Screen>
   );
