@@ -33,18 +33,13 @@ const verifier =
 /**
  * Whether Supabase considers this account's contact details verified.
  *
- * Signing up is free, so without this the per-user ceilings in
- * lib/rate-limit.ts bounded nothing an attacker cares about: script the signup
- * form and every new account arrives carrying a fresh spend quota. Requiring a
- * confirmed contact means abuse costs a mailbox per account instead of a string.
+ * Only consulted when `requireConfirmed` below is on. Where it applies, it is
+ * what stops a scripted signup loop from minting spend quota: the per-user
+ * ceilings in lib/rate-limit.ts scale with however many addresses an attacker
+ * can cycle through, and a confirmed contact makes each one cost a mailbox
+ * rather than a string.
  *
- * Phone counts alongside email so this doesn't silently lock out a future SMS
- * sign-up flow. When Supabase autoconfirm is on it stamps `email_confirmed_at`
- * at creation, so this is not a gate on projects that have deliberately turned
- * confirmation off.
- *
- * Exported because it is the predicate deciding who may spend money, so it is
- * asserted directly rather than trusted.
+ * Phone counts alongside email so this doesn't lock out a future SMS sign-up.
  */
 export function isConfirmedUser(user: {
   email_confirmed_at?: string;
@@ -52,6 +47,23 @@ export function isConfirmedUser(user: {
 }): boolean {
   return Boolean(user.email_confirmed_at || user.phone_confirmed_at);
 }
+
+/**
+ * Whether to enforce the check above. Off unless explicitly switched on.
+ *
+ * It is only meaningful when the Supabase project actually withholds
+ * confirmation — with autoconfirm on, every account arrives already confirmed
+ * and the check waves everyone through. Worse, it is enforced against a field
+ * this app does not control: if a future GoTrue stopped stamping
+ * `email_confirmed_at` under autoconfirm, an always-on check would 401 every
+ * real user and the app would quietly serve scripted fallbacks instead.
+ *
+ * So it is opt-in and tied to the dashboard setting it mirrors. Turn Supabase's
+ * "Confirm email" on, set ARIA_REQUIRE_CONFIRMED_EMAIL=1, and free signups stop
+ * carrying a spend quota. Leave both off and the ceilings in lib/rate-limit.ts
+ * are what bound abuse.
+ */
+const requireConfirmed = process.env.ARIA_REQUIRE_CONFIRMED_EMAIL === '1';
 
 /**
  * The authenticated caller's user id, or null when there isn't one.
@@ -72,8 +84,9 @@ export async function requireUser(request: Request): Promise<string | null> {
     const { data, error } = await verifier.auth.getUser(token);
     if (error || !data.user) return null;
 
-    // An unverified address is not a person yet — see isConfirmedUser.
-    if (!isConfirmedUser(data.user)) return null;
+    // Only when the project is actually withholding confirmation — see
+    // `requireConfirmed`.
+    if (requireConfirmed && !isConfirmedUser(data.user)) return null;
 
     return data.user.id;
   } catch {

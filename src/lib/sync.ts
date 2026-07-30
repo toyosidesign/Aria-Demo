@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { type Contact } from '@/lib/contacts';
+import type { Repeat } from '@/lib/dates';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import type {
   DraftSection,
@@ -53,6 +54,7 @@ interface TaskRow {
   draft_sections: DraftSection[];
   handled_by_aria: boolean | null;
   alarm: boolean | null;
+  repeat: string | null;
   created_at: string;
   completed_at: string | null;
   updated_at: string;
@@ -105,6 +107,7 @@ function taskToRow(t: Task, userId: string): TaskRow {
     draft_sections: t.draftSections ?? [],
     handled_by_aria: t.handledByAria ?? false,
     alarm: t.alarm ?? false,
+    repeat: t.repeat ?? null,
     created_at: t.createdAt,
     completed_at: t.completedAt ?? null,
     updated_at: now(),
@@ -130,6 +133,10 @@ function rowToTask(r: TaskRow): Task {
     photoUri: r.photo_uri ?? undefined,
     handledByAria: r.handled_by_aria ?? undefined,
     alarm: r.alarm ?? undefined,
+    // Cast rather than validate: the column is only ever written from the union
+    // above, and a bad value here degrades to "doesn't repeat" at the next
+    // completion rather than breaking anything.
+    repeat: (r.repeat as Repeat | null) ?? undefined,
     createdAt: r.created_at,
     completedAt: r.completed_at ?? undefined,
   };
@@ -323,6 +330,23 @@ export async function replaceAllTasks(tasks: Task[]) {
   try {
     await supabase.from('tasks').delete().eq('user_id', currentUserId);
     if (tasks.length) await upsertTasks(tasks);
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
+ * The same for contacts.
+ *
+ * Needed because clearing the demo out has to clear the sample *people* too —
+ * deleting the tasks and leaving Jane and Sam in the contact list is a
+ * half-finished fresh start.
+ */
+export async function replaceAllContacts(contacts: Contact[]) {
+  if (!isSupabaseConfigured || !currentUserId) return;
+  try {
+    await supabase.from('contacts').delete().eq('user_id', currentUserId);
+    if (contacts.length) await upsertContacts(contacts);
   } catch {
     /* best effort */
   }

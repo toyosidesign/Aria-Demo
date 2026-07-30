@@ -63,21 +63,38 @@ traversals plus an XSS), pinned forward via the `overrides` block in
 
 ## Not verifiable from code — check these in the Supabase dashboard
 
-- **Email confirmation must stay ON** — verified enabled on 2026-07-30
-  (`mailer_autoconfirm: false`). The toggle lives inside the Email *provider*
-  row: Authentication → Sign In / Providers → Email → "Confirm email".
-
-  This is what makes `requireUser`'s confirmed-contact check mean anything. With
-  confirmation off, Supabase stamps `email_confirmed_at` at creation, the check
-  passes for everyone, and scripted signups each carry a full spend quota again.
-  Verify without the dashboard:
-  ```bash
-  curl -s "$EXPO_PUBLIC_SUPABASE_URL/auth/v1/settings" \
-    -H "apikey: $EXPO_PUBLIC_SUPABASE_ANON_KEY" | grep -o '"mailer_autoconfirm":[a-z]*'
-  # want: "mailer_autoconfirm":false
-  ```
-
 - **OTP expiry** kept short for the password reset flow.
+
+### Email confirmation — deliberately OFF
+
+Signup does not require a confirmed address. That is a product decision, and it
+has one security consequence worth stating plainly: **creating an account costs
+nothing**, so the per-user ceilings in `lib/rate-limit.ts` scale with however
+many addresses someone is willing to cycle through. What actually bounds abuse
+of the Anthropic key and the Resend domain is the **process-wide ceiling**
+(`ARIA_AI_GLOBAL_HOURLY`, `ARIA_MAIL_GLOBAL_HOURLY`), not the per-user one. Size
+those with that in mind, and watch for `auth.users` growth that outpaces real
+users.
+
+The code gate is opt-in rather than deleted, so it is one line to get back:
+
+1. Supabase → Authentication → Sign In / Providers → Email → **Confirm email** on.
+2. Set `ARIA_REQUIRE_CONFIRMED_EMAIL=1`.
+
+Both, or neither. Turning on the dashboard setting without the env var leaves
+free accounts spending; setting the env var without the dashboard setting is
+inert at best. The gate is env-driven rather than always-on for a reason: it
+tests `email_confirmed_at`, a field this app does not control, so an always-on
+check would 401 every real user if a future GoTrue stopped stamping it under
+autoconfirm — and the failure would look like Aria quietly serving scripted text.
+
+Check the dashboard setting without opening it:
+```bash
+curl -s "$EXPO_PUBLIC_SUPABASE_URL/auth/v1/settings" \
+  -H "apikey: $EXPO_PUBLIC_SUPABASE_ANON_KEY" | grep -o '"mailer_autoconfirm":[a-z]*'
+# true  = confirmation OFF (current, intended)
+# false = confirmation ON  → also set ARIA_REQUIRE_CONFIRMED_EMAIL=1
+```
 
 ### CAPTCHA — deliberately OFF, do not enable without client work
 

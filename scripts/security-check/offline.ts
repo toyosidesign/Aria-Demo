@@ -63,7 +63,24 @@ function req(body: string, headers: Record<string, string> = {}): Request {
 const valid = JSON.stringify({ title: 'History essay' });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #1a — unconfirmed accounts carry no spend quota');
+section('FINDING #1a — the confirmed-contact predicate (opt-in via env)');
+
+await test('enforcement is opt-in, and currently reflects the environment', () => {
+  // The gate is only correct when Supabase is actually withholding confirmation.
+  // This asserts the wiring, not a policy: it fails if the flag stops being
+  // read, which would silently change who can spend money.
+  const src = readFileSync(path.join(ROOT, 'src/lib/api-auth.ts'), 'utf8');
+  assert.match(src, /ARIA_REQUIRE_CONFIRMED_EMAIL === '1'/, 'must be env-gated');
+  assert.match(
+    src,
+    /requireConfirmed && !isConfirmedUser\(data\.user\)/,
+    'the gate must consult the flag, not run unconditionally',
+  );
+  console.log(
+    `      (currently ${process.env.ARIA_REQUIRE_CONFIRMED_EMAIL === '1' ? 'ENFORCED' : 'not enforced'} — ` +
+      'set ARIA_REQUIRE_CONFIRMED_EMAIL=1 alongside Supabase "Confirm email")',
+  );
+});
 
 await test('a brand-new unconfirmed signup is rejected', () => {
   assert.equal(isConfirmedUser({}), false);

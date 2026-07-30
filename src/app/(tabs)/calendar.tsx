@@ -63,7 +63,9 @@ function AgendaRow({ task }: { task: Task }) {
 
 function Agenda({ iso, tasks }: { iso: string; tasks: Task[] }) {
   return (
-    <View className="gap-1 pt-2">
+    // Sits below a divider, so it needs room above it to read as its own
+    // section rather than as the last row of the grid.
+    <View className="gap-2 pt-5">
       <Text variant="label" tone="muted">
         {format(parseISO(iso), 'EEEE, MMMM d')}
       </Text>
@@ -73,7 +75,7 @@ function Agenda({ iso, tasks }: { iso: string; tasks: Task[] }) {
           <Text tone="faint">Nothing scheduled</Text>
         </View>
       ) : (
-        <View className="gap-1 pt-1">
+        <View className="gap-1.5 pt-1">
           {tasks.map((t) => (
             <AgendaRow key={t.id} task={t} />
           ))}
@@ -137,7 +139,7 @@ export default function CalendarScreen() {
 
   return (
     <Screen padded>
-      <View className="flex-row items-center justify-between pb-3 pt-2">
+      <View className="flex-row items-center justify-between pb-4 pt-2">
         <Text variant="title">Calendar</Text>
         <View className="flex-row items-center gap-2">
           <Pressable
@@ -158,7 +160,7 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      <SimulatedDateBanner className="mb-3" />
+      <SimulatedDateBanner className="mb-4" />
 
       <Segmented<CalView>
         value={view}
@@ -171,7 +173,7 @@ export default function CalendarScreen() {
       />
 
       {/* Nav row */}
-      <View className="flex-row items-center justify-between py-3">
+      <View className="flex-row items-center justify-between py-4">
         <Pressable onPress={() => shift(-1)} hitSlop={8} className="p-1 active:opacity-50">
           <ChevronLeft size={22} color={c.ink} />
         </Pressable>
@@ -186,7 +188,7 @@ export default function CalendarScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}>
         {view === 'month' ? (
-          <View className="gap-1">
+          <View className="gap-2">
             <View className="flex-row">
               {WEEKDAY_LABELS.map((d, i) => (
                 <Text key={i} variant="caption" tone="faint" className="flex-1 text-center font-semibold">
@@ -226,11 +228,11 @@ export default function CalendarScreen() {
                 })}
               </View>
             ))}
-            <View className="mt-1 border-t border-border" />
+            <View className="mt-3 border-t border-border" />
             <Agenda iso={selected} tasks={selectedTasks} />
           </View>
         ) : view === 'week' ? (
-          <View className="gap-2">
+          <View className="gap-3">
             <View className="flex-row">
               {weekDays.map((d) => {
                 const iso = toISODate(d);
@@ -262,7 +264,7 @@ export default function CalendarScreen() {
                 );
               })}
             </View>
-            <View className="border-t border-border" />
+            <View className="mt-1 border-t border-border" />
             <Agenda iso={selected} tasks={selectedTasks} />
           </View>
         ) : (

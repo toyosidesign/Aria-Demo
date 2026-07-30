@@ -10,7 +10,7 @@ import { TimeField } from '@/components/time-field';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { formatFull, formatTime, isPastMoment } from '@/lib/dates';
+import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
 import { hapticSuccess } from '@/lib/haptics';
 import { useAriaStore } from '@/store/aria-store';
 
@@ -23,7 +23,10 @@ export default function RescheduleScreen() {
 
   const [date, setDate] = useState(task?.date ?? demoDate);
   const [time, setTime] = useState<string | null>(task?.time ?? null);
-  const past = isPastMoment(date, time);
+  // Two ways a moment can be gone: the real clock has passed it, or the demo is
+  // simulating a day after it. The second one used to slip through, so
+  // rescheduling *onto* an already-overdue day was accepted here.
+  const past = date < effectiveToday(demoDate) || isPastMoment(date, time);
 
   if (!task) {
     return (

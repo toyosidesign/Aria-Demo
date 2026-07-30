@@ -48,6 +48,9 @@ create table if not exists public.tasks (
 create index if not exists tasks_user_id_idx on public.tasks (user_id);
 -- Upgrade existing tables that predate these columns:
 alter table public.tasks    add column if not exists alarm boolean default false;
+-- How often the task comes back: daily | weekly | fortnightly | monthly | yearly,
+-- or null for a one-off. Completing a repeating task creates the next occurrence.
+alter table public.tasks    add column if not exists repeat text;
 alter table public.tasks    add column if not exists contact_phone text;
 alter table public.tasks    add column if not exists card_template_id text;
 alter table public.tasks    add column if not exists photo_uri text;

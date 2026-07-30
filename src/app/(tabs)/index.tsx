@@ -16,6 +16,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaTodayCard } from '@/components/aria-today-card';
 import { AutomationCard } from '@/components/automation-card';
+import { DemoInviteCard } from '@/components/demo-invite-card';
 import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ export default function TodayScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const proactive = useAriaStore((s) => s.settings.proactiveAria);
+  const demoOfferDismissed = useAriaStore((s) => s.demoOfferDismissed);
   const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
 
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
@@ -78,6 +80,7 @@ export default function TodayScreen() {
   const showSeeAll = later.length > 5 || today.length > 5;
 
   const hasNoTasks = tasks.length === 0;
+  const showDemoInvite = hasNoTasks && !demoOfferDismissed;
 
   return (
     <Screen padded>
@@ -120,6 +123,10 @@ export default function TodayScreen() {
         </View>
 
         <SimulatedDateBanner />
+
+        {/* Only on an empty planner, so accepting it can never overwrite work
+            someone has already done. Answered either way, it doesn't return. */}
+        {showDemoInvite ? <DemoInviteCard /> : null}
 
         {/* "Not now" confirmation — moved to tomorrow, with a way to pick properly */}
         {deferred ? (

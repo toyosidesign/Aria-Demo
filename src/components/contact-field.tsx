@@ -28,6 +28,9 @@ export function ContactField({
   requireEmail,
   needsPhone,
   phoneOnly = false,
+  nameError,
+  emailError,
+  phoneError,
 }: {
   label: string;
   name: string;
@@ -42,6 +45,14 @@ export function ContactField({
   needsPhone: boolean;
   /** A call only ever needs a number: no name to type, no address to collect. */
   phoneOnly?: boolean;
+  /**
+   * Set by the form once Save has been pressed on an incomplete task, so the
+   * field that blocked it says so. Undefined is the normal state — these are
+   * derived from the values, so they clear as soon as the field is filled.
+   */
+  nameError?: string;
+  emailError?: string;
+  phoneError?: string;
 }) {
   const c = useColors();
   const canPickFromPhone = phoneContactsAvailable();
@@ -134,11 +145,14 @@ export function ContactField({
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
+                error={emailError}
               />
-              <Text variant="caption" tone="muted">
-                {name.trim() || 'They'} doesn&apos;t have an email saved on your phone, and I need
-                one to send this.
-              </Text>
+              {emailError ? null : (
+                <Text variant="caption" tone="muted">
+                  {name.trim() || 'They'} doesn&apos;t have an email saved on your phone, and I need
+                  one to send this.
+                </Text>
+              )}
             </View>
           ) : null}
 
@@ -151,11 +165,13 @@ export function ContactField({
                 onChangeText={onPhone}
                 keyboardType="phone-pad"
                 autoComplete="tel"
+                error={phoneError}
               />
-              <Text variant="caption" tone="muted">
-                No number saved for {name.trim() || 'them'}. Without one you&apos;ll pick them in
-                Messages yourself.
-              </Text>
+              {phoneError ? null : (
+                <Text variant="caption" tone="muted">
+                  No number saved for {name.trim() || 'them'}. Add one so Aria can reach them.
+                </Text>
+              )}
             </View>
           ) : null}
         </>
@@ -184,6 +200,7 @@ export function ContactField({
               value={name}
               onChangeText={onName}
               autoComplete="name"
+              error={nameError}
             />
           ) : null}
 
@@ -197,12 +214,15 @@ export function ContactField({
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
+                // A malformed address is wrong the moment it's typed, so that
+                // one reports live. A *missing* one only becomes wrong when you
+                // try to save, which is what `emailError` carries.
+                error={
+                  email.trim() && !isValidEmails(email)
+                    ? 'Enter a valid email address.'
+                    : emailError
+                }
               />
-              {email.trim() && !isValidEmails(email) ? (
-                <Text variant="caption" tone="danger">
-                  Enter a valid email address.
-                </Text>
-              ) : null}
             </View>
           ) : null}
 
@@ -214,17 +234,12 @@ export function ContactField({
               onChangeText={onPhone}
               keyboardType="phone-pad"
               autoComplete="tel"
+              // Same split as the email above: a malformed number is wrong
+              // immediately, a missing one only once you try to save.
+              error={
+                phone.trim() && !isValidPhone(phone) ? 'Enter a valid phone number.' : phoneError
+              }
             />
-            {phone.trim() && !isValidPhone(phone) ? (
-              <Text variant="caption" tone="danger">
-                Enter a valid phone number.
-              </Text>
-            ) : needsPhone && !phone.trim() ? (
-              <Text variant="caption" tone="muted">
-                Without a number I can still write the message, you&apos;ll just pick the person in
-                Messages yourself.
-              </Text>
-            ) : null}
           </View>
         </>
       )}

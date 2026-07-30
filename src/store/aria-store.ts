@@ -15,13 +15,22 @@ import {
   scheduleAutomationNotice,
 } from '@/lib/automation-notices';
 import { isFinished, isPending, type Automation, type AutoChannel } from '@/lib/automations';
-import { dateToTime, formatFull, formatTime, isPastMoment, toISODate } from '@/lib/dates';
+import {
+  dateToTime,
+  formatFull,
+  formatTime,
+  isPastMoment,
+  nextFutureOccurrence,
+  toISODate,
+  type Repeat,
+} from '@/lib/dates';
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
 import { showToast } from '@/lib/toast';
 import { uuidv4 } from '@/lib/id';
 import {
   deleteTaskRow,
   fetchAll,
+  replaceAllContacts,
   replaceAllTasks,
   setSyncUser,
   signOutRemote,
@@ -83,6 +92,15 @@ export interface Task {
   photoUri?: string; // the picture to share, for the 'photo' method
   time?: string; // optional "HH:mm" (24h)
   alarm?: boolean; // chime at the task's date+time via a local notification
+  /**
+   * How often this comes back. Undefined for a one-off.
+   *
+   * Modelled as "completing it creates the next one" rather than as a series
+   * generated in advance: there is only ever one open occurrence, so the list
+   * can't fill with fifty future copies of the same chore, and editing the one
+   * in front of you doesn't raise the question of which others it changed.
+   */
+  repeat?: Repeat;
   draftSections?: DraftSection[]; // content Aria drafted, kept separate from Notes
   createdAt: string;
   completedAt?: string;
@@ -427,6 +445,7 @@ interface AriaState {
     photoUri?: string;
     time?: string;
     alarm?: boolean;
+    repeat?: Repeat;
     subtasks?: Subtask[];
   }) => string;
   updateTask: (id: string, patch: Partial<Task>) => void;
@@ -459,6 +478,25 @@ interface AriaState {
     outcome: { status: Automation['status']; error?: string },
   ) => void;
   resetDemo: () => void;
+  /**
+   * Empty the planner and start on real data.
+   *
+   * The counterpart to `resetDemo`, which only ever *restores* the samples —
+   * there was no way out of demo data short of deleting each task by hand, so
+   * the home screen's offer to "clear them and start on your own" was a promise
+   * the app couldn't keep.
+   *
+   * Deliberately leaves the account alone: profile, settings and sign-in state
+   * survive. This clears what's *in* the planner, it doesn't reset the app.
+   */
+  clearAllData: () => void;
+  /**
+   * Whether the "try the sample data" offer on the home screen has been
+   * answered. Set either way — taking the tour or declining it both count, so
+   * the card asks once and never again.
+   */
+  demoOfferDismissed: boolean;
+  dismissDemoOffer: () => void;
 }
 
 /** Drop blank/missing fields so a bare remote row can't blank out local values. */
@@ -491,6 +529,7 @@ export const useAriaStore = create<AriaState>()(
       proWaitlisted: false,
       signedIn: false,
       onboarded: true,
+      demoOfferDismissed: false,
       hydrated: false,
       setHydrated: () => set({ hydrated: true }),
       setDemoDate: (date) => set({ demoDate: date }),
@@ -531,6 +570,9 @@ export const useAriaStore = create<AriaState>()(
           tasks: input.isNew ? [] : s.tasks,
           contacts: input.isNew ? [] : s.contacts,
           demoDate: input.isNew ? DEFAULT_DEMO_DATE : s.demoDate,
+          // A fresh account gets the offer again — the previous person's answer
+          // to it isn't this person's.
+          demoOfferDismissed: input.isNew ? false : s.demoOfferDismissed,
           profile: {
             ...s.profile,
             ...(input.name ? { name: input.name } : {}),
@@ -621,6 +663,7 @@ export const useAriaStore = create<AriaState>()(
           photoUri: input.photoUri,
           time: input.time || undefined,
           alarm: input.alarm || undefined,
+          repeat: input.repeat,
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ tasks: [task, ...s.tasks] }));
@@ -674,6 +717,8 @@ export const useAriaStore = create<AriaState>()(
         syncTask(get, taskId);
       },
       completeTask: (id, opts) => {
+        const done = get().tasks.find((t) => t.id === id);
+
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === id
@@ -687,6 +732,32 @@ export const useAriaStore = create<AriaState>()(
           ),
         }));
         syncTask(get, id);
+
+        // A recurring task earns its next occurrence by being finished. The
+        // completed one stays in the list as the record that it happened.
+        if (done?.repeat && done.status !== 'done') {
+          const nextDate = nextFutureOccurrence(done.date, done.repeat);
+          const next: Task = {
+            ...done,
+            id: uuidv4(),
+            date: nextDate,
+            status: 'todo',
+            completedAt: undefined,
+            handledByAria: undefined,
+            createdAt: new Date().toISOString(),
+            // Anything Aria wrote belonged to the occasion just gone. Carrying
+            // last week's draft forward would quietly re-send it.
+            draftSections: undefined,
+            // Checklists come back unticked, or the next one starts finished.
+            subtasks: done.subtasks.map((s) => ({ ...s, done: false })),
+          };
+          set((s) => ({ tasks: [next, ...s.tasks] }));
+          upsertTask(next);
+          if (next.alarm && next.time) void syncTaskAlarm(next);
+          showToast(`Done. Next one ${formatFull(nextDate)}.`, 'check');
+          return;
+        }
+
         showToast('Task completed', 'check');
       },
       reopenTask: (id) => {
@@ -764,10 +835,32 @@ export const useAriaStore = create<AriaState>()(
       resetDemo: () => {
         const tasks = buildSeedTasks().map((t) => ({ ...t, id: uuidv4() }));
         const contacts = SEED_CONTACTS.map((c) => ({ ...c, id: uuidv4() }));
-        set({ tasks, demoDate: DEFAULT_DEMO_DATE, contacts, automations: [] });
+        // Answered by taking it, so the home-screen offer doesn't come back and
+        // ask whether you'd like the data you're currently looking at.
+        set({ tasks, demoDate: DEFAULT_DEMO_DATE, contacts, automations: [], demoOfferDismissed: true });
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
       },
+      clearAllData: () => {
+        set({
+          tasks: [],
+          contacts: [],
+          automations: [],
+          // Back to the real calendar too: a simulated date is part of the demo,
+          // and leaving it set would make an empty planner look broken.
+          demoDate: DEFAULT_DEMO_DATE,
+          // Nothing left to offer a tour of, and they've just declined it by
+          // action — don't ask again on the now-empty home screen.
+          demoOfferDismissed: true,
+        });
+        // Alarms outlive the tasks that scheduled them, so a cleared planner
+        // would otherwise still chime for something that no longer exists.
+        void reconcileAlarms([]);
+        void reconcileAutomationNotices([]);
+        void replaceAllTasks([]);
+        void replaceAllContacts([]);
+      },
+      dismissDemoOffer: () => set({ demoOfferDismissed: true }),
     }),
     {
       name: 'aria-store-v1',
@@ -784,6 +877,7 @@ export const useAriaStore = create<AriaState>()(
         proWaitlisted: s.proWaitlisted,
         signedIn: s.signedIn,
         onboarded: s.onboarded,
+        demoOfferDismissed: s.demoOfferDismissed,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;

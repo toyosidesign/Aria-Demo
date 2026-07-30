@@ -12,11 +12,12 @@ import {
   PenLine,
   Phone,
   Plus,
+  Repeat2,
   SearchX,
   X,
   type LucideIcon,
 } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -53,7 +54,17 @@ import {
 import { cn } from '@/lib/cn';
 import { isValidEmails } from '@/lib/contacts';
 import { defaultTemplateFor } from '@/lib/cards';
-import { formatFull, formatTime, isPastMoment, realToday } from '@/lib/dates';
+import {
+  REPEAT_LABEL,
+  REPEAT_OPTIONS,
+  effectiveToday,
+  formatFull,
+  formatTime,
+  isPastMoment,
+  msUntilMoment,
+  type Repeat,
+} from '@/lib/dates';
+import { hapticSelect, hapticWarning } from '@/lib/haptics';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useColors } from '@/lib/colors';
 import { showToast } from '@/lib/toast';
@@ -154,6 +165,7 @@ export default function NewTaskScreen() {
   const [photoUri, setPhotoUri] = useState<string | undefined>(editing?.photoUri);
   const [time, setTime] = useState<string | null>(editing?.time ?? params.time ?? null);
   const [alarm, setAlarm] = useState(editing?.alarm ?? false);
+  const [repeat, setRepeat] = useState<Repeat | undefined>(editing?.repeat);
 
   // Only a method that ends in a message needs someone to send it to. "Just
   // remind me", "Plan the steps" and the assignment options ask for nothing.
@@ -180,17 +192,112 @@ export default function NewTaskScreen() {
 
   // You can't schedule something into the past. Reported against each control
   // separately so the error sits next to whichever one caused it.
-  const todayISO = realToday();
+  // The simulated day when the demo is running ahead, the real one otherwise —
+  // otherwise a date the calendar already draws as overdue saves without a word.
+  const todayISO = effectiveToday(demoDate);
   const dateInPast = date < todayISO;
-  const timeInPast = !dateInPast && date === todayISO && !!time && isPastMoment(date, time);
-  // One exception: an existing overdue task whose date hasn't been touched.
-  // Blocking that would trap you out of fixing a typo on anything late.
-  const keepingOriginalDate = !!editing && date === editing.date;
-  const momentPassed = (dateInPast || timeInPast) && !keepingOriginalDate;
+  // The `date === todayISO` this used to carry was redundant, not load-bearing:
+  // a later date can't be a past moment, and an earlier one is already caught by
+  // `dateInPast`. `isPastMoment` compares against the real clock and is the
+  // whole answer on its own.
+  const timeInPast = !dateInPast && !!time && isPastMoment(date, time);
+  /**
+   * Has the moment been touched, or is it just the one this task already had?
+   *
+   * The exception exists so an overdue task stays editable: you should be able
+   * to fix a typo on something late without first rescheduling it. But it was
+   * keyed on the date alone, so on an existing task the time was never checked
+   * — toggle a time on, or move it, and a moment that had already gone was
+   * accepted in silence.
+   *
+   * Touching *either* half is the signal. Leave both alone and nothing nags;
+   * change one and the moment is yours now, so it gets validated properly.
+   */
+  const movedTheMoment =
+    !editing || date !== editing.date || time !== (editing.time ?? null);
+  const momentPassed = (dateInPast || timeInPast) && movedTheMoment;
   // A malformed address still blocks; a missing one doesn't. Aria opens Mail
   // either way and Maya picks the recipient there.
   const emailWellFormed = !contactEmail.trim() || isValidEmails(contactEmail);
-  const canSave = title.trim().length > 0 && emailWellFormed && !momentPassed;
+
+  /**
+   * Whether Save has been pressed on an incomplete form.
+   *
+   * Nothing is marked wrong until then. Reporting a missing title to someone
+   * who has only just opened the form is scolding them for not having finished
+   * yet — the moment they ask to save is the moment it becomes true.
+   *
+   * The errors below are derived from the values rather than stored, so each
+   * one clears itself as soon as its field is filled in.
+   */
+  const [attemptedSave, setAttemptedSave] = useState(false);
+  const titleRef = useRef<TextInput>(null);
+
+  /**
+   * Wake up the moment a chosen time goes by.
+   *
+   * Validity here changes on its own as the clock moves, which nothing else in
+   * the form does. Without this, a time picked at 14:59 for 15:00 was still
+   * showing as fine at 15:01 — and worse, `canSave` in the Save button's
+   * closure was still `true`, so it saved a moment that had already passed.
+   *
+   * One timer to the exact instant rather than a poll, and skipped entirely for
+   * anything far enough out that `setTimeout` would overflow its 32-bit delay
+   * and fire immediately.
+   */
+  const [, tick] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!time) return;
+    const ms = msUntilMoment(date, time);
+    if (ms <= 0 || ms > 2_147_483_000) return;
+    const id = setTimeout(tick, ms + 250);
+    return () => clearTimeout(id);
+  }, [date, time]);
+
+  /**
+   * What this task still needs.
+   *
+   * The rule is the one the labels already promise: anything whose label says
+   * "(optional)" stays optional, and everything else on screen has to be filled
+   * in before the task can be saved. Each entry is scoped to the shape of task
+   * being created, so a call never demands an email and a reminder never
+   * demands a recipient.
+   */
+  const titleMissing = title.trim().length === 0;
+  // A call collapses the contact block down to just a number — there is no name
+  // or email field on screen to require.
+  const needsContactName =
+    showsContact && !isCallMethod && (kind === 'birthday' || kind === 'anniversary');
+  const needsEmail = showsContact && !isCallMethod && method === 'email';
+  const needsMessage = isCard || isPhoto;
+
+  const contactNameMissing = needsContactName && contactName.trim().length === 0;
+  const emailMissing = needsEmail && contactEmail.trim().length === 0;
+  const phoneMissing = needsPhone && contactPhone.trim().length === 0;
+  const messageMissing = needsMessage && description.trim().length === 0;
+  const photoMissing = isPhoto && !photoUri;
+
+  const anythingMissing =
+    titleMissing ||
+    contactNameMissing ||
+    emailMissing ||
+    phoneMissing ||
+    messageMissing ||
+    photoMissing;
+
+  // Shown only once Save has been pressed, and derived from the values, so each
+  // clears itself the moment its field is filled.
+  const show = (missing: boolean, message: string) =>
+    attemptedSave && missing ? message : undefined;
+
+  const titleError = show(titleMissing, 'Give the task a name so you can find it later.');
+  const contactNameError = show(contactNameMissing, 'Who is this for?');
+  const emailError = show(emailMissing, 'Add the address to send this to.');
+  const phoneError = show(phoneMissing, 'Add a number so Aria can reach them.');
+  const messageError = show(messageMissing, 'Write the message to send with it.');
+  const photoError = show(photoMissing, 'Choose a photo to send.');
+
+  const canSave = !anythingMissing && emailWellFormed && !momentPassed;
 
   /** Never leave the switch on when the OS won't let the alarm ring. */
   async function toggleAlarm(next: boolean) {
@@ -217,7 +324,16 @@ export default function NewTaskScreen() {
   }
 
   function save() {
-    if (!canSave) return;
+    if (!canSave) {
+      // Previously the button was simply disabled, so this press did nothing at
+      // all: no error, no movement, no explanation. Mark the form as attempted
+      // so the offending fields turn red, and put the cursor in the one that
+      // needs typing.
+      setAttemptedSave(true);
+      hapticWarning();
+      if (titleMissing) titleRef.current?.focus();
+      return;
+    }
     const cleanSubtasks = showsSubtasks
       ? subtasks.filter((s) => s.title.trim().length > 0)
       : [];
@@ -235,6 +351,7 @@ export default function NewTaskScreen() {
       photoUri: isPhoto ? photoUri : undefined,
       time: time ?? undefined,
       alarm: time && alarm ? true : undefined,
+      repeat,
       subtasks: cleanSubtasks,
     };
     if (editing) {
@@ -363,11 +480,13 @@ export default function NewTaskScreen() {
           ) : null}
 
           <Input
+            ref={titleRef}
             label="What needs doing?"
             placeholder="e.g. Wish Jane a happy birthday"
             value={title}
             onChangeText={setTitle}
             returnKeyType="next"
+            error={titleError}
           />
 
           <View className="gap-2">
@@ -376,7 +495,7 @@ export default function NewTaskScreen() {
             </Text>
             <SimulatedDateBanner />
             <MonthCalendar value={date} onSelect={setDate} />
-            {dateInPast && !keepingOriginalDate ? (
+            {dateInPast && movedTheMoment ? (
               <InlineError>
                 {`${formatFull(date)} has already passed. Pick today or a later date.`}
               </InlineError>
@@ -393,7 +512,7 @@ export default function NewTaskScreen() {
             </Text>
           ) : null}
 
-          {timeInPast && !keepingOriginalDate ? (
+          {timeInPast && movedTheMoment ? (
             <InlineError className="-mt-3">
               {`${formatTime(time!)} has already passed today. Pick a later time, or move this to another day.`}
             </InlineError>
@@ -427,6 +546,63 @@ export default function NewTaskScreen() {
               ) : null}
             </View>
           ) : null}
+
+          {/* Repeat sits with date, time and alarm because it's the last part
+              of "when" — and off by default, since most tasks happen once. */}
+          <View className="gap-2">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2">
+                <Repeat2 size={18} color={repeat ? c.accent : c.muted} />
+                <Text variant="label" tone={repeat ? 'accent' : 'muted'}>
+                  Repeats
+                </Text>
+              </View>
+              <Switch
+                value={!!repeat}
+                onValueChange={(on) => {
+                  hapticSelect();
+                  // Weekly is the interval people mean most often, and starting
+                  // from nothing selected would make the switch do nothing
+                  // visible until a second tap.
+                  setRepeat(on ? (editing?.repeat ?? 'weekly') : undefined);
+                }}
+              />
+            </View>
+
+            {repeat ? (
+              <>
+                <View className="flex-row flex-wrap gap-2">
+                  {REPEAT_OPTIONS.map((o) => {
+                    const active = repeat === o.value;
+                    return (
+                      <Pressable
+                        key={o.value}
+                        onPress={() => {
+                          hapticSelect();
+                          setRepeat(o.value);
+                        }}
+                        className={cn(
+                          'rounded-xl border px-3.5 py-2',
+                          active ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
+                        )}>
+                        <Text
+                          variant="small"
+                          tone={active ? 'accent' : 'muted'}
+                          className="font-semibold">
+                          {o.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text variant="caption" tone="faint">
+                  {time
+                    ? `Tick this off and the next one appears for ${formatTime(time)}, ${REPEAT_LABEL[repeat].toLowerCase()}.`
+                    : `Tick this off and the next one appears, ${REPEAT_LABEL[repeat].toLowerCase()}.`}
+                </Text>
+              </>
+            ) : null}
+          </View>
 
           <View className="gap-2">
             <Text variant="label" tone="muted">
@@ -501,13 +677,18 @@ export default function NewTaskScreen() {
               onEmail={setContactEmail}
               phone={contactPhone}
               onPhone={setContactPhone}
-              requireEmail={false}
+              requireEmail={needsEmail}
               needsPhone={needsPhone}
               phoneOnly={isCallMethod}
+              nameError={contactNameError}
+              emailError={emailError}
+              phoneError={phoneError}
             />
           ) : null}
 
-          {isPhoto ? <PhotoField value={photoUri} onChange={setPhotoUri} /> : null}
+          {isPhoto ? (
+            <PhotoField value={photoUri} onChange={setPhotoUri} error={photoError} />
+          ) : null}
 
           {isCard ? (
             <CardPicker
@@ -536,6 +717,7 @@ export default function NewTaskScreen() {
               value={description}
               onChange={setDescription}
               label="Message to send with it"
+              error={messageError}
             />
           ) : isCard ? (
             <>
@@ -545,6 +727,7 @@ export default function NewTaskScreen() {
                 contactName={contactName}
                 value={description}
                 onChange={setDescription}
+                error={messageError}
               />
               <Pressable
                 onPress={() => setPreviewOpen(true)}
@@ -618,13 +801,10 @@ export default function NewTaskScreen() {
       />
 
         <View className="border-t border-border px-5 pb-6 pt-3">
-          <Button
-            title={editing ? 'Save changes' : 'Save task'}
-            block
-            size="lg"
-            disabled={!canSave}
-            onPress={save}
-          />
+          {/* Deliberately not disabled when the form is incomplete. A dead
+              button gives no reason and nothing to press against; `save` turns
+              the press into an explanation instead. */}
+          <Button title={editing ? 'Save changes' : 'Save task'} block size="lg" onPress={save} />
         </View>
     </Screen>
   );

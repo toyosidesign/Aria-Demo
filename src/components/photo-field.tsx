@@ -10,9 +10,12 @@ import { hapticSelect } from '@/lib/haptics';
 export function PhotoField({
   value,
   onChange,
+  error,
 }: {
   value?: string;
   onChange: (uri?: string) => void;
+  /** Set once Save has been pressed with no picture chosen. */
+  error?: string;
 }) {
   const c = useColors();
 
@@ -38,7 +41,7 @@ export function PhotoField({
 
   return (
     <View className="gap-2">
-      <Text variant="label" tone="muted">
+      <Text variant="label" tone={error ? 'danger' : 'muted'}>
         Picture
       </Text>
 
@@ -72,9 +75,10 @@ export function PhotoField({
       ) : (
         <Pressable
           onPress={pick}
+          style={error ? { borderColor: c.danger } : null}
           className="items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface py-10 active:opacity-70">
-          <ImagePlus size={24} color={c.accent} />
-          <Text tone="accent" className="font-semibold">
+          <ImagePlus size={24} color={error ? c.danger : c.accent} />
+          <Text tone={error ? 'danger' : 'accent'} className="font-semibold">
             Choose a picture
           </Text>
           <Text variant="caption" tone="faint">
@@ -82,6 +86,12 @@ export function PhotoField({
           </Text>
         </Pressable>
       )}
+
+      {error ? (
+        <Text accessibilityRole="alert" variant="caption" tone="danger">
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }

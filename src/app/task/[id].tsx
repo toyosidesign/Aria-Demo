@@ -21,6 +21,7 @@ import {
   MessageSquare,
   PenLine,
   Phone,
+  Repeat2,
   RotateCcw,
   SearchX,
   Share2,
@@ -51,7 +52,7 @@ import { openCall } from '@/lib/send';
 import { showToast } from '@/lib/toast';
 import { requestChecklist } from '@/lib/subtasks';
 import { useColors } from '@/lib/colors';
-import { formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
+import { REPEAT_LABEL, formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
 import {
   isLate,
   hasReminderFired,
@@ -220,6 +221,25 @@ export default function TaskDetailScreen() {
             </View>
           ) : null}
         </View>
+
+        {/* Says the task will come back, and when — otherwise the only clue is
+            a new copy appearing after it's ticked off. */}
+        {task.repeat ? (
+          <View className="flex-row items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3">
+            <Repeat2 size={18} color={c.accent} />
+            <View className="flex-1">
+              <Text variant="label" tone="accent">
+                Repeats
+              </Text>
+              <Text variant="caption" tone="faint">
+                {REPEAT_LABEL[task.repeat]}
+                {task.status === 'todo'
+                  ? `. Next one appears when you tick this off.`
+                  : `. The next one is already on your list.`}
+              </Text>
+            </View>
+          </View>
+        ) : null}
 
         {task.time && task.status === 'todo' ? (
           <View className="flex-row items-center justify-between rounded-2xl border border-border bg-surface px-4 py-3">

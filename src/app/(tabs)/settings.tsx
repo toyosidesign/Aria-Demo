@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { RotateCcw } from 'lucide-react-native';
+import { RotateCcw, Trash2 } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
 import { DemoDateBar } from '@/components/demo-date-bar';
@@ -15,6 +15,7 @@ import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { biometricSupport } from '@/lib/biometrics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
+import { showToast } from '@/lib/toast';
 import { useAriaStore, type ThemePref } from '@/store/aria-store';
 
 export default function SettingsScreen() {
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
     void biometricSupport().then(setBio);
   }, []);
   const resetDemo = useAriaStore((s) => s.resetDemo);
+  const clearAllData = useAriaStore((s) => s.clearAllData);
   const pro = useAriaStore((s) => s.pro);
   const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
   const setPro = useAriaStore((s) => s.setPro);
@@ -50,6 +52,28 @@ export default function SettingsScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Reset', style: 'destructive', onPress: doReset },
+      ],
+    );
+  }
+
+  function confirmClearAll() {
+    const doClear = () => {
+      clearAllData();
+      hapticSelect();
+      showToast('Cleared. The planner is yours now.', 'check');
+    };
+    if (Platform.OS === 'web') {
+      doClear();
+      return;
+    }
+    // Named plainly rather than softened: this deletes real work if there is
+    // any, and "Start fresh" on its own doesn't say that out loud.
+    Alert.alert(
+      'Delete everything?',
+      'Every task and contact is removed, including anything you added yourself. Your account and settings stay as they are. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete all', style: 'destructive', onPress: doClear },
       ],
     );
   }
@@ -245,6 +269,14 @@ export default function SettingsScreen() {
             description="Restore the original sample tasks."
             right={<RotateCcw size={19} color={c.danger} />}
             onPress={confirmReset}
+          />
+          {/* The way *out* of the demo. Reset only ever puts the samples back,
+              so without this the only escape was deleting each task by hand. */}
+          <SettingsRow
+            label="Start fresh"
+            description="Delete every task and contact, and use your own data."
+            right={<Trash2 size={19} color={c.danger} />}
+            onPress={confirmClearAll}
           />
         </SettingsGroup>
 

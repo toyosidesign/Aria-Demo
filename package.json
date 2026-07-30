@@ -61,6 +61,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "check:recurrence": "node --import ./scripts/security-check/register.mjs scripts/checks/recurrence.ts",
     "security-check": "node --import ./scripts/security-check/register.mjs scripts/security-check/offline.ts",
     "security-check:live": "node scripts/security-check/live.mjs"
   },

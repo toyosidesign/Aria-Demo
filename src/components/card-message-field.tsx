@@ -31,6 +31,7 @@ export function CardMessageField({
   value,
   onChange,
   label = 'What the card says',
+  error,
 }: {
   kind: TaskKind;
   title: string;
@@ -39,6 +40,8 @@ export function CardMessageField({
   onChange: (next: string) => void;
   /** Cards and pictures both need a message; only the wording differs. */
   label?: string;
+  /** Set once Save has been pressed with nothing written yet. */
+  error?: string;
 }) {
   const c = useColors();
   const [busy, setBusy] = useState(false);
@@ -73,6 +76,7 @@ export function CardMessageField({
         value={value}
         onChangeText={onChange}
         multiline
+        error={error}
       />
 
       <View className="flex-row items-center gap-2">
