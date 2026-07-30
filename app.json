@@ -8,11 +8,20 @@
     "scheme": "ariademo",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "googlegmail",
+          "sms",
+          "tel",
+          "mailto",
+          "whatsapp"
+        ],
+        "NSFaceIDUsageDescription": "Aria uses Face ID to unlock your tasks so only you can see them."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#3B5BD9",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -29,12 +38,26 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#3B5BD9",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120
         }
       ],
-      "@react-native-community/datetimepicker"
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aria uses your photos so you can set a profile picture.",
+          "cameraPermission": "Aria uses your camera so you can take a profile picture."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Aria uses your contacts so it can address a text or email without you retyping someone's details."
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

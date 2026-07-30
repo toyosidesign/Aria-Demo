@@ -1,22 +1,45 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import { localFallbackDraft, type DraftRequest, type DraftResponse } from '@/lib/aria-actions';
+import { protectedRoute } from '@/lib/api-auth';
+import { DraftSchema } from '@/lib/api-schemas';
+import { limitAi } from '@/lib/rate-limit';
+import {
+  isMessageMethod,
+  localFallbackDraft,
+  type DraftRequest,
+  type DraftResponse,
+} from '@/lib/aria-actions';
 
-const SYSTEM = `You are Aria, a warm, thoughtful assistant helping a university student named Maya.
-You are drafting a short message that Maya will send from her own phone, written in her voice (first person, as Maya).
+/**
+ * Built per request so Aria writes as whoever is signed in, rather than as the
+ * demo persona. Pronouns stay neutral: the app never asks for them, so it must
+ * not assume any.
+ */
+const systemFor = (senderName?: string, senderContext?: string) => {
+  const me = senderName?.trim() || 'the person you help';
+  // Their own description of themselves, or nothing. Assuming "university
+  // student" pitched every draft at a student regardless of who was writing.
+  const who = senderContext?.trim() ? `${me} (${senderContext.trim()})` : me;
+  return `You are Aria, a warm, thoughtful assistant helping ${who}.
+You are drafting a short message that ${me} will send from their own phone, written in their voice (first person, as ${me}).
 
 Rules:
-- Return ONLY the message text — no preamble, no quotation marks, no "Here's a draft", no sign-off notes.
+- Return ONLY the message text, with no preamble, no quotation marks, no "Here's a draft", no sign-off notes.
 - Keep it genuine, warm, and concise (1–3 sentences for a message; a short outline for an assignment).
-- Sound like a real student texting, not a greeting card. Avoid clichés and over-formality.
+- Sound like a real person texting, not a greeting card. Match how they'd actually write. Avoid clichés and over-formality.
 - Never invent specific facts (times, places, inside jokes) that weren't given.
-- It should be ready to send as-is.`;
+- It should be ready to send as-is.
+- Do not use em dashes (—) or hyphens as separators; use commas, periods, or colons instead.`;
+};
 
 function buildPrompt(req: DraftRequest): string {
   const who = req.contactName ? `to ${req.contactName}` : '';
   const lines: string[] = [];
 
-  if (req.kind === 'assignment' || req.kind === 'project') {
+  // A text/email/card/call is a message flow whatever the category is.
+  const messaging = isMessageMethod(req.method);
+
+  if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
     if (req.subtaskTitle && req.research) {
       lines.push(
         `For the assignment "${req.title}", help the student research the "${req.subtaskTitle}" topic. Give concise research notes as bullet points: the key facts/dates/people, the main angles and viewpoints to explore, and 2–3 specific things or source types to look up. No prose paragraphs, no preamble.`,
@@ -24,12 +47,12 @@ function buildPrompt(req: DraftRequest): string {
       if (req.description) lines.push(`Notes so far: ${req.description}`);
     } else if (req.subtaskTitle) {
       lines.push(
-        `For the assignment "${req.title}", write the "${req.subtaskTitle}" section. Produce the actual draft prose for just that section — a few tight paragraphs a student could build on. No outline, no preamble, no headings.`,
+        `For the assignment "${req.title}", write the "${req.subtaskTitle}" section. Produce the actual draft prose for just that section: a few tight paragraphs a student could build on. No outline, no preamble, no headings.`,
       );
       if (req.description) lines.push(`Notes so far: ${req.description}`);
     } else if (req.method === 'draft') {
       lines.push(
-        `Write a full first draft of this assignment: "${req.title}". Real prose the student can revise — introduction, body with 2–3 developed points, a counterpoint, and a conclusion. No outline, no preamble.`,
+        `Write a full first draft of this assignment: "${req.title}". Real prose the student can revise: introduction, body with 2–3 developed points, a counterpoint, and a conclusion. No outline, no preamble.`,
       );
       if (req.description) lines.push(`Context: ${req.description}`);
     } else {
@@ -38,6 +61,7 @@ function buildPrompt(req: DraftRequest): string {
       lines.push('Give 4–6 short numbered sections. No preamble.');
     }
   } else if (
+    !messaging &&
     (req.kind === 'general' || req.kind === 'event' || req.kind === 'reminder') &&
     !req.contactName
   ) {
@@ -65,15 +89,28 @@ function buildPrompt(req: DraftRequest): string {
         : req.method === 'card'
           ? 'Write it as a warm, heartfelt greeting-card message.'
           : req.method === 'call'
-            ? 'Do NOT write a message — instead give 3–4 short bullet talking points for a phone call.'
+            ? 'Do NOT write a message. Instead give 3–4 short bullet talking points for a phone call.'
             : 'Write it as a short, casual text message.';
     lines.push(fmt);
   }
 
   if (req.instruction && req.previousDraft) {
     lines.push('');
-    lines.push(`Here is the previous draft:\n${req.previousDraft}`);
-    lines.push(`Now rewrite it: ${req.instruction}. Return only the revised message.`);
+    if (req.research) {
+      // A research follow-up is a question about the topic, not an edit to the
+      // notes. Treating it as a rewrite answers something the student didn't
+      // ask: "who are the main people?" came back as reworded notes.
+      lines.push(`Here are the research notes so far:\n${req.previousDraft}`);
+      lines.push(
+        `Now answer this follow-up question about "${req.subtaskTitle ?? req.title}": ${req.instruction}`,
+      );
+      lines.push(
+        'Answer the question directly, as concise bullet points. Add what the notes above do not already cover rather than restating them. No preamble.',
+      );
+    } else {
+      lines.push(`Here is the previous draft:\n${req.previousDraft}`);
+      lines.push(`Now rewrite it: ${req.instruction}. Return only the revised message.`);
+    }
   }
 
   return lines.join('\n');
@@ -87,14 +124,11 @@ function extractText(msg: Anthropic.Message): string {
     .trim();
 }
 
-export async function POST(request: Request): Promise<Response> {
-  let body: DraftRequest;
-  try {
-    body = (await request.json()) as DraftRequest;
-  } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
+// Unauthenticated, this was a free proxy to a paid model on our key: the caller
+// controls `instruction` and `previousDraft`, so they controlled the whole prompt
+// and got the completion back. The wrapper enforces identity, quota and shape
+// before this body is trusted — see lib/api-auth.ts.
+export const POST = protectedRoute(DraftSchema, limitAi, async (body) => {
   // No key configured → return a scripted draft so the demo still works.
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ message: localFallbackDraft(body), fallback: true } satisfies DraftResponse);
@@ -109,7 +143,7 @@ export async function POST(request: Request): Promise<Response> {
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium' },
-      system: SYSTEM,
+      system: systemFor(body.senderName, body.senderContext),
       messages: [{ role: 'user', content: buildPrompt(body) }],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)) as Anthropic.Message;
@@ -123,7 +157,10 @@ export async function POST(request: Request): Promise<Response> {
       message: text || localFallbackDraft(body),
       fallback: !text,
     } satisfies DraftResponse);
-  } catch {
+  } catch (err) {
+    // The scripted draft keeps the app usable, but silence here hid a dead API
+    // key for a long time — every draft looked written when none of them were.
+    console.error('[aria] draft: Claude call failed, using scripted text:', err);
     return Response.json({ message: localFallbackDraft(body), fallback: true } satisfies DraftResponse);
   }
-}
+});

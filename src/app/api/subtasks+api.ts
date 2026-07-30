@@ -1,10 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import { localChecklist, type ChecklistRequest } from '@/lib/subtasks';
+import { protectedRoute } from '@/lib/api-auth';
+import { ChecklistSchema } from '@/lib/api-schemas';
+import { limitAi } from '@/lib/rate-limit';
+import { localChecklist } from '@/lib/subtasks';
 
-const SYSTEM = `You help a university student break an assignment into a clear, actionable checklist of topics/sections to work on.
-Given an assignment title (and optional notes), return 5–8 short, concrete items specific to the SUBJECT — the actual topics or sections the student should cover, in a sensible order. Each item is a few words, no numbering, no punctuation at the end.
-Example — "Essay on the history of America": ["Colonial era and settlement", "Road to independence", "The Revolutionary War", "Building the new nation", "Civil War and abolition", "Industrialization and immigration", "Civil rights movement", "Modern America"].`;
+const SYSTEM = `You help someone break a piece of work into a clear, actionable checklist of topics/sections to work on.
+Given an assignment title (and optional notes), return 5–8 short, concrete items specific to the SUBJECT: the actual topics or sections the student should cover, in a sensible order. Each item is a few words, no numbering, no punctuation at the end, and no dashes or hyphens.
+Example, "Essay on the history of America": ["Colonial era and settlement", "Road to independence", "The Revolutionary War", "Building the new nation", "Civil War and abolition", "Industrialization and immigration", "Civil rights movement", "Modern America"].`;
 
 const SCHEMA = {
   type: 'object',
@@ -23,14 +26,9 @@ function extractText(msg: Anthropic.Message): string {
     .trim();
 }
 
-export async function POST(request: Request): Promise<Response> {
-  let body: ChecklistRequest;
-  try {
-    body = (await request.json()) as ChecklistRequest;
-  } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
+// Authentication, quota and validation are the wrapper's job, so they cannot be
+// forgotten here. See lib/api-auth.ts.
+export const POST = protectedRoute(ChecklistSchema, limitAi, async (body) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ items: localChecklist(body) });
   }
@@ -58,7 +56,8 @@ export async function POST(request: Request): Promise<Response> {
     const parsed = JSON.parse(extractText(msg)) as { items?: string[] };
     if (!Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error('bad shape');
     return Response.json({ items: parsed.items });
-  } catch {
+  } catch (err) {
+    console.error('[aria] subtasks: Claude call failed, using local checklist:', err);
     return Response.json({ items: localChecklist(body) });
   }
-}
+});
