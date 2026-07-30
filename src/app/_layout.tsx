@@ -1,11 +1,18 @@
 import '@/global.css';
 
+import {
+  Inter_400Regular,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  useFonts,
+} from '@expo-google-fonts/inter';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { router, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { vars } from 'nativewind';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'nativewind';
@@ -16,7 +23,7 @@ import { ToastHost } from '@/components/toast-host';
 import { setupNotificationHandler } from '@/lib/alarms';
 import { addAutomationTapListener } from '@/lib/automation-notices';
 import { biometricSupport } from '@/lib/biometrics';
-import { palette } from '@/lib/colors';
+import { THEMES, resolveTheme, themeVars, type Palette } from '@/lib/colors';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { flushOutbox, setSyncUser } from '@/lib/sync';
 import { useAriaStore } from '@/store/aria-store';
@@ -32,9 +39,8 @@ SplashScreen.preventAutoHideAsync();
  */
 const MIN_LOADING_MS = 4000;
 
-function navTheme(scheme: 'light' | 'dark') {
-  const c = palette[scheme];
-  const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+function navTheme(c: Palette, dark: boolean) {
+  const base = dark ? DarkTheme : DefaultTheme;
   return {
     ...base,
     colors: {
@@ -50,8 +56,25 @@ function navTheme(scheme: 'light' | 'dark') {
 }
 
 export default function RootLayout() {
+  /**
+   * Inter, in the three cuts the type scale actually uses.
+   *
+   * Held behind the loading screen below: without that, every screen paints in
+   * the system font first and then reflows when Inter lands, which is a visible
+   * jolt on the very first impression. The app already waits there for
+   * hydration, so this costs nothing extra.
+   *
+   * A load *failure* is deliberately treated as "carry on" — text falls back to
+   * the system sans, which is an ordinary-looking app rather than a broken one.
+   */
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+  const fontsSettled = fontsLoaded || !!fontError;
+
   const { colorScheme, setColorScheme } = useColorScheme();
-  const scheme = colorScheme === 'dark' ? 'dark' : 'light';
   const hydrated = useAriaStore((s) => s.hydrated);
   const themePref = useAriaStore((s) => s.settings.theme);
   const signedIn = useAriaStore((s) => s.signedIn);
@@ -150,8 +173,20 @@ export default function RootLayout() {
   }, []);
 
   // Apply the user's theme preference (System / Light / Dark).
+  /**
+   * The theme the user picked, resolved against the OS scheme.
+   *
+   * Also drives nativewind's own light/dark flag, so `dark:` utilities and the
+   * navigation chrome still agree with a theme that is neither plain light nor
+   * plain dark — "Cream" is a light theme, "Charcoal" a dark one.
+   */
+  const theme = resolveTheme(themePref, colorScheme === 'dark');
+
   useEffect(() => {
-    if (hydrated) setColorScheme(themePref);
+    if (!hydrated) return;
+    setColorScheme(
+      themePref === 'system' ? 'system' : THEMES[themePref].dark ? 'dark' : 'light',
+    );
   }, [hydrated, themePref, setColorScheme]);
 
   // Auth gate: signed out → /login, new signup → /welcome, otherwise into the app.
@@ -171,17 +206,23 @@ export default function RootLayout() {
     }
   }, [hydrated, authReady, signedIn, onboarded, segments]);
 
-  if (!hydrated || !authReady || !minElapsed || locked === null)
+  if (!hydrated || !authReady || !minElapsed || locked === null || !fontsSettled)
     return <AriaLoading durationMs={MIN_LOADING_MS} />;
 
   if (locked) return <LockScreen label={bioLabel} onUnlock={() => setLocked(false)} />;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    /*
+     * `vars()` writes the theme's CSS variables onto this view and every
+     * className-styled descendant inherits them. The media query in global.css
+     * only knows light and dark, so this is what lets a named theme like Cream
+     * or Midnight drive `bg-surface`, `text-ink` and the rest.
+     */
+    <GestureHandlerRootView style={[{ flex: 1 }, vars(themeVars(theme))]}>
       <SafeAreaProvider>
-        <ThemeProvider value={navTheme(scheme)}>
+        <ThemeProvider value={navTheme(theme.palette, theme.dark)}>
           <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette[scheme].bg } }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.palette.bg } }}>
             <Stack.Screen name="login" options={{ animation: 'fade' }} />
             <Stack.Screen name="forgot-password" options={{ animation: 'fade' }} />
             <Stack.Screen name="welcome" options={{ animation: 'fade' }} />

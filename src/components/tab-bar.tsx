@@ -88,7 +88,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
             <Text
               variant="caption"
               tone={focused ? 'accent' : 'faint'}
-              className="text-[11px] font-semibold leading-[14px]">
+              className="text-[11px] font-strong leading-[14px]">
               {label}
             </Text>
           </Pressable>

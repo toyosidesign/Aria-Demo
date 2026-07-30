@@ -77,7 +77,7 @@ export default function ConnectionsScreen() {
               <View className="flex-row items-center gap-2">
                 <Text variant="subtitle">Aria Pro</Text>
                 <View className="rounded-full border border-accent/40 bg-accent px-2 py-0.5">
-                  <Text variant="caption" className="font-bold" style={{ color: c.accentInk }}>
+                  <Text variant="caption" className="font-heavy" style={{ color: c.accentInk }}>
                     PRO
                   </Text>
                 </View>
@@ -119,9 +119,9 @@ export default function ConnectionsScreen() {
                   </View>
                   <View className="flex-1">
                     <View className="flex-row items-center gap-2">
-                      <Text className="font-semibold">{app.name}</Text>
+                      <Text className="font-strong">{app.name}</Text>
                       {!locked && on ? (
-                        <Text variant="caption" tone="accent" className="font-semibold">
+                        <Text variant="caption" tone="accent" className="font-strong">
                           Connected
                         </Text>
                       ) : null}
@@ -133,7 +133,7 @@ export default function ConnectionsScreen() {
                   {locked ? (
                     <View className="flex-row items-center gap-1 rounded-full border border-border bg-bg px-2.5 py-1">
                       <Lock size={11} color={c.faint} />
-                      <Text variant="caption" tone="faint" className="font-bold">
+                      <Text variant="caption" tone="faint" className="font-heavy">
                         PRO
                       </Text>
                     </View>

@@ -33,7 +33,7 @@ export function SimulatedDateBanner({ className }: { className?: string } = {}) 
       )}>
       <CalendarClock size={17} color={c.accent} />
       <View className="flex-1">
-        <Text variant="small" className="font-semibold">
+        <Text variant="small" className="font-strong">
           Simulating {formatLong(demoDate)}
         </Text>
         <Text variant="caption" tone="muted">
@@ -48,7 +48,7 @@ export function SimulatedDateBanner({ className }: { className?: string } = {}) 
           hapticSelect();
           showToast('Back to the real date', 'clock');
         }}>
-        <Text variant="small" tone="accent" className="font-semibold">
+        <Text variant="small" tone="accent" className="font-strong">
           Fix
         </Text>
       </Pressable>

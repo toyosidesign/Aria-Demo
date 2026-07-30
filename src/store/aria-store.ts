@@ -25,6 +25,7 @@ import {
   type Repeat,
 } from '@/lib/dates';
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
+import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/themes';
 import { showToast } from '@/lib/toast';
 import { uuidv4 } from '@/lib/id';
 import {
@@ -124,7 +125,7 @@ export function defaultMethodFor(kind: TaskKind, hasContact: boolean): TaskMetho
   return hasContact ? 'sms' : 'remind';
 }
 
-export type ThemePref = 'system' | 'light' | 'dark';
+export type { ThemePref } from '@/lib/themes';
 
 export interface Profile {
   name: string;
@@ -160,7 +161,18 @@ export const DEFAULT_PROFILE: Profile = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: 'system',
+  /**
+   * A fixed theme, not 'system'.
+   *
+   * Following the device means the app changes appearance on its own — light at
+   * noon, dark at night — which is a thing to be agreed to rather than assumed.
+   * Defaulting to 'system' switched it on for everyone and left the toggle in
+   * Settings as the only way to find out it was happening.
+   *
+   * So it starts on one theme and stays there. "Match my device" in Settings is
+   * the opt-in, and turning it on is the consent.
+   */
+  theme: SYSTEM_LIGHT,
   biometricLock: false,
   proactiveAria: true,
   haptics: true,
@@ -605,7 +617,10 @@ export const useAriaStore = create<AriaState>()(
         set((s) => ({
           signedIn: true,
           profile: { ...s.profile, ...(name ? { name } : {}), ...remote },
-          settings: data.settings ?? s.settings,
+          // Merge, don't replace. A remote row only reports the columns it has
+          // set, so anything it is silent about keeps the device's value —
+          // otherwise a bare profile row resets the theme on every launch.
+          settings: { ...s.settings, ...(data.settings ?? {}) },
           onboarded: data.onboarded || s.onboarded,
           tasks: data.tasks.length ? data.tasks : s.tasks,
           contacts: data.contacts.length ? data.contacts : s.contacts,
@@ -881,6 +896,19 @@ export const useAriaStore = create<AriaState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+
+        // Theme names have changed more than once — the setting was
+        // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',
+        // which have since gone. Anything not currently offered is rewritten
+        // rather than left to fall back on every read: a stale value would keep
+        // the picker showing nothing selected.
+        const storedTheme = state.settings.theme as string;
+        const known: string[] = ['system', ...THEME_NAMES];
+        if (!known.includes(storedTheme)) {
+          const wasDark = storedTheme === 'dark' || storedTheme === 'charcoal';
+          state.setSetting('theme', wasDark ? SYSTEM_DARK : SYSTEM_LIGHT);
+        }
+
         // A previously persisted "today" that now sits in the past is a stale
         // default (simulated dates are always in the future) — snap it to today
         // so the calendar and everything keyed off "today" stay correct.
@@ -1016,6 +1044,20 @@ export function isLate(task: Task, demoDate: string) {
   if (task.date < demoDate) return true;
   if (task.date > demoDate) return false;
   return !!task.time && isPastMoment(task.date, task.time);
+}
+
+/**
+ * Due today, and still in time.
+ *
+ * The complement of `isLate` within today: same day, but either no time set or
+ * a time that hasn't come round yet. Deliberately exclusive of late — a task
+ * can't be both "get to this today" and "you've missed this", and showing both
+ * labels would say nothing.
+ */
+export function isDueToday(task: Task, demoDate: string) {
+  if (task.status !== 'todo') return false;
+  if (task.date !== demoDate) return false;
+  return !isLate(task, demoDate);
 }
 
 /**

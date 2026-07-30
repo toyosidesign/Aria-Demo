@@ -297,7 +297,7 @@ export default function ResearchScreen() {
                   onPress={() => submit(q)}
                   className="flex-row items-center gap-1.5 rounded-full border border-accent/30 bg-accent-soft px-3.5 py-2 active:opacity-70">
                   <Sparkles size={13} color={c.accent} />
-                  <Text variant="small" tone="accent" className="font-semibold">
+                  <Text variant="small" tone="accent" className="font-strong">
                     {q}
                   </Text>
                 </Pressable>

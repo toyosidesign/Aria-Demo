@@ -187,7 +187,7 @@ export default function ForgotPasswordScreen() {
                     }}
                     hitSlop={6}
                     className="self-start active:opacity-60">
-                    <Text variant="caption" tone="accent" className="font-semibold">
+                    <Text variant="caption" tone="accent" className="font-strong">
                       Use a different email
                     </Text>
                   </Pressable>
@@ -218,7 +218,7 @@ export default function ForgotPasswordScreen() {
 
             <Pressable onPress={() => router.replace('/login')} hitSlop={8} className="active:opacity-60">
               <Text variant="caption" tone="muted" className="text-center">
-                Remembered it? <Text variant="caption" tone="accent" className="font-semibold">Back to sign in</Text>
+                Remembered it? <Text variant="caption" tone="accent" className="font-strong">Back to sign in</Text>
               </Text>
             </Pressable>
           </View>

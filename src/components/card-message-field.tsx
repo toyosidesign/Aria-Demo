@@ -89,7 +89,7 @@ export function CardMessageField({
           ) : (
             <Sparkles size={15} color={c.accent} />
           )}
-          <Text variant="caption" tone="accent" className="font-semibold">
+          <Text variant="caption" tone="accent" className="font-strong">
             {busy ? 'Writing…' : hasMessage ? 'Rewrite it' : 'Draft it with Aria'}
           </Text>
         </Pressable>
@@ -107,7 +107,7 @@ export function CardMessageField({
               key={a.label}
               onPress={() => draft(a.instruction)}
               className="rounded-full border border-border bg-surface px-3 py-1.5 active:opacity-70">
-              <Text variant="caption" tone="muted" className="font-semibold">
+              <Text variant="caption" tone="muted" className="font-strong">
                 {a.label}
               </Text>
             </Pressable>

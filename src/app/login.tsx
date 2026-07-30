@@ -200,7 +200,7 @@ export default function LoginScreen() {
                 }}
                 hitSlop={8}
                 className="active:opacity-60">
-                <Text variant="caption" tone="accent" className="font-semibold">
+                <Text variant="caption" tone="accent" className="font-strong">
                   Not {firstName}?
                 </Text>
               </Pressable>
@@ -264,7 +264,7 @@ export default function LoginScreen() {
                 onPress={() => router.push('/forgot-password')}
                 hitSlop={8}
                 className="active:opacity-60">
-                <Text variant="small" tone="accent" className="font-semibold">
+                <Text variant="small" tone="accent" className="font-strong">
                   Forgot password
                 </Text>
               </Pressable>
@@ -296,7 +296,7 @@ export default function LoginScreen() {
             onPress={() => switchMode(isNew ? 'signin' : 'signup')}
             hitSlop={8}
             className="active:opacity-60">
-            <Text variant="small" tone="accent" className="font-semibold">
+            <Text variant="small" tone="accent" className="font-strong">
               {isNew ? 'Log in' : 'Sign up'}
             </Text>
           </Pressable>

@@ -71,7 +71,7 @@ export default function ActivityScreen() {
                     <Check size={17} color={c.success} style={{ marginTop: 1 }} />
                   )}
                   <View className="flex-1 gap-0.5">
-                    <Text variant="small" className="font-semibold">
+                    <Text variant="small" className="font-strong">
                       {a.taskTitle}
                     </Text>
                     <Text variant="caption" tone="muted">
@@ -102,7 +102,7 @@ function Row({ automation, onCancel }: { automation: Automation; onCancel: () =>
     <View className="flex-row items-start gap-3 rounded-2xl border border-border bg-surface px-4 py-3.5">
       <Icon size={17} color={c.accent} style={{ marginTop: 1 }} />
       <View className="flex-1 gap-0.5">
-        <Text variant="small" className="font-semibold">
+        <Text variant="small" className="font-strong">
           {automation.taskTitle}
         </Text>
         <Text variant="caption" tone="muted">
@@ -113,7 +113,7 @@ function Row({ automation, onCancel }: { automation: Automation; onCancel: () =>
         </Text>
       </View>
       <Pressable onPress={onCancel} hitSlop={8} className="active:opacity-60">
-        <Text variant="caption" tone="danger" className="font-semibold">
+        <Text variant="caption" tone="danger" className="font-strong">
           Cancel
         </Text>
       </Pressable>

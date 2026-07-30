@@ -78,7 +78,7 @@ export default function ProfileScreen() {
           <Pressable
             onPress={() => router.push('/profile/edit')}
             className="rounded-full border border-border bg-surface px-4 py-2 active:opacity-70">
-            <Text variant="small" className="font-semibold">
+            <Text variant="small" className="font-strong">
               Edit profile
             </Text>
           </Pressable>

@@ -10,8 +10,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-/** Must match the native splash exactly, or the handover flickers. */
-const BRAND = '#3B5BD9';
+/**
+ * Matches the native splash and app.json's backgroundColor.
+ *
+ * The brand blue — primary-600. Fixed rather than theme-aware on purpose:
+ * this paints before the app knows the colour scheme, and it has to be
+ * pixel-identical to the native splash or the hand-off flashes.
+ */
+const BRAND = '#1570EF';
 
 /**
  * What's on screen between launch and the app being ready.
@@ -65,6 +71,10 @@ export function AriaLoading({
         <Sparkles size={76} color="#FFFFFF" strokeWidth={1.6} />
       </Animated.View>
 
+      {/* Deliberately the system font, not Inter. This is the screen shown
+          *while* Inter is loading, so asking for it here would either fall back
+          silently or swap mid-animation. The rest of the app switches once
+          _layout releases. */}
       <Text
         style={{
           marginTop: 22,

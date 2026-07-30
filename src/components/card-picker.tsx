@@ -61,7 +61,7 @@ export function CardPicker({
                   variant="caption"
                   tone={active ? 'accent' : 'muted'}
                   numberOfLines={1}
-                  className="flex-1 font-semibold">
+                  className="flex-1 font-strong">
                   {t.name}
                 </Text>
                 {active ? <Check size={13} color={c.accent} strokeWidth={3} /> : null}

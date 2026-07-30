@@ -53,7 +53,7 @@ export function SnoozeChips({
             key={o.label}
             onPress={() => onPick(o.at())}
             className="rounded-full border border-accent bg-accent-soft px-3.5 py-2.5 active:opacity-70">
-            <Text variant="small" tone="accent" className="font-semibold">
+            <Text variant="small" tone="accent" className="font-strong">
               {o.label}
             </Text>
           </Pressable>
@@ -61,7 +61,7 @@ export function SnoozeChips({
         <Pressable
           onPress={onCancel}
           className="rounded-full border border-border bg-surface px-3.5 py-2.5 active:opacity-70">
-          <Text variant="small" tone="muted" className="font-semibold">
+          <Text variant="small" tone="muted" className="font-strong">
             Cancel
           </Text>
         </Pressable>

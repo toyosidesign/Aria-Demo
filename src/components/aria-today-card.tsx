@@ -41,7 +41,9 @@ export function AriaTodayCard({
           <Text variant="label" tone="accent">
             Aria · Today
           </Text>
-          <Text variant="subtitle" numberOfLines={1}>
+          {/* Matches TaskCard: one step down from a heading, so the row reads as
+              an item rather than as a title of its own. */}
+          <Text className="font-strong" numberOfLines={1}>
             {task.title}
           </Text>
           <Text variant="caption" tone="muted">

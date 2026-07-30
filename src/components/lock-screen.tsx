@@ -4,8 +4,14 @@ import { AppState, Pressable, Text, View } from 'react-native';
 
 import { unlockWithBiometrics } from '@/lib/biometrics';
 
-/** Matches the loading screen and the native splash. */
-const BRAND = '#3B5BD9';
+/**
+ * Matches the native splash and app.json's backgroundColor.
+ *
+ * The brand blue — primary-600. Fixed rather than theme-aware on purpose:
+ * this paints before the app knows the colour scheme, and it has to be
+ * pixel-identical to the native splash or the hand-off flashes.
+ */
+const BRAND = '#1570EF';
 
 /**
  * Stands between launch and the app when the biometric lock is on.
@@ -58,7 +64,7 @@ export function LockScreen({ label, onUnlock }: { label: string; onUnlock: () =>
       <ScanFace size={72} color="#FFFFFF" strokeWidth={1.6} />
 
       <Text
-        style={{ marginTop: 22, fontSize: 24, fontWeight: '700', color: '#FFFFFF' }}>
+        style={{ marginTop: 22, fontSize: 24, fontFamily: 'Inter_700Bold', color: '#FFFFFF' }}>
         Aria is locked
       </Text>
       <Text style={{ marginTop: 6, fontSize: 14, color: '#FFFFFFB3', textAlign: 'center' }}>
@@ -79,7 +85,7 @@ export function LockScreen({ label, onUnlock }: { label: string; onUnlock: () =>
           backgroundColor: '#FFFFFF',
           opacity: checking ? 0.6 : 1,
         }}>
-        <Text style={{ fontSize: 15, fontWeight: '600', color: BRAND }}>
+        <Text style={{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: BRAND }}>
           {refused ? 'Try again' : `Unlock with ${label}`}
         </Text>
       </Pressable>

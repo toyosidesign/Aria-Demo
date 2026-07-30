@@ -89,7 +89,7 @@ export function DemoDateBar({ compact = false }: { compact?: boolean } = {}) {
               <Text
                 variant="small"
                 tone={active ? 'onAccent' : 'muted'}
-                className="font-semibold">
+                className="font-strong">
                 {chip.label}
               </Text>
             </Pressable>

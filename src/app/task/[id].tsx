@@ -54,6 +54,7 @@ import { requestChecklist } from '@/lib/subtasks';
 import { useColors } from '@/lib/colors';
 import { REPEAT_LABEL, formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
 import {
+  isDueToday,
   isLate,
   hasReminderFired,
   isReminderOnly,
@@ -142,6 +143,7 @@ export default function TaskDetailScreen() {
 
   const action = task.status === 'todo' ? ariaActionFor(task) : null;
   const late = isLate(task, demoDate);
+  const dueToday = isDueToday(task, demoDate);
   const isFuture = task.date !== demoDate;
   const MethodIcon = task.method ? METHOD_ICON[task.method] : null;
   const isAssignmentKind = task.kind === 'assignment' || task.kind === 'project';
@@ -187,12 +189,14 @@ export default function TaskDetailScreen() {
               <StatusBadge status="done" />
             ) : late ? (
               <StatusBadge status="late" />
+            ) : dueToday ? (
+              <StatusBadge status="due" />
             ) : null}
             <PriorityBadge priority={task.priority} />
           </View>
           <View className="flex-row items-center gap-2">
-            <CalendarDays size={16} color={late ? c.danger : c.muted} />
-            <Text tone={late ? 'danger' : 'muted'}>
+            <CalendarDays size={16} color={late ? c.danger : dueToday ? c.warning : c.muted} />
+            <Text tone={late ? 'danger' : dueToday ? 'warning' : 'muted'}>
               {formatLong(task.date)}
               {task.time ? ` · ${formatTime(task.time)}` : ''}
               {task.status === 'todo' ? `  ·  ${formatRelative(task.date, demoDate)}` : ''}
@@ -260,7 +264,7 @@ export default function TaskDetailScreen() {
                   onPress={() => runPreview(task.title)}
                   hitSlop={8}
                   className="active:opacity-60">
-                  <Text variant="caption" tone="accent" className="font-semibold">
+                  <Text variant="caption" tone="accent" className="font-strong">
                     Preview
                   </Text>
                 </Pressable>
@@ -315,7 +319,7 @@ export default function TaskDetailScreen() {
             <Card className="gap-4">
               {task.draftSections.map((d, i) => (
                 <View key={`${d.title}-${i}`} className="gap-1">
-                  <Text variant="small" tone="accent" className="font-semibold">
+                  <Text variant="small" tone="accent" className="font-strong">
                     {d.title}
                   </Text>
                   <Text className="text-[14px] leading-[20px]">{d.content}</Text>

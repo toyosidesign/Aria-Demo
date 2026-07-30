@@ -76,7 +76,7 @@ export function ToastHost() {
           maxWidth: '90%',
         }}>
         <Icon size={16} color={c.bg} />
-        <Text className="font-semibold" style={{ color: c.bg }} numberOfLines={1}>
+        <Text className="font-strong" style={{ color: c.bg }} numberOfLines={1}>
           {message}
         </Text>
       </View>

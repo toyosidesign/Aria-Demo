@@ -1,5 +1,7 @@
 import { type LucideIcon } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
+
+import { useColors } from '@/lib/colors';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -31,6 +33,7 @@ export function SwipeAction({
   label: string;
   onPress: () => void;
 }) {
+  const c = useColors();
   const style = useAnimatedStyle(() => ({
     transform: [
       { scale: interpolate(progress.value, [0, 0.6, 1], [0.3, 1, 1], Extrapolation.CLAMP) },
@@ -53,7 +56,7 @@ export function SwipeAction({
             backgroundColor: color,
           }}
           className="items-center justify-center active:opacity-70">
-          <Icon size={23} color="#fff" strokeWidth={2.4} />
+          <Icon size={23} color={c.accentInk} strokeWidth={2.4} />
         </Pressable>
       </Animated.View>
     </View>

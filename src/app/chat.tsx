@@ -183,7 +183,7 @@ export default function ChatScreen() {
                         <CalendarDays size={16} color={c.accent} />
                       </View>
                       <View className="flex-1">
-                        <Text variant="small" className="font-semibold" numberOfLines={1}>
+                        <Text variant="small" className="font-strong" numberOfLines={1}>
                           {t.title}
                         </Text>
                         <Text variant="caption" tone="muted">
@@ -192,7 +192,7 @@ export default function ChatScreen() {
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-0.5">
-                        <Text variant="caption" tone="accent" className="font-semibold">
+                        <Text variant="caption" tone="accent" className="font-strong">
                           Review
                         </Text>
                         <ChevronRight size={15} color={c.accent} />
@@ -237,7 +237,7 @@ export default function ChatScreen() {
                   <Text
                     variant="small"
                     tone={active ? 'onAccent' : 'muted'}
-                    className="font-semibold">
+                    className="font-strong">
                     {k.label}
                   </Text>
                 </Pressable>
@@ -253,7 +253,7 @@ export default function ChatScreen() {
               entering={FadeIn.duration(200)}
               className="mb-2 flex-row items-center justify-center gap-2 self-center rounded-full bg-accent-soft px-4 py-1.5">
               <Mic size={14} color={c.accent} />
-              <Text variant="caption" tone="accent" className="font-semibold">
+              <Text variant="caption" tone="accent" className="font-strong">
                 Listening… (simulated)
               </Text>
             </Animated.View>

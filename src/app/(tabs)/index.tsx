@@ -92,7 +92,7 @@ export default function TodayScreen() {
         <View className="flex-row items-center justify-between pt-2">
           <View className="flex-row items-center gap-2.5">
             <AriaAvatar size={38} />
-            <Text className="text-2xl font-bold tracking-tight">Aria</Text>
+            <Text className="text-2xl font-heavy tracking-tight">Aria</Text>
           </View>
           <View className="flex-row items-center gap-2.5">
             <Pressable
@@ -114,13 +114,47 @@ export default function TodayScreen() {
 
         {/* Greeting */}
         <View>
-          <Text variant="title">
+          {/* One line, always. "Good afternoon, Oluwatobiloba" wraps at 29px on
+              a normal phone, and the second line reads as an indent rather than
+              as a continuation. Shrinking beats truncating here — a greeting
+              that clips someone's name is worse than one set a little smaller. */}
+          <Text variant="title" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {greeting()}, {firstName}
           </Text>
           <Text tone="muted" className="mt-1">
             {formatLong(demoDate)}
           </Text>
         </View>
+
+        {/* Overloaded week — first thing under the greeting.
+            This is the one card that changes what you do with your day, and
+            it used to sit below Today and Coming up, where it was reached only
+            by scrolling past the very tasks it is warning about. */}
+        {proactive && week.overloaded && !nudgeDismissed ? (
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            exiting={FadeOut.duration(200)}
+            className="gap-3 rounded-3xl border border-border bg-surface p-5">
+            <View className="flex-row items-center gap-2.5">
+              <AriaAvatar size={30} />
+              <Text variant="subtitle" className="flex-1">
+                Your week looks packed
+              </Text>
+            </View>
+            <Text className="leading-6">
+              You have {week.count} tasks this week. Want to move a few things to another day or
+              time?
+            </Text>
+            <View className="flex-row gap-2">
+              <Button
+                title="Rebalance my week"
+                onPress={() => router.push('/rebalance')}
+                className="flex-1"
+              />
+              <Button title="I'm good" variant="secondary" onPress={() => setNudgeDismissed(true)} />
+            </View>
+          </Animated.View>
+        ) : null}
 
         <SimulatedDateBanner />
 
@@ -244,7 +278,7 @@ export default function TodayScreen() {
               onPress={() => router.push(`/task/new?date=${demoDate}`)}
               className="flex-row items-center gap-2 self-start rounded-full px-2 py-1.5 active:opacity-60">
               <Plus size={17} color={c.accent} />
-              <Text variant="small" tone="accent" className="font-semibold">
+              <Text variant="small" tone="accent" className="font-strong">
                 Add a task
               </Text>
             </Pressable>
@@ -253,33 +287,6 @@ export default function TodayScreen() {
 
         {/* Work Aria has taken on: due now, coming up, or already handled */}
         <AutomationCard />
-
-        {/* Overloaded-week nudge */}
-        {proactive && week.overloaded && !nudgeDismissed ? (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            exiting={FadeOut.duration(200)}
-            className="gap-3 rounded-3xl border border-border bg-surface p-5">
-            <View className="flex-row items-center gap-2.5">
-              <AriaAvatar size={30} />
-              <Text variant="subtitle" className="flex-1">
-                Your week looks packed
-              </Text>
-            </View>
-            <Text className="leading-6">
-              You have {week.count} tasks this week. Want to move a few things to another day or
-              time?
-            </Text>
-            <View className="flex-row gap-2">
-              <Button
-                title="Rebalance my week"
-                onPress={() => router.push('/rebalance')}
-                className="flex-1"
-              />
-              <Button title="I'm good" variant="secondary" onPress={() => setNudgeDismissed(true)} />
-            </View>
-          </Animated.View>
-        ) : null}
 
         {/* Coming up */}
         {comingUp.length > 0 ? (
@@ -292,7 +299,7 @@ export default function TodayScreen() {
                 <Pressable
                   onPress={() => router.push('/(tabs)/tasks')}
                   className="flex-row items-center gap-0.5 active:opacity-60">
-                  <Text variant="small" tone="accent" className="font-semibold">
+                  <Text variant="small" tone="accent" className="font-strong">
                     See all
                   </Text>
                   <ChevronRight size={16} color={c.accent} />

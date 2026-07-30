@@ -439,7 +439,7 @@ export default function NewTaskScreen() {
                     <Text
                       variant="small"
                       tone={active ? 'accent' : 'muted'}
-                      className="font-semibold">
+                      className="font-strong">
                       {k.label}
                     </Text>
                   </Pressable>
@@ -469,7 +469,7 @@ export default function NewTaskScreen() {
                       <Text
                         variant="small"
                         tone={on ? 'accent' : 'muted'}
-                        className="font-semibold">
+                        className="font-strong">
                         {o.label}
                       </Text>
                     </Pressable>
@@ -538,7 +538,7 @@ export default function NewTaskScreen() {
                     onPress={() => runPreview(title.trim() || 'Task reminder')}
                     hitSlop={8}
                     className="active:opacity-60">
-                    <Text variant="caption" tone="accent" className="font-semibold">
+                    <Text variant="caption" tone="accent" className="font-strong">
                       Preview chime
                     </Text>
                   </Pressable>
@@ -588,7 +588,7 @@ export default function NewTaskScreen() {
                         <Text
                           variant="small"
                           tone={active ? 'accent' : 'muted'}
-                          className="font-semibold">
+                          className="font-strong">
                           {o.label}
                         </Text>
                       </Pressable>
@@ -623,7 +623,7 @@ export default function NewTaskScreen() {
                     <Text
                       variant="small"
                       tone={active ? 'accent' : 'muted'}
-                      className="font-semibold">
+                      className="font-strong">
                       {p.label}
                     </Text>
                   </Pressable>
@@ -654,7 +654,7 @@ export default function NewTaskScreen() {
                       <Text
                         variant="small"
                         tone={active ? 'accent' : 'muted'}
-                        className="font-semibold">
+                        className="font-strong">
                         {METHOD_LABELS[m]}
                       </Text>
                     </Pressable>
@@ -733,7 +733,7 @@ export default function NewTaskScreen() {
                 onPress={() => setPreviewOpen(true)}
                 className="flex-row items-center justify-center gap-2 rounded-2xl border border-border bg-surface py-3 active:opacity-70">
                 <Eye size={17} color={c.accent} />
-                <Text tone="accent" className="font-semibold">
+                <Text tone="accent" className="font-strong">
                   Preview card
                 </Text>
               </Pressable>
@@ -781,7 +781,7 @@ export default function NewTaskScreen() {
                   onPress={() => setSubtasks((prev) => [...prev, newDraftSubtask()])}
                   className="flex-row items-center gap-2 self-start rounded-full px-2 py-1.5 active:opacity-60">
                   <Plus size={18} color={c.accent} />
-                  <Text variant="small" tone="accent" className="font-semibold">
+                  <Text variant="small" tone="accent" className="font-strong">
                     Add subtask
                   </Text>
                 </Pressable>

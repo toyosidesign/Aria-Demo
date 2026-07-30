@@ -28,15 +28,23 @@ export function Segmented<T extends string>({
           <Pressable
             key={opt.value}
             onPress={() => onChange(opt.value)}
+            /*
+             * `elevated`, not `surface`. In light they're the same step so
+             * nothing changes, but in dark `surface` is *darker* than this
+             * track — the selected pill sank into the background instead of
+             * lifting off it, which is why the selection was hard to see.
+             * `elevated` is the one step that is lighter than the track in
+             * both schemes. The border adds an edge so it holds up either way.
+             */
             className={cn(
               'flex-1 flex-row items-center justify-center gap-1.5 rounded-xl py-2',
-              active && 'bg-surface',
+              active ? 'border border-border bg-elevated' : 'border border-transparent',
             )}>
-            <Text variant="small" tone={active ? 'default' : 'muted'} className="font-semibold">
+            <Text variant="small" tone={active ? 'default' : 'muted'} className="font-strong">
               {opt.label}
             </Text>
             {typeof opt.count === 'number' ? (
-              <Text variant="caption" tone={active ? 'accent' : 'faint'} className="font-semibold">
+              <Text variant="caption" tone={active ? 'accent' : 'faint'} className="font-strong">
                 {opt.count}
               </Text>
             ) : null}

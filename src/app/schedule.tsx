@@ -109,7 +109,7 @@ export default function ScheduleScreen() {
               <View className="flex-row items-center gap-2">
                 <Text variant="subtitle">Aria Pro</Text>
                 <View className="rounded-full bg-accent px-2 py-0.5">
-                  <Text variant="caption" className="font-bold" style={{ color: c.accentInk }}>
+                  <Text variant="caption" className="font-heavy" style={{ color: c.accentInk }}>
                     PRO
                   </Text>
                 </View>
@@ -201,7 +201,7 @@ export default function ScheduleScreen() {
                     <Text
                       variant="small"
                       tone={active ? 'accent' : 'muted'}
-                      className="font-semibold">
+                      className="font-strong">
                       {m.label}
                     </Text>
                   </Pressable>

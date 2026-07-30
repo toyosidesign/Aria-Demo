@@ -626,7 +626,7 @@ export default function AriaFlowScreen() {
                   key={r.label}
                   onPress={() => chooseRewrite(r.instruction, r.label)}
                   className="rounded-full border border-accent bg-accent-soft px-3.5 py-2 active:opacity-70">
-                  <Text variant="small" tone="accent" className="font-semibold">
+                  <Text variant="small" tone="accent" className="font-strong">
                     {r.label}
                   </Text>
                 </Pressable>

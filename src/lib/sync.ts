@@ -172,7 +172,32 @@ export function profileToRow(
     updated_at: now(),
   };
 }
-function rowToProfile(r: ProfileRow): { profile: Profile; settings: Settings; onboarded: boolean } {
+/**
+ * A remote row, with the columns it actually has an opinion about.
+ *
+ * Settings come back **partial** on purpose. Filling the blanks with defaults
+ * here was silently destructive: the signup trigger creates a profiles row
+ * holding only id and email, so `theme` is null, `?? 'system'` turned that null
+ * into a real preference, and hydrate then wrote it over whatever the user had
+ * chosen on the device. Pick Charcoal, reopen the app, and it came back as
+ * whatever the phone was set to.
+ *
+ * A column that is null means "this row has nothing to say", not "the user
+ * wants the default". Only set columns are returned, and hydrate merges them
+ * over the local values.
+ */
+function rowToProfile(r: ProfileRow): {
+  profile: Profile;
+  settings: Partial<Settings>;
+  onboarded: boolean;
+} {
+  const settings: Partial<Settings> = {};
+  if (r.theme != null) settings.theme = r.theme as Settings['theme'];
+  if (r.biometric_lock != null) settings.biometricLock = r.biometric_lock;
+  if (r.proactive_aria != null) settings.proactiveAria = r.proactive_aria;
+  if (r.haptics != null) settings.haptics = r.haptics;
+  if (r.notifications != null) settings.notifications = r.notifications;
+
   return {
     profile: {
       name: r.name ?? '',
@@ -180,13 +205,7 @@ function rowToProfile(r: ProfileRow): { profile: Profile; settings: Settings; on
       context: r.context ?? [r.year, r.school].filter(Boolean).join(' · '),
       avatarUri: r.avatar_url ?? undefined,
     },
-    settings: {
-      theme: (r.theme as Settings['theme']) ?? SETTINGS_DEFAULTS.theme,
-      biometricLock: r.biometric_lock ?? SETTINGS_DEFAULTS.biometricLock,
-      proactiveAria: r.proactive_aria ?? SETTINGS_DEFAULTS.proactiveAria,
-      haptics: r.haptics ?? SETTINGS_DEFAULTS.haptics,
-      notifications: r.notifications ?? SETTINGS_DEFAULTS.notifications,
-    },
+    settings,
     onboarded: r.onboarded ?? false,
   };
 }
@@ -358,7 +377,8 @@ export async function replaceAllContacts(contacts: Contact[]) {
 export interface HydrateResult {
   /** Null when the user has no profile row yet — keep whatever is local. */
   profile: Profile | null;
-  settings: Settings | null;
+  /** Only the settings the remote row actually sets. See `rowToProfile`. */
+  settings: Partial<Settings> | null;
   onboarded: boolean;
   tasks: Task[];
   contacts: Contact[];

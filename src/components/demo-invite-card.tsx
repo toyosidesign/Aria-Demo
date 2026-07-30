@@ -67,7 +67,7 @@ export function DemoInviteCard() {
           <Sparkles size={18} color={c.accentInk} strokeWidth={2} />
         </View>
         <View className="flex-1 gap-1">
-          <Text className="font-semibold">See how Aria works</Text>
+          <Text className="font-strong">See how Aria works</Text>
           <Text variant="small" tone="muted" className="leading-5">
             Load a few sample tasks and try completing one. You can clear them and start on
             your own whenever you&apos;re ready.

@@ -57,7 +57,7 @@ export function MonthCalendar({
       <View className="flex-row">
         {WEEKDAY_LABELS.map((d, i) => (
           <View key={i} className="flex-1 items-center pb-1">
-            <Text variant="caption" tone="faint" className="font-semibold">
+            <Text variant="caption" tone="faint" className="font-strong">
               {d}
             </Text>
           </View>
@@ -82,7 +82,7 @@ export function MonthCalendar({
                   )}>
                   <Text
                     variant="small"
-                    className={cn('font-medium', selected && 'text-accent-ink')}
+                    className={cn('font-strong', selected && 'text-accent-ink')}
                     tone={selected ? 'onAccent' : cell.inMonth ? 'default' : 'faint'}>
                     {cell.date.getDate()}
                   </Text>

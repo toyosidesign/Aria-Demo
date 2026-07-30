@@ -131,7 +131,7 @@ export default function RebalanceScreen() {
                     <Text variant="subtitle" numberOfLines={1}>
                       {t.title}
                     </Text>
-                    <Text variant="small" tone={movedTo ? 'accent' : 'muted'} className="font-semibold">
+                    <Text variant="small" tone={movedTo ? 'accent' : 'muted'} className="font-strong">
                       {movedTo
                         ? `Moved to ${formatFull(movedTo)}`
                         : `${formatFull(t.date)}${t.time ? ` · ${formatTime(t.time)}` : ''}`}

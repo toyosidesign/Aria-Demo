@@ -188,7 +188,7 @@ export default function AriaRunScreen() {
                     <Check size={15} color={c.success} style={{ marginTop: 2 }} />
                   )}
                   <View className="flex-1">
-                    <Text variant="small" className="font-semibold">
+                    <Text variant="small" className="font-strong">
                       {a.taskTitle}
                     </Text>
                     <Text variant="caption" tone="faint">

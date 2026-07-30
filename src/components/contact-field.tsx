@@ -92,7 +92,7 @@ export function ContactField({
               <UserRound size={22} color={c.accentInk} strokeWidth={2} />
             </View>
             <View className="flex-1 gap-0.5">
-              <Text className="font-semibold" numberOfLines={1}>
+              <Text className="font-strong" numberOfLines={1}>
                 {name}
               </Text>
               {email.trim() && !phoneOnly ? (
@@ -123,12 +123,12 @@ export function ContactField({
 
           <View className="flex-row gap-4">
             <Pressable onPress={importFromPhone} hitSlop={6} className="active:opacity-60">
-              <Text variant="caption" tone="accent" className="font-semibold">
+              <Text variant="caption" tone="accent" className="font-strong">
                 Pick someone else
               </Text>
             </Pressable>
             <Pressable onPress={enterManually} hitSlop={6} className="active:opacity-60">
-              <Text variant="caption" tone="muted" className="font-semibold">
+              <Text variant="caption" tone="muted" className="font-strong">
                 Edit details
               </Text>
             </Pressable>
@@ -183,7 +183,7 @@ export function ContactField({
                 onPress={importFromPhone}
                 className="flex-row items-center justify-center gap-2 rounded-2xl border border-accent bg-accent-soft py-3.5 active:opacity-70">
                 <BookUser size={18} color={c.accent} />
-                <Text tone="accent" className="font-semibold">
+                <Text tone="accent" className="font-strong">
                   Choose from your contacts
                 </Text>
               </Pressable>

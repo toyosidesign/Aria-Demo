@@ -15,7 +15,7 @@ export function Switch({
       value={value}
       onValueChange={onValueChange}
       trackColor={{ false: c.border, true: c.accent }}
-      thumbColor="#FFFFFF"
+      thumbColor={c.surface}
       ios_backgroundColor={c.border}
     />
   );

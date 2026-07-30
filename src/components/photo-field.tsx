@@ -57,7 +57,7 @@ export function PhotoField({
           </View>
           <View className="flex-row gap-4">
             <Pressable onPress={pick} hitSlop={6} className="active:opacity-60">
-              <Text variant="caption" tone="accent" className="font-semibold">
+              <Text variant="caption" tone="accent" className="font-strong">
                 Choose a different one
               </Text>
             </Pressable>
@@ -66,7 +66,7 @@ export function PhotoField({
               hitSlop={6}
               className="flex-row items-center gap-1 active:opacity-60">
               <X size={12} color={c.muted} />
-              <Text variant="caption" tone="muted" className="font-semibold">
+              <Text variant="caption" tone="muted" className="font-strong">
                 Remove
               </Text>
             </Pressable>
@@ -78,7 +78,7 @@ export function PhotoField({
           style={error ? { borderColor: c.danger } : null}
           className="items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface py-10 active:opacity-70">
           <ImagePlus size={24} color={error ? c.danger : c.accent} />
-          <Text tone={error ? 'danger' : 'accent'} className="font-semibold">
+          <Text tone={error ? 'danger' : 'accent'} className="font-strong">
             Choose a picture
           </Text>
           <Text variant="caption" tone="faint">

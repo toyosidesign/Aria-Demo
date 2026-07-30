@@ -43,7 +43,7 @@ function AgendaRow({ task }: { task: Task }) {
           numberOfLines={1}
           variant="small"
           tone={done ? 'faint' : 'muted'}
-          className="font-semibold">
+          className="font-strong">
           {task.time ? formatTime(task.time) : 'All day'}
         </Text>
       </View>
@@ -62,6 +62,7 @@ function AgendaRow({ task }: { task: Task }) {
 }
 
 function Agenda({ iso, tasks }: { iso: string; tasks: Task[] }) {
+  const c = useColors();
   return (
     // Sits below a divider, so it needs room above it to read as its own
     // section rather than as the last row of the grid.
@@ -71,7 +72,7 @@ function Agenda({ iso, tasks }: { iso: string; tasks: Task[] }) {
       </Text>
       {tasks.length === 0 ? (
         <View className="items-center gap-2 py-8">
-          <CalendarDays size={22} color="#9aa0aa" />
+          <CalendarDays size={22} color={c.faint} />
           <Text tone="faint">Nothing scheduled</Text>
         </View>
       ) : (
@@ -146,7 +147,7 @@ export default function CalendarScreen() {
             onPress={goToday}
             hitSlop={8}
             className="rounded-full border border-border bg-surface px-3.5 py-1.5 active:opacity-70">
-            <Text variant="small" className="font-semibold">
+            <Text variant="small" className="font-strong">
               Today
             </Text>
           </Pressable>
@@ -191,7 +192,7 @@ export default function CalendarScreen() {
           <View className="gap-2">
             <View className="flex-row">
               {WEEKDAY_LABELS.map((d, i) => (
-                <Text key={i} variant="caption" tone="faint" className="flex-1 text-center font-semibold">
+                <Text key={i} variant="caption" tone="faint" className="flex-1 text-center font-strong">
                   {d}
                 </Text>
               ))}
@@ -213,7 +214,7 @@ export default function CalendarScreen() {
                           isSel ? 'bg-accent' : isToday ? 'bg-accent-soft' : '',
                         )}>
                         <Text
-                          className={cn('text-[15px]', (isToday || isSel) && 'font-bold')}
+                          className={cn('text-[15px]', (isToday || isSel) && 'font-heavy')}
                           tone={isSel ? 'onAccent' : isToday ? 'accent' : cell.inMonth ? 'default' : 'faint'}>
                           {cell.date.getDate()}
                         </Text>
@@ -241,7 +242,7 @@ export default function CalendarScreen() {
                 const isToday = iso === demoDate;
                 return (
                   <Pressable key={iso} onPress={() => pick(iso)} className="flex-1 items-center gap-1 py-1">
-                    <Text variant="caption" tone="faint" className="font-semibold">
+                    <Text variant="caption" tone="faint" className="font-strong">
                       {format(d, 'EEEEE')}
                     </Text>
                     <View
@@ -250,7 +251,7 @@ export default function CalendarScreen() {
                         isSel ? 'bg-accent' : isToday ? 'bg-accent-soft' : '',
                       )}>
                       <Text
-                        className={cn('text-[15px]', (isToday || isSel) && 'font-bold')}
+                        className={cn('text-[15px]', (isToday || isSel) && 'font-heavy')}
                         tone={isSel ? 'onAccent' : isToday ? 'accent' : 'default'}>
                         {d.getDate()}
                       </Text>

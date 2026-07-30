@@ -8,12 +8,13 @@ import { Text } from '@/components/ui/text';
 import { ariaActionFor } from '@/lib/aria-actions';
 import { useColors } from '@/lib/colors';
 import { formatFull, formatRelative, formatTime } from '@/lib/dates';
-import { isLate, useAriaStore, type Task } from '@/store/aria-store';
+import { isDueToday, isLate, useAriaStore, type Task } from '@/store/aria-store';
 
 export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }) {
   const c = useColors();
   const demoDate = useAriaStore((s) => s.demoDate);
   const late = isLate(task, demoDate);
+  const dueToday = isDueToday(task, demoDate);
   const doneCount = task.subtasks.filter((s) => s.done).length;
   const canAria = task.status === 'todo' && ariaActionFor(task) !== null;
 
@@ -22,16 +23,22 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
       onPress={onPress ?? (() => router.push(`/task/${task.id}`))}
       className="rounded-2xl border border-border bg-surface p-4 active:opacity-70">
       <View className="flex-row items-start justify-between gap-3">
+        {/* Body weight rather than `subtitle`. A card title is a list item, not
+            a heading — at 17px semibold every card competed with the screen
+            title above it, and a column of them read as a stack of headlines. */}
         <Text
-          variant="subtitle"
-          className="flex-1"
+          className="flex-1 font-strong"
           tone={task.status === 'done' ? 'muted' : 'default'}>
           {task.title}
         </Text>
+        {/* One label, most-urgent first. Priority is the fallback: it only
+            matters once the task isn't shouting about its own timing. */}
         {task.status === 'done' ? (
           <StatusBadge status="done" />
         ) : late ? (
           <StatusBadge status="late" />
+        ) : dueToday ? (
+          <StatusBadge status="due" />
         ) : (
           <PriorityBadge priority={task.priority} />
         )}
@@ -39,8 +46,8 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
 
       <View className="mt-3 flex-row items-center gap-3">
         <View className="flex-row items-center gap-1.5">
-          <CalendarDays size={15} color={late ? c.danger : c.muted} />
-          <Text variant="small" tone={late ? 'danger' : 'muted'}>
+          <CalendarDays size={15} color={late ? c.danger : dueToday ? c.warning : c.muted} />
+          <Text variant="small" tone={late ? 'danger' : dueToday ? 'warning' : 'muted'}>
             {task.status === 'done' ? formatFull(task.date) : formatRelative(task.date, demoDate)}
             {task.time ? ` · ${formatTime(task.time)}` : ''}
           </Text>
@@ -58,7 +65,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
         {(task.draftSections?.length ?? 0) > 0 ? (
           <View className="flex-row items-center gap-1.5">
             <FileText size={15} color={c.accent} />
-            <Text variant="small" tone="accent" className="font-semibold">
+            <Text variant="small" tone="accent" className="font-strong">
               Draft
             </Text>
           </View>
@@ -66,7 +73,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
         {canAria ? (
           <View className="ml-auto flex-row items-center gap-1">
             <AriaAvatar size={18} />
-            <Text variant="caption" tone="accent" className="font-semibold">
+            <Text variant="caption" tone="accent" className="font-strong">
               Aria can help
             </Text>
           </View>

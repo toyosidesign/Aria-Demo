@@ -6,24 +6,28 @@ import { Alert, Platform, ScrollView, View } from 'react-native';
 import { DemoDateBar } from '@/components/demo-date-bar';
 import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
+import { ThemePicker } from '@/components/theme-picker';
 import { Screen } from '@/components/ui/screen';
-import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
-import { useColors } from '@/lib/colors';
+import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
 import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { biometricSupport } from '@/lib/biometrics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
-import { useAriaStore, type ThemePref } from '@/store/aria-store';
+import { useAriaStore } from '@/store/aria-store';
 
 export default function SettingsScreen() {
   const c = useColors();
+  // The theme actually on screen, whether that came from a pick or from the
+  // device. Turning "match my device" off hands over exactly this one.
+  const activeTheme = useTheme();
   const settings = useAriaStore((s) => s.settings);
   const setSetting = useAriaStore((s) => s.setSetting);
   const demoDate = useAriaStore((s) => s.demoDate);
   const simulating = demoDate !== realToday();
+  const matchingDevice = settings.theme === 'system';
 
   // Offer the lock only where it can work — a device with no enrolled
   // biometrics would show a switch that locks you out of your own account.
@@ -91,27 +95,46 @@ export default function SettingsScreen() {
         contentContainerStyle={{ paddingBottom: 40, gap: 32 }}
         showsVerticalScrollIndicator={false}>
         {/* Appearance */}
-        <View className="gap-2 pt-2">
+        <View className="gap-3 pt-2">
           <Text variant="label" tone="muted">
             Appearance
           </Text>
-          <Segmented<ThemePref>
-            value={settings.theme}
-            onChange={(v) => {
-              setSetting('theme', v);
-              hapticSelect();
-            }}
-            options={[
-              { value: 'system', label: 'System' },
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-          />
-          <Text variant="small" tone="muted">
-            {settings.theme === 'system'
-              ? 'Follows your device appearance.'
-              : `Always ${settings.theme}.`}
-          </Text>
+
+          {/* A switch, not a two-option segmented control. "Match my device"
+              isn't a colour you pick alongside the others — it's a rule about
+              when to switch — and phrasing it as one of two modes cost a
+              full-width control to say something a toggle says in a row. */}
+          <SettingsGroup>
+            <SettingsRow
+              first
+              label="Match my device"
+              /* Off-state copy says what turning it on would *do*, not just
+                 that it's off. Agreeing to something the app will then do by
+                 itself — change appearance at dusk — only counts if the switch
+                 said so before it was flipped. */
+              description={
+                matchingDevice
+                  ? `Aria changes appearance on its own: ${THEMES[SYSTEM_LIGHT].label} while your device is in light mode, ${THEMES[SYSTEM_DARK].label} in dark.`
+                  : `Staying on ${activeTheme.label}. Turn this on and Aria will switch between light and dark by itself, following your device.`
+              }
+              right={
+                <Switch
+                  value={matchingDevice}
+                  onValueChange={(on) => {
+                    hapticSelect();
+                    // Turning it off keeps whatever is on screen right now, so
+                    // the app doesn't jump to a different look at the moment
+                    // you take control of it.
+                    setSetting('theme', on ? 'system' : activeTheme.name);
+                  }}
+                />
+              }
+            />
+          </SettingsGroup>
+
+          {matchingDevice ? null : (
+            <ThemePicker value={settings.theme} onChange={(v) => setSetting('theme', v)} />
+          )}
         </View>
 
         {/* Automation — lead with what it does, not what tier it sits in.
@@ -137,7 +160,7 @@ export default function SettingsScreen() {
             showChevron={!pro}
             right={
               pro ? (
-                <Text variant="small" tone="accent" className="font-semibold">
+                <Text variant="small" tone="accent" className="font-strong">
                   On
                 </Text>
               ) : null
@@ -150,7 +173,7 @@ export default function SettingsScreen() {
                 <Text
                   variant="small"
                   tone="accent"
-                  className="font-semibold"
+                  className="font-strong"
                   onPress={() => {
                     setPro(false);
                     hapticSelect();
@@ -233,7 +256,7 @@ export default function SettingsScreen() {
                 line 13px, both muted, so the least important text was the
                 largest and nothing told them apart. */}
             <View className="gap-0.5">
-              <Text className="text-[16px] font-semibold leading-[23px]">
+              <Text className="text-[16px] font-strong leading-[23px]">
                 Pretend it&apos;s another day
               </Text>
               <Text

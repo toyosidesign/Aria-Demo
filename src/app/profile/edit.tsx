@@ -95,7 +95,7 @@ export default function EditProfileScreen() {
               </View>
             </Pressable>
             <Pressable onPress={chooseAvatar} hitSlop={6} className="active:opacity-60">
-              <Text variant="small" tone="accent" className="font-semibold">
+              <Text variant="small" tone="accent" className="font-strong">
                 {avatarUri ? 'Change photo' : 'Add a photo'}
               </Text>
             </Pressable>

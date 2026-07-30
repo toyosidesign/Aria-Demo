@@ -8,8 +8,6 @@ import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
 import { HEAVY_DAY_THRESHOLD, useAriaStore } from '@/store/aria-store';
 
-const AMBER = '#f59e0b';
-
 /** "Monday and Thursday" / "Monday, Thursday and Friday" */
 function listNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? '';
@@ -42,7 +40,7 @@ export function WorkloadChart() {
   const heavyNames = heavyIndexes.map((i) => format(days[i], 'EEEE'));
 
   const colorFor = (n: number) =>
-    n === 0 ? c.border : n <= 2 ? c.success : n === 3 ? AMBER : c.danger;
+    n === 0 ? c.border : n <= 2 ? c.success : n === 3 ? c.warning : c.danger;
 
   const headline =
     total === 0
@@ -83,7 +81,7 @@ export function WorkloadChart() {
               <Text
                 variant="caption"
                 tone={flagged ? 'danger' : 'faint'}
-                className={flagged ? 'font-bold' : undefined}>
+                className={flagged ? 'font-heavy' : undefined}>
                 {n > 0 ? n : ''}
               </Text>
               <View
@@ -108,7 +106,7 @@ export function WorkloadChart() {
               key={d.toISOString()}
               variant="caption"
               tone={flagged ? 'danger' : isToday ? 'accent' : 'faint'}
-              className={flagged || isToday ? 'flex-1 text-center font-bold' : 'flex-1 text-center font-semibold'}>
+              className={flagged || isToday ? 'flex-1 text-center font-heavy' : 'flex-1 text-center font-strong'}>
               {format(d, 'EEEEE')}
             </Text>
           );
@@ -119,7 +117,7 @@ export function WorkloadChart() {
         <Pressable
           onPress={() => router.push('/rebalance')}
           className="mt-1 items-center rounded-2xl border border-accent bg-accent-soft py-2.5 active:opacity-70">
-          <Text variant="small" tone="accent" className="font-semibold">
+          <Text variant="small" tone="accent" className="font-strong">
             {heavyIndexes.length === 1
               ? `Spread out ${heavyNames[0]}`
               : 'Rebalance my week'}

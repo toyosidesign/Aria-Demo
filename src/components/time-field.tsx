@@ -96,14 +96,14 @@ export function TimeField({
               keyboardType="number-pad"
               maxLength={2}
               selectTextOnFocus
-              className="w-11 text-center text-2xl font-semibold tabular-nums text-ink"
+              className="w-11 text-center text-2xl font-strong tabular-nums text-ink"
             />
             <Pressable onPress={() => changeHour(-1)} hitSlop={8} className="p-1 active:opacity-50">
               <ChevronDown size={20} color={c.muted} />
             </Pressable>
           </View>
 
-          <Text className="text-2xl font-semibold">:</Text>
+          <Text className="text-2xl font-strong">:</Text>
 
           {/* Minute */}
           <View className="items-center">
@@ -121,7 +121,7 @@ export function TimeField({
               keyboardType="number-pad"
               maxLength={2}
               selectTextOnFocus
-              className="w-11 text-center text-2xl font-semibold tabular-nums text-ink"
+              className="w-11 text-center text-2xl font-strong tabular-nums text-ink"
             />
             <Pressable onPress={() => changeMin(-1)} hitSlop={8} className="p-1 active:opacity-50">
               <ChevronDown size={20} color={c.muted} />
@@ -142,7 +142,7 @@ export function TimeField({
                   <Text
                     variant="small"
                     tone={active ? 'accent' : 'muted'}
-                    className="font-semibold">
+                    className="font-strong">
                     {label}
                   </Text>
                 </Pressable>
