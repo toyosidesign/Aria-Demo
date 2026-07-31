@@ -21,7 +21,7 @@ import { TASK_KINDS } from '@/lib/aria-actions';
 import {
   TESTING_NOTICE,
   requestAssistant,
-  wantsRealConversation,
+  wantsRealWorldAction,
   type AssistantTurn,
   type ParsedTask,
 } from '@/lib/assistant';
@@ -33,7 +33,14 @@ import { hapticSelect, hapticTap } from '@/lib/haptics';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useAriaStore, type TaskKind } from '@/store/aria-store';
 
-type Msg = { id: string; from: 'aria' | 'maya'; text: string; pending?: ParsedTask[] };
+type Msg = {
+  id: string;
+  from: 'aria' | 'maya';
+  text: string;
+  pending?: ParsedTask[];
+  /** Scripted parser rather than the model. Shown in development only. */
+  fallback?: boolean;
+};
 
 /** Build a pre-filled Create-task route from a parsed task. */
 function createHref(t: ParsedTask): string {
@@ -68,11 +75,17 @@ const VOICE_SCRIPTS = [
  * messages keep their old ids, so the next message collided with `c0` and React
  * refused to render the list.
  */
-const mk = (from: Msg['from'], text: string, pending?: ParsedTask[]): Msg => ({
+const mk = (
+  from: Msg['from'],
+  text: string,
+  pending?: ParsedTask[],
+  fallback?: boolean,
+): Msg => ({
   id: uuidv4(),
   from,
   text,
   pending,
+  fallback,
 });
 
 export default function ChatScreen() {
@@ -138,13 +151,13 @@ export default function ChatScreen() {
     const res = await requestAssistant(trimmed, demoDate, history, focus ?? undefined, profileName, profileContext);
 
     setSending(false);
-    // Someone asking a real question, or asking Aria to go and do something,
-    // gets told where the product actually is. Only when nothing was captured:
-    // if a task came back, Aria understood them fine and the notice would just
-    // be in the way.
+    // Only for things Aria genuinely can't do — booking, ordering, paying.
+    // Questions are answered by the model; intercepting those was the bug this
+    // replaced. And only when nothing was captured: if a task came back, Aria
+    // understood the message fine and the notice would just be in the way.
     const reply =
-      res.tasks.length === 0 && wantsRealConversation(trimmed) ? TESTING_NOTICE : res.reply;
-    addChatMessage(mk('aria', reply, res.tasks.length ? res.tasks : undefined));
+      res.tasks.length === 0 && wantsRealWorldAction(trimmed) ? TESTING_NOTICE : res.reply;
+    addChatMessage(mk('aria', reply, res.tasks.length ? res.tasks : undefined, res.fallback));
   }
 
   function startVoice() {
@@ -201,6 +214,16 @@ export default function ChatScreen() {
           {messages.map((m) => (
             <View key={m.id} className="gap-2">
               <AriaBubble from={m.from}>{m.text}</AriaBubble>
+              {/* Which one answered — development only.
+                  The scripted fallback is written to read like a real reply, so
+                  there is otherwise nothing to tell them apart. That is what let
+                  a dead API key survive weeks of testing: every response looked
+                  right. Stripped from release builds. */}
+              {__DEV__ && m.fallback ? (
+                <Text variant="caption" tone="faint" className="pl-10">
+                  scripted fallback — the model was not called
+                </Text>
+              ) : null}
               {m.pending?.length
                 ? m.pending.map((t, i) => (
                     <Pressable

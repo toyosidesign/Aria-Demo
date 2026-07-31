@@ -1,3 +1,20 @@
+/**
+ * ── SHAPE IS THE AFFORDANCE ──────────────────────────────────────────────────
+ *
+ * In this app, roundness says whether a thing can be tapped:
+ *
+ *   rounded-full (pill)   interactive — Chip, ChoiceChip, and buttons at small
+ *                         sizes all read as pills
+ *   rounded-md            informational — a badge states a fact and does not
+ *                         respond to a tap
+ *
+ * Badges were pills, which put them in the interactive family and invited taps
+ * that did nothing. The small uppercase label reinforces it: a micro-label
+ * doesn't read as something you press.
+ *
+ * If you add a badge-like component, give it the informational shape. If you
+ * make one tappable, it stops being a badge.
+ */
 import { View } from 'react-native';
 
 import { cn } from '@/lib/cn';
@@ -15,9 +32,9 @@ const PRIORITY_STYLE: Record<Priority, { dot: string; label: string }> = {
 export function PriorityBadge({ priority }: { priority: Priority }) {
   const s = PRIORITY_STYLE[priority];
   return (
-    <View className="flex-row items-center gap-1.5 rounded-full border border-border bg-bg px-2.5 py-1">
-      <View className={cn('h-2 w-2 rounded-full', s.dot)} />
-      <Text variant="caption" tone="muted" className="font-strong">
+    <View className="flex-row items-center gap-1.5 rounded-md border border-border bg-bg px-2 py-0.5">
+      <View className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
+      <Text variant="label" tone="muted">
         {s.label}
       </Text>
     </View>
@@ -60,8 +77,8 @@ export function StatusBadge({ status }: { status: 'todo' | 'due' | 'done' | 'lat
   const fg = dark ? ramp[300] : ramp[700];
 
   return (
-    <View style={{ backgroundColor: bg }} className="rounded-full px-2.5 py-1">
-      <Text variant="caption" style={{ color: fg }} className="font-strong">
+    <View style={{ backgroundColor: bg }} className="rounded-md px-2 py-0.5">
+      <Text variant="label" style={{ color: fg }}>
         {label}
       </Text>
     </View>

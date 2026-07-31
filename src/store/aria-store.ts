@@ -135,6 +135,15 @@ export interface ChatMessage {
   text: string;
   /** Tasks offered in this turn, still waiting to be created. */
   pending?: ProposedTask[];
+  /**
+   * True when the scripted parser answered rather than the model.
+   *
+   * Rendered only in development. The fallback is deliberately good — it reads
+   * like a real reply — which is precisely why a dead API key went unnoticed
+   * for weeks. Being able to see which one answered is the difference between
+   * testing Aria and testing the fallback.
+   */
+  fallback?: boolean;
 }
 
 /** A titled block of content Aria drafted (e.g. one essay section). */
@@ -156,6 +165,14 @@ export function defaultMethodFor(kind: TaskKind, hasContact: boolean): TaskMetho
 
 export type { ThemePref } from '@/lib/themes';
 
+/**
+ * How much scaffolding this person wants around an explanation.
+ *
+ * Not a learning-style claim — it's a stated preference about pacing and
+ * framing, which is something someone can actually answer about themselves.
+ */
+export type ExplainStyle = 'direct' | 'examples' | 'stepwise';
+
 export interface Profile {
   name: string;
   email: string;
@@ -168,6 +185,25 @@ export interface Profile {
   context: string;
   /** Local file URI or remote URL of the profile picture. Falls back to initials. */
   avatarUri?: string;
+  /**
+   * What they're studying — "Law", "Mechanical Engineering".
+   *
+   * Lets Aria break an assignment into topics that belong to the subject
+   * rather than generic essay scaffolding.
+   */
+  studying?: string;
+  /** How far in — "2nd year", "Postgrad". Sets how deep an explanation goes. */
+  level?: string;
+  /**
+   * The things they're into.
+   *
+   * This is the one that makes Aria different from a planner: a student who
+   * plays basketball can have projectile motion explained through a jump shot.
+   * Useless as decoration, load-bearing once it reaches the prompts.
+   */
+  interests?: string[];
+  /** How they want things explained. */
+  explainStyle?: ExplainStyle;
 }
 
 export interface Settings {
@@ -187,6 +223,10 @@ export const DEFAULT_PROFILE: Profile = {
   name: 'Maya',
   email: 'maya@university.edu',
   context: 'Sophomore at State University',
+  studying: 'Psychology',
+  level: '2nd year',
+  interests: ['Basketball', 'Music'],
+  explainStyle: 'examples',
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -477,6 +517,8 @@ interface AriaState {
   hydrate: (userId: string) => Promise<void>;
   clearLocal: () => void;
   completeOnboarding: () => void;
+  /** Dev only: re-run the welcome flow. See the implementation. */
+  replayOnboarding: () => void;
   addContact: (contact: Contact) => void;
   /** Fill in details (email/phone) on a contact Maya already saved. */
   updateContact: (id: string, patch: Partial<Omit<Contact, 'id'>>) => void;
@@ -657,9 +699,47 @@ export const useAriaStore = create<AriaState>()(
         // Somebody else signing in on this handset is the real reason to clear
         // local data — not a session that happened to be missing at launch.
         const previous = get().lastUserId;
+
         if (previous && previous !== userId) {
-          set({ tasks: [], contacts: [], automations: [], chat: [], profile: DEFAULT_PROFILE });
+          /*
+           * A different account. The one moment everything personal has to go —
+           * see PERSISTED STATE at the persist config for the full list.
+           *
+           * `settings` is in here because of `theme`: appearance is a choice a
+           * person made, and a student signing up on a friend's phone
+           * inheriting Charcoal is the same class of bug as inheriting their
+           * completed onboarding.
+           */
+          set({
+            tasks: [],
+            contacts: [],
+            automations: [],
+            chat: [],
+            profile: DEFAULT_PROFILE,
+            settings: DEFAULT_SETTINGS,
+            onboarded: false,
+            demoOfferDismissed: false,
+          });
+        } else if (!previous) {
+          /*
+           * We have never recorded whose device this is.
+           *
+           * True on a fresh install, and on any device that signed out while
+           * `clearLocal` still cleared this marker. Either way the local
+           * `onboarded` flag can't be attributed to the account now signing in,
+           * so it isn't evidence — the server's row is. Clearing it lets the
+           * merge below resolve from the remote: a returning user's row says
+           * true and they skip onboarding, a new signup's says false and they
+           * see it.
+           *
+           * Only the flag is cleared, never content. Local tasks on an
+           * unidentified device may be the only copy in existence, and "not
+           * sure whose phone this is" is nowhere near reason enough to delete
+           * them.
+           */
+          set({ onboarded: false });
         }
+
         set({ lastUserId: userId });
         const data = await fetchAll(userId);
         if (!data) {
@@ -722,9 +802,33 @@ export const useAriaStore = create<AriaState>()(
           automations: [],
           chat: [],
           profile: DEFAULT_PROFILE,
-          lastUserId: null,
         });
+        /*
+         * `lastUserId` deliberately survives.
+         *
+         * It is the only way to tell "the same person came back" from "someone
+         * else is signing in", and those want opposite treatment: the first
+         * should keep their theme and not be walked through onboarding again,
+         * the second should inherit nothing. Clearing it here would collapse
+         * both into "unknown", and the per-person reset below could never fire.
+         *
+         * It is an opaque id, not data — the account's actual content is wiped
+         * above.
+         */
       },
+      /**
+       * Send yourself back through onboarding.
+       *
+       * A development affordance. Onboarding runs once per account, which makes
+       * it the hardest screen in the app to iterate on — every look at it
+       * otherwise costs a sign-out, a deleted account and a fresh signup. The
+       * auth gate watches `onboarded`, so clearing it is all that's needed;
+       * `/welcome` follows on its own.
+       *
+       * Answers are left alone deliberately. This is for seeing the flow again,
+       * not for wiping a profile — Start fresh already does that.
+       */
+      replayOnboarding: () => set({ onboarded: false }),
       completeOnboarding: () => {
         /*
          * Also re-arms the demo offer.
@@ -980,6 +1084,44 @@ export const useAriaStore = create<AriaState>()(
     {
       name: 'aria-store-v1',
       storage: createJSONStorage(() => AsyncStorage),
+      /*
+       * ── PERSISTED STATE: what belongs to a PERSON vs a DEVICE ─────────────
+       *
+       * Everything below survives a restart. The distinction that matters is
+       * who it belongs to, because that decides whether it must be cleared when
+       * the account changes.
+       *
+       * Getting this wrong has produced the same bug three separate times — a
+       * value set by one account silently inherited by the next:
+       *
+       *   · `theme`              a new signup opened the app in the previous
+       *                          person's colour scheme
+       *   · `demoOfferDismissed` one account declining the tour meant the next
+       *                          was never offered it
+       *   · `onboarded`          a new student was waved past the welcome flow,
+       *                          so Aria learned nothing about them and every
+       *                          draft was pitched at somebody else
+       *
+       * Each looked unrelated. All three were this.
+       *
+       * PER-PERSON — must reset on an account change. That happens in exactly
+       * one place: the `previous !== userId` branch in `hydrate`. Add new keys
+       * there, NOT to `clearLocal`.
+       *   tasks, contacts, automations, chat, profile, settings,
+       *   onboarded, demoOfferDismissed, lastUser, pro, proWaitlisted
+       *
+       * PER-DEVICE / PER-SESSION — must NOT reset, or they defeat the thing
+       * they exist for.
+       *   lastUserId  the marker that detects the account change at all
+       *   signedIn    session state, owned by the auth gate
+       *   demoDate    a simulated date is a property of this demo install
+       *
+       * Signing out is NOT an account change. The same person signs back in
+       * constantly, and resetting there would drop their theme and re-run
+       * onboarding every time — which is exactly the bug one version of this
+       * fix shipped with. `clearLocal` wipes content; only a genuinely
+       * different user id wipes preferences.
+       */
       partialize: (s) => ({
         tasks: s.tasks,
         demoDate: s.demoDate,

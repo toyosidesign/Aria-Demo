@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { RotateCcw, Trash2 } from 'lucide-react-native';
+import { Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
 import { DemoDateBar } from '@/components/demo-date-bar';
@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   }, []);
   const resetDemo = useAriaStore((s) => s.resetDemo);
   const clearAllData = useAriaStore((s) => s.clearAllData);
+  const replayOnboarding = useAriaStore((s) => s.replayOnboarding);
   const pro = useAriaStore((s) => s.pro);
   const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
   const setPro = useAriaStore((s) => s.setPro);
@@ -301,6 +302,21 @@ export default function SettingsScreen() {
             right={<Trash2 size={19} color={c.danger} />}
             onPress={confirmClearAll}
           />
+          {/* Development only. Onboarding runs once per account, so without
+              this every look at it costs a sign-out, a deleted account and a
+              fresh signup — which is why it's the screen that gets checked
+              least and breaks most. Stripped from release builds. */}
+          {__DEV__ ? (
+            <SettingsRow
+              label="Replay onboarding"
+              description="Development only. Shows the welcome flow again; your answers are kept."
+              right={<Repeat size={19} color={c.muted} />}
+              onPress={() => {
+                hapticSelect();
+                replayOnboarding();
+              }}
+            />
+          ) : null}
         </SettingsGroup>
 
         {/* Support */}

@@ -69,10 +69,25 @@ export const AssistantSchema = z.object({
   senderContext: z.string().max(300).optional(),
 });
 
+/**
+ * Who the work is for.
+ *
+ * Every field is capped. These land inside a system prompt, so an uncapped
+ * string here is an instruction-injection surface as much as a size one — the
+ * limits are small enough that nothing useful fits besides an actual answer.
+ */
+export const LearnerSchema = z.object({
+  studying: z.string().max(80).optional(),
+  level: z.string().max(40).optional(),
+  interests: z.array(z.string().max(40)).max(12).optional(),
+  explainStyle: z.enum(['direct', 'examples', 'stepwise']).optional(),
+});
+
 /** POST /api/subtasks */
 export const ChecklistSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().max(4000).optional(),
+  learner: LearnerSchema.optional(),
 });
 
 /**

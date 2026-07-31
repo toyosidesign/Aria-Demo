@@ -1,11 +1,12 @@
 import { router, type Href } from 'expo-router';
 import { CalendarClock, Check, Clock, RotateCcw } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -61,6 +62,22 @@ export function SwipeableTaskCard({
    * row is open a press closes it rather than navigating.
    */
   const openRef = useRef(false);
+  /*
+   * Stable identities, deliberately.
+   *
+   * ReanimatedSwipeable keys `dispatchImmediateEvents` on these two props, and
+   * that feeds animateRow → handleRelease → panGesture, each a useCallback on
+   * the last. Passing inline arrows gave them a new identity every render, so
+   * the pan gesture was torn down and rebuilt constantly — and since this card
+   * subscribes to `tasks`, completing one re-rendered it and destroyed the
+   * gesture mid-swipe. useCallback with no deps keeps the chain intact.
+   */
+  const markOpen = useCallback(() => {
+    openRef.current = true;
+  }, []);
+  const markClosed = useCallback(() => {
+    openRef.current = false;
+  }, []);
   const completeTask = useAriaStore((s) => s.completeTask);
   const reopenTask = useAriaStore((s) => s.reopenTask);
   const snoozeTask = useAriaStore((s) => s.snoozeTask);
@@ -79,6 +96,27 @@ export function SwipeableTaskCard({
     nudge.value = withRepeat(withSequence(step(-14), step(0), step(9), step(0)), 2, false);
   }, [hintGesture, done, nudge]);
   const hintStyle = useAnimatedStyle(() => ({ transform: [{ translateX: nudge.value }] }));
+
+  /**
+   * Stop the hint the instant a real drag begins.
+   *
+   * The nudge animates `translateX` on the View *wrapping* the swipeable, so
+   * while it runs the row carries two competing transforms: the hint's and the
+   * gesture's. Dragging through it fights the animation and the row springs
+   * back — which reads as the swipe being broken, and only on the one card that
+   * nudges, which is why it looked like a Home-screen bug.
+   *
+   * A hint exists to be interrupted. The moment the gesture is real, it's done
+   * its job.
+   *
+   * Both callbacks are `useCallback` for the same reason as the two above:
+   * ReanimatedSwipeable keys its gesture on these props, and a fresh identity
+   * per render rebuilds the pan mid-drag.
+   */
+  const stopHint = useCallback(() => {
+    cancelAnimation(nudge);
+    nudge.value = 0;
+  }, [nudge]);
 
   function toggleDone() {
     ref.current?.close();
@@ -111,12 +149,10 @@ export function SwipeableTaskCard({
       <Animated.View style={hintStyle}>
         <ReanimatedSwipeable
           ref={ref}
-          onSwipeableWillOpen={() => {
-            openRef.current = true;
-          }}
-          onSwipeableWillClose={() => {
-            openRef.current = false;
-          }}
+          onSwipeableWillOpen={markOpen}
+          onSwipeableWillClose={markClosed}
+          onSwipeableOpenStartDrag={stopHint}
+          onSwipeableCloseStartDrag={stopHint}
           // 1:1 with the finger — the old value of 2 moved the row at half speed,
           // which is what made the gesture feel sticky.
           friction={1}

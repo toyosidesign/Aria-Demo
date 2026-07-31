@@ -75,6 +75,10 @@ interface ProfileRow {
   school: string | null;
   year: string | null;
   avatar_url: string | null;
+  studying: string | null;
+  level: string | null;
+  interests: string[] | null;
+  explain_style: string | null;
   theme: string | null;
   biometric_lock: boolean | null;
   proactive_aria: boolean | null;
@@ -163,6 +167,10 @@ export function profileToRow(
     school: null,
     year: null,
     avatar_url: p.avatarUri ?? null,
+    studying: p.studying ?? null,
+    level: p.level ?? null,
+    interests: p.interests ?? [],
+    explain_style: p.explainStyle ?? null,
     // Written so the column is not left stale, never read back — see rowToProfile.
     theme: settings.theme,
     biometric_lock: settings.biometricLock,
@@ -215,6 +223,12 @@ function rowToProfile(r: ProfileRow): {
       email: r.email ?? '',
       context: r.context ?? [r.year, r.school].filter(Boolean).join(' · '),
       avatarUri: r.avatar_url ?? undefined,
+      studying: r.studying ?? undefined,
+      level: r.level ?? undefined,
+      // An absent column and an empty list mean the same thing here — nothing
+      // was chosen — so both collapse to undefined rather than [] vs null.
+      interests: r.interests?.length ? r.interests : undefined,
+      explainStyle: (r.explain_style as Profile['explainStyle']) ?? undefined,
     },
     settings,
     onboarded: r.onboarded ?? false,

@@ -50,6 +50,7 @@ import { exportWork, sectionsToText } from '@/lib/export';
 import { hapticTap } from '@/lib/haptics';
 import { openCall } from '@/lib/send';
 import { showToast } from '@/lib/toast';
+import type { Learner } from '@/lib/learner';
 import { requestChecklist } from '@/lib/subtasks';
 import { useColors } from '@/lib/colors';
 import { REPEAT_LABEL, formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
@@ -88,6 +89,23 @@ export default function TaskDetailScreen() {
   const deleteTask = useAriaStore((s) => s.deleteTask);
   const updateTask = useAriaStore((s) => s.updateTask);
   const addSubtasks = useAriaStore((s) => s.addSubtasks);
+  /*
+   * Selected one field at a time, not as an object.
+   *
+   * A selector returning `{...}` builds a new object on every call, and zustand
+   * compares snapshots with Object.is — so it would never match, and this
+   * screen would re-render on every store change. Primitives (and the interests
+   * array, whose reference is stable until it's actually replaced) compare
+   * correctly. They're assembled into a Learner at the call site instead.
+   *
+   * Picked field by field rather than passing the whole profile for a second
+   * reason too: name, email and avatar have no business in a system prompt
+   * about coursework.
+   */
+  const studying = useAriaStore((s) => s.profile.studying);
+  const level = useAriaStore((s) => s.profile.level);
+  const interests = useAriaStore((s) => s.profile.interests);
+  const explainStyle = useAriaStore((s) => s.profile.explainStyle);
   const pro = useAriaStore((s) => s.pro);
   const [copied, setCopied] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
@@ -112,7 +130,11 @@ export default function TaskDetailScreen() {
   async function generateChecklist() {
     if (!task) return;
     setGenLoading(true);
-    const items = await requestChecklist({ title: task.title, description: task.description });
+    const items = await requestChecklist({
+      title: task.title,
+      description: task.description,
+      learner: { studying, level, interests, explainStyle } satisfies Learner,
+    });
     addSubtasks(task.id, items);
     setGenLoading(false);
   }

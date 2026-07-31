@@ -43,7 +43,8 @@ export function AutomationCard() {
             {due.length === 1 ? 'Something’s due now' : `${due.length} things are due now`}
           </Text>
         </View>
-        <Text className="leading-6">
+        {/* Supporting copy, not a second heading — see aria-today-card. */}
+        <Text variant="small" tone="muted" className="leading-5">
           {due.length === 1
             ? `Your ${CHANNEL_META[due[0].channel].label.toLowerCase()} for “${due[0].taskTitle}” is written and ready.`
             : 'I’ve got them all drafted and addressed. Want me to work through them?'}

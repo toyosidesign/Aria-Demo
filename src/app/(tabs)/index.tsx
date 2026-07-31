@@ -319,14 +319,16 @@ export default function TodayScreen() {
             on top of a tone. Still no opacity: stacking one on a 12px `caption`
             is what made this illegible before, and a palette step is something
             the theme controls in both light and dark. */}
-        {/* `shrink` on the text and a fixed icon. In a flex row a Text sizes to
-            its content and overflows rather than wrapping, so the sentence was
-            clipped at the right edge on narrower phones and at larger text
-            sizes. Shrinking lets it wrap; the padding keeps it off the edges
-            when it does. */}
-        <View className="mt-2 flex-row items-center justify-center gap-1.5 px-6">
+        {/* Stacked, not a row.
+
+            Side by side, the sentence is wider than any phone — it wraps to two
+            lines at every size — and `items-center` then floated the sparkle
+            against the middle of a two-line block, which reads as a layout bug.
+            Above the text it can't clip, can't wrap oddly, and stays balanced at
+            any width or accessibility text size. */}
+        <View className="mt-2 items-center gap-1.5 px-6">
           <Sparkles size={15} color={c.faint} />
-          <Text variant="small" tone="faint" className="shrink text-center">
+          <Text variant="small" tone="faint" className="text-center leading-5">
             Aria plans ahead, and always takes no for an answer.
           </Text>
         </View>

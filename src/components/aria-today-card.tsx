@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ChevronRight, Sparkles } from 'lucide-react-native';
+import { ChevronRight, Clock, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, { FadeIn, FadeOutUp } from 'react-native-reanimated';
@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import type { AriaAction } from '@/lib/aria-actions';
 import { useColors } from '@/lib/colors';
-import { formatRelative, formatTime } from '@/lib/dates';
-import { useAriaStore, type Task } from '@/store/aria-store';
+import { formatTime } from '@/lib/dates';
+import { type Task } from '@/store/aria-store';
 
 /** A proactive Aria offer surfaced on Today — consent-first: has a clear decline. */
 export function AriaTodayCard({
@@ -25,7 +25,6 @@ export function AriaTodayCard({
   onDismiss: () => void;
 }) {
   const c = useColors();
-  const demoDate = useAriaStore((s) => s.demoDate);
   const [sendOpen, setSendOpen] = useState(false);
   return (
     <Animated.View
@@ -46,17 +45,48 @@ export function AriaTodayCard({
           <Text className="font-strong" numberOfLines={1}>
             {task.title}
           </Text>
-          <Text variant="caption" tone="muted">
-            {formatRelative(task.date, demoDate)}
-            {task.time ? ` · ${formatTime(task.time)}` : ''}
-          </Text>
+          {/* Time only — the header already said Today. This card is fed
+              exclusively from today's tasks, so a relative date formatter could
+              only ever produce "Today" again, one line under "Aria · Today".
+              What isn't already known at a glance is *when* today.
+
+              The icon is what separates it from the offer text below, which is
+              also `muted`. Stepping the time down to `faint` would have been
+              the obvious move and is not available: on this card's accent-soft
+              panel `faint` lands at 2.3–3.3:1, well under AA, and the palette
+              has no step between the two. So the distinction is made by role
+              instead — an icon marks it as a data point rather than prose, the
+              same way TaskCard pairs its date with a calendar. */}
+          <View className="flex-row items-center gap-1">
+            <Clock size={12} color={c.muted} />
+            <Text variant="caption" tone="muted">
+              {task.time ? formatTime(task.time) : 'Anytime'}
+            </Text>
+          </View>
         </View>
         <ChevronRight size={18} color={c.muted} />
       </Pressable>
 
-      <Text className="leading-6">
-        It&apos;s on your list for today. {action.offer} I&apos;ll show you everything before
-        anything is sent.
+      {/* The offer, and nothing it doesn't need.
+
+          `small` + muted rather than body weight in the default tone, which was
+          the same size *and* colour as the title above it — the two read as one
+          block and nothing led. Matches the demo invite and the empty-state
+          card, which already step down for supporting copy.
+
+          The text itself was 79 characters of boilerplate wrapped around every
+          offer: "It's on your list for today" (which the header had already
+          said, for the third time on one card) and a promise about sending.
+          Together they turned a one-line offer into three or four lines of
+          mostly-identical text.
+
+          The send promise now appears only when something is actually sent.
+          Most actions don't — breaking an assignment into steps or drafting an
+          outline sends nothing — so on those cards it wasn't just padding, it
+          implied a step that doesn't exist. */}
+      <Text variant="small" tone="muted" className="leading-5">
+        {action.offer}
+        {action.needsSend ? ' Nothing goes out without your OK.' : ''}
       </Text>
 
       <View className="flex-row gap-2 pt-1">

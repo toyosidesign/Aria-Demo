@@ -3,7 +3,7 @@ import type { z } from 'zod';
 
 import { badRequest, parseBody } from '@/lib/api-schemas';
 import { tooManyRequests, type RateLimitResult } from '@/lib/rate-limit';
-import { checkServerConfig } from '@/lib/server-config';
+import { checkServerConfig, startKeyVerification } from '@/lib/server-config';
 
 /**
  * Who is calling an API route.
@@ -125,6 +125,9 @@ export function protectedRoute<T extends z.ZodTypeAny>(
   // here, so a deploy missing its keys says so once at startup rather than
   // quietly serving scripted output. See lib/server-config.ts.
   checkServerConfig();
+  // Presence is checked synchronously above; whether the key actually works is
+  // answered in the background — see server-config.ts.
+  startKeyVerification();
 
   return async (request: Request): Promise<Response> => {
     const userId = await requireUser(request);

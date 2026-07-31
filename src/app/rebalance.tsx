@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
-import { formatFull, formatTime } from '@/lib/dates';
+import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
 import { selectWeekLoad, sortByDate, useAriaStore, type Task } from '@/store/aria-store';
 
@@ -84,7 +84,19 @@ export default function RebalanceScreen() {
     setDraftTime(t.time ?? null);
   }
 
+  /*
+   * The same rule the create form and Reschedule already enforce.
+   *
+   * This screen was the way around both. It writes the date and the time
+   * directly, so "Ease your week" would happily move a task to nine o'clock
+   * this morning — quietly re-creating the overdue task the screen exists to
+   * relieve. A guard in two of three places is not a guard.
+   */
+  const draftIsPast =
+    draftDate < effectiveToday(demoDate) || isPastMoment(draftDate, draftTime);
+
   function apply(t: Task) {
+    if (draftIsPast) return;
     rescheduleTask(t.id, draftDate);
     updateTask(t.id, { time: draftTime ?? undefined });
     hapticSuccess();
@@ -144,8 +156,19 @@ export default function RebalanceScreen() {
                   <View className="gap-3 border-t border-border p-4">
                     <MonthCalendar value={draftDate} onSelect={setDraftDate} />
                     <TimeField value={draftTime} onChange={setDraftTime} />
+                    {/* Say why, rather than leaving a dead button. */}
+                    {draftIsPast ? (
+                      <Text variant="small" tone="danger" className="leading-5">
+                        That moment has already passed. Pick a later one.
+                      </Text>
+                    ) : null}
                     <View className="flex-row gap-2">
-                      <Button title="Move here" onPress={() => apply(t)} className="flex-1" />
+                      <Button
+                        title="Move here"
+                        disabled={draftIsPast}
+                        onPress={() => apply(t)}
+                        className="flex-1"
+                      />
                       <Button title="Cancel" variant="secondary" onPress={() => setActiveId(null)} />
                     </View>
                     <Button

@@ -70,8 +70,87 @@ export function checkServerConfig(): void {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Is the key any good?
+//
+// `checkServerConfig` above answers "is a key set", which is a different and
+// much weaker question. A placeholder — `ANTHROPIC_API_KEY=sk-ant-...` copied
+// out of a README and never replaced — passes it, boots cleanly, and then every
+// route falls back to scripted text. That is exactly how this app ran for
+// weeks: a present, invalid, 24-character key.
+//
+// So ask the API. `GET /v1/models` authenticates without generating anything,
+// so it costs nothing and bills nothing.
+// ---------------------------------------------------------------------------
+
+export type KeyStatus =
+  | 'unchecked' // hasn't run yet, or no key to check
+  | 'ok'
+  | 'invalid' // the API rejected it — 401/403
+  | 'unreachable'; // network trouble; says nothing about the key
+
+let keyStatus: KeyStatus = 'unchecked';
+
+/** The last known verdict. Never blocks; never returns the key. */
+export function modelKeyStatus(): KeyStatus {
+  return keyStatus;
+}
+
+/**
+ * Verify the key against the API, once.
+ *
+ * Deliberately never throws. A verification that can take down the server on a
+ * flaky network is worse than the problem it detects — `unreachable` is not
+ * `invalid`, and only the latter is the app's fault.
+ */
+export async function verifyModelKey(): Promise<KeyStatus> {
+  const key = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!key) return (keyStatus = 'unchecked');
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+    });
+
+    if (res.ok) return (keyStatus = 'ok');
+
+    if (res.status === 401 || res.status === 403) {
+      keyStatus = 'invalid';
+      console.error(
+        `[aria] ANTHROPIC_API_KEY was rejected by the API (HTTP ${res.status}).\n` +
+          '  Every AI route will answer with scripted fallback text that looks like a\n' +
+          '  real reply. A working key starts sk-ant-api03- and is ~108 characters.\n' +
+          '  Get one at https://console.anthropic.com/settings/keys',
+      );
+      return keyStatus;
+    }
+
+    // 429, 5xx — the key may be perfectly fine.
+    keyStatus = 'unreachable';
+    console.warn(`[aria] could not verify ANTHROPIC_API_KEY (HTTP ${res.status}); continuing.`);
+    return keyStatus;
+  } catch {
+    keyStatus = 'unreachable';
+    console.warn('[aria] could not reach the Anthropic API to verify the key; continuing.');
+    return keyStatus;
+  }
+}
+
+/**
+ * Kick verification off in the background at import.
+ *
+ * Not awaited: the first request should not wait on a network round trip, and
+ * the result matters to whoever reads the logs, not to that request. By the
+ * time anyone has typed a message the verdict is in.
+ */
+export function startKeyVerification(): void {
+  if (keyStatus !== 'unchecked') return;
+  void verifyModelKey();
+}
+
 /** Test seam: lets the verification script assert both branches. */
 export const __requirements = REQUIREMENTS.map((r) => r.name);
 export function __resetServerConfigCheck() {
   checked = false;
+  keyStatus = 'unchecked';
 }

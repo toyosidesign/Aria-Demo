@@ -1,8 +1,11 @@
 import { postJson } from '@/lib/api-client';
+import type { Learner } from '@/lib/learner';
 
 export interface ChecklistRequest {
   title: string;
   description?: string;
+  /** Who it's for — see lib/learner.ts. Omitted when onboarding was skipped. */
+  learner?: Learner;
 }
 
 /** Ask the server to break an assignment into a topic checklist; fall back locally. */

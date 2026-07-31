@@ -83,13 +83,19 @@ export function detectSmallTalk(message: string): string | null {
 }
 
 /**
- * What Aria says when someone tries to talk to it properly.
+ * What Aria says when asked to do something it genuinely cannot.
  *
- * Says what it can't do before what it can, because the useful half is no use
- * to someone still waiting for an answer to the question they actually asked.
+ * This used to also claim Aria couldn't hold a conversation. That was true when
+ * no API key was configured — the local parser answered everything, and its
+ * conversational replies were thin. With a model behind it the claim became
+ * false, and the notice started replacing real answers with an apology for not
+ * being able to give one.
+ *
+ * It now covers only what is still true: Aria can talk, and cannot act out in
+ * the world. Narrow it again as each of those becomes possible.
  */
 export const TESTING_NOTICE =
-  "I'm in a testing phase, so I can't hold a real conversation or go and do things out in the world yet. That part is still being built. What I can do today is capture and organise what's on your plate: tell me something like “remind me to submit my lab report on Friday at 5pm” and I'll set it up for you.";
+  "I can't go and do things out in the world yet \u2014 booking, ordering, paying or browsing live websites. That part is still being built. I can talk anything through with you, and set up whatever needs doing: tell me something like \u201cremind me to submit my lab report on Friday at 5pm\u201d and I'll take care of it.";
 
 /**
  * The same limit, said where a task asks Aria to go and find things out.
@@ -135,18 +141,25 @@ export const FOLLOW_UP_NO_CHANGE =
  * a question gets answered with a prompt to add a task, which reads as though
  * Aria misunderstood rather than as a limit it knows it has.
  */
-export function wantsRealConversation(message: string): boolean {
+export function wantsRealWorldAction(message: string): boolean {
   const t = message.trim().toLowerCase();
   if (!t) return false;
-  // Greetings and acknowledgements already have warm replies of their own.
+  // Greetings and acknowledgements have warm replies of their own.
   if (detectSmallTalk(message)) return false;
-  // A question mark settles it, and is checked first: "how do I write a lab
-  // report?" mentions a task word but is plainly a question.
-  if (t.endsWith('?')) return true;
+  /*
+   * A question is no longer a trigger.
+   *
+   * It used to be — any "how do I write a lab report?" got the limits notice
+   * rather than an answer, because without a model there was no answer to give.
+   * There is one now, and intercepting it is the bug: a student asking for help
+   * with their work is the entire point of the product.
+   *
+   * What's left is what Aria still genuinely cannot do — reach out and
+   * *transact*. Booking, ordering, paying, browsing the live web. Promising
+   * those would be a lie; refusing to explain something is just a waste.
+   */
   if (looksLikeTask(t)) return false;
-  return /^(who|what|when|where|why|how|which|can you|could you|would you|will you|do you|are you|is there|tell me|explain|find|search|look up|book|order|buy|pay|research|summar)\b/.test(
-    t,
-  );
+  return /\b(book|order|buy|purchase|pay for|reserve|browse the|google it|search the web)\b/.test(t);
 }
 
 // ---------------------------------------------------------------------------

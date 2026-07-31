@@ -23,6 +23,12 @@ export default function EditProfileScreen() {
   const [email, setEmail] = useState(profile.email);
   const [context, setContext] = useState(profile.context);
   const [avatarUri, setAvatarUri] = useState<string | undefined>(profile.avatarUri);
+  const [studying, setStudying] = useState(profile.studying ?? '');
+  const [level, setLevel] = useState(profile.level ?? '');
+  // Edited as text rather than chips: this screen is for correcting an answer,
+  // and someone whose interest wasn't on the onboarding list needs to be able
+  // to type it without hunting for an "other" field.
+  const [interests, setInterests] = useState((profile.interests ?? []).join(', '));
 
   const canSave = name.trim().length > 0;
 
@@ -63,6 +69,12 @@ export default function EditProfileScreen() {
       email: email.trim(),
       context: context.trim(),
       avatarUri,
+      studying: studying.trim(),
+      level: level.trim(),
+      interests: interests
+        .split(',')
+        .map((i) => i.trim())
+        .filter(Boolean),
     });
     hapticSelect();
     router.back();
@@ -120,6 +132,34 @@ export default function EditProfileScreen() {
             <Text variant="caption" tone="faint" className="leading-5">
               A line about you: studying, working, whatever fits. Aria uses it to pitch what it
               writes for you.
+            </Text>
+          </View>
+
+          {/* The onboarding answers, editable. Someone's course changes, they
+              pick up a new sport, or they skipped the questions entirely — none
+              of which should mean living with a profile that's wrong. */}
+          <Input
+            label="Studying (optional)"
+            placeholder="e.g. Law"
+            value={studying}
+            onChangeText={setStudying}
+          />
+          <Input
+            label="Year (optional)"
+            placeholder="e.g. 2nd year"
+            value={level}
+            onChangeText={setLevel}
+          />
+          <View className="gap-1">
+            <Input
+              label="Interests (optional)"
+              placeholder="e.g. basketball, music, cooking"
+              value={interests}
+              onChangeText={setInterests}
+            />
+            <Text variant="caption" tone="faint" className="leading-5">
+              Separate with commas. When something abstract won&apos;t land, Aria explains it
+              through these.
             </Text>
           </View>
       </ScrollView>

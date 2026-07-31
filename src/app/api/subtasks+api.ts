@@ -3,9 +3,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { protectedRoute } from '@/lib/api-auth';
 import { ChecklistSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
+import { describeLearner } from '@/lib/learner';
 import { localChecklist } from '@/lib/subtasks';
 
-const SYSTEM = `You help someone break a piece of work into a clear, actionable checklist of topics/sections to work on.
+const BASE_SYSTEM = `You help someone break a piece of work into a clear, actionable checklist of topics/sections to work on.
 Given an assignment title (and optional notes), return 5–8 short, concrete items specific to the SUBJECT: the actual topics or sections the student should cover, in a sensible order. Each item is a few words, no numbering, no punctuation at the end, and no dashes or hyphens.
 Example, "Essay on the history of America": ["Colonial era and settlement", "Road to independence", "The Revolutionary War", "Building the new nation", "Civil War and abolition", "Industrialization and immigration", "Civil rights movement", "Modern America"].`;
 
@@ -30,7 +31,7 @@ function extractText(msg: Anthropic.Message): string {
 // forgotten here. See lib/api-auth.ts.
 export const POST = protectedRoute(ChecklistSchema, limitAi, async (body) => {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ items: localChecklist(body) });
+    return Response.json({ items: localChecklist(body), fallback: true });
   }
 
   try {
@@ -40,7 +41,10 @@ export const POST = protectedRoute(ChecklistSchema, limitAi, async (body) => {
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-      system: SYSTEM,
+      // The static prompt plus whatever onboarding learned. A student studying
+      // Law and one studying Physics should not get the same breakdown of "the
+      // effect of the 1998 reforms", and until now they did.
+      system: [BASE_SYSTEM, describeLearner(body.learner)].filter(Boolean).join('\n\n'),
       messages: [
         {
           role: 'user',
@@ -51,13 +55,13 @@ export const POST = protectedRoute(ChecklistSchema, limitAi, async (body) => {
     } as any)) as Anthropic.Message;
 
     if (msg.stop_reason === 'refusal') {
-      return Response.json({ items: localChecklist(body) });
+      return Response.json({ items: localChecklist(body), fallback: true });
     }
     const parsed = JSON.parse(extractText(msg)) as { items?: string[] };
     if (!Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error('bad shape');
-    return Response.json({ items: parsed.items });
+    return Response.json({ items: parsed.items, fallback: false });
   } catch (err) {
     console.error('[aria] subtasks: Claude call failed, using local checklist:', err);
-    return Response.json({ items: localChecklist(body) });
+    return Response.json({ items: localChecklist(body), fallback: true });
   }
 });
