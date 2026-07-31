@@ -163,6 +163,7 @@ export function profileToRow(
     school: null,
     year: null,
     avatar_url: p.avatarUri ?? null,
+    // Written so the column is not left stale, never read back — see rowToProfile.
     theme: settings.theme,
     biometric_lock: settings.biometricLock,
     proactive_aria: settings.proactiveAria,
@@ -185,6 +186,17 @@ export function profileToRow(
  * A column that is null means "this row has nothing to say", not "the user
  * wants the default". Only set columns are returned, and hydrate merges them
  * over the local values.
+ *
+ * `theme` is deliberately **not** among them. Appearance is a property of the
+ * device, not of the account — a phone and a tablet can reasonably want
+ * different ones, and the person who set Charcoal on this handset did not ask
+ * for it to follow them elsewhere.
+ *
+ * It also could not work as a synced value here. The column is declared
+ * `default 'system'`, so the row the signup trigger creates already says
+ * 'system' — never null, so no "is it set?" test can tell a real preference
+ * from a column default. Every launch it overwrote the local choice and the
+ * app came back on whatever the phone was set to.
  */
 function rowToProfile(r: ProfileRow): {
   profile: Profile;
@@ -192,7 +204,6 @@ function rowToProfile(r: ProfileRow): {
   onboarded: boolean;
 } {
   const settings: Partial<Settings> = {};
-  if (r.theme != null) settings.theme = r.theme as Settings['theme'];
   if (r.biometric_lock != null) settings.biometricLock = r.biometric_lock;
   if (r.proactive_aria != null) settings.proactiveAria = r.proactive_aria;
   if (r.haptics != null) settings.haptics = r.haptics;

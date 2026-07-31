@@ -108,6 +108,35 @@ export interface Task {
   handledByAria?: boolean; // Aria completed it end-to-end
 }
 
+/**
+ * A task Aria has proposed in chat but nobody has created yet.
+ *
+ * Structurally the same as `ParsedTask` in lib/assistant.ts, declared here
+ * rather than imported because that module imports *this* one — taking it the
+ * other way would be a cycle. Assignment still works in both directions.
+ */
+export interface ProposedTask {
+  title: string;
+  date: string;
+  time?: string;
+  kind: TaskKind;
+  priority: Priority;
+  contactName?: string;
+  contactEmail?: string;
+  method?: TaskMethod;
+  description?: string;
+  subtasks?: string[];
+}
+
+/** One turn in the conversation with Aria. */
+export interface ChatMessage {
+  id: string;
+  from: 'aria' | 'maya';
+  text: string;
+  /** Tasks offered in this turn, still waiting to be created. */
+  pending?: ProposedTask[];
+}
+
 /** A titled block of content Aria drafted (e.g. one essay section). */
 export interface DraftSection {
   title: string;
@@ -409,6 +438,14 @@ export const OVERLOAD_THRESHOLD = 5;
  */
 export const HEAVY_DAY_THRESHOLD = 4;
 
+/**
+ * How much of the conversation is kept.
+ *
+ * Enough that scrolling back feels complete, bounded so the persisted store
+ * doesn't grow forever on a device that never signs out.
+ */
+export const CHAT_LIMIT = 200;
+
 interface AriaState {
   tasks: Task[];
   demoDate: string;
@@ -507,8 +544,27 @@ interface AriaState {
    * answered. Set either way — taking the tour or declining it both count, so
    * the card asks once and never again.
    */
+  /**
+   * Whose data is currently on this device.
+   *
+   * Lets `hydrate` tell "the same person is back" from "somebody else has
+   * signed in", which is the only moment local data genuinely has to be thrown
+   * away. Persisted, because the distinction has to survive a restart.
+   */
+  lastUserId: string | null;
   demoOfferDismissed: boolean;
   dismissDemoOffer: () => void;
+  /**
+   * The conversation with Aria, kept across closes.
+   *
+   * It lived in the chat screen's own state, so shutting the sheet threw the
+   * whole thread away — including tasks Aria had offered but nobody had tapped
+   * yet. Capped at CHAT_LIMIT so a long-running account can't grow the stored
+   * blob without bound.
+   */
+  chat: ChatMessage[];
+  addChatMessage: (message: ChatMessage) => void;
+  clearChat: () => void;
 }
 
 /** Drop blank/missing fields so a bare remote row can't blank out local values. */
@@ -541,7 +597,9 @@ export const useAriaStore = create<AriaState>()(
       proWaitlisted: false,
       signedIn: false,
       onboarded: true,
+      lastUserId: null,
       demoOfferDismissed: false,
+      chat: [],
       hydrated: false,
       setHydrated: () => set({ hydrated: true }),
       setDemoDate: (date) => set({ demoDate: date }),
@@ -596,6 +654,13 @@ export const useAriaStore = create<AriaState>()(
         void signOutRemote();
       },
       hydrate: async (userId) => {
+        // Somebody else signing in on this handset is the real reason to clear
+        // local data — not a session that happened to be missing at launch.
+        const previous = get().lastUserId;
+        if (previous && previous !== userId) {
+          set({ tasks: [], contacts: [], automations: [], chat: [], profile: DEFAULT_PROFILE });
+        }
+        set({ lastUserId: userId });
         const data = await fetchAll(userId);
         if (!data) {
           // Offline, or the fetch failed: keep the cached data untouched.
@@ -638,12 +703,43 @@ export const useAriaStore = create<AriaState>()(
         if (!data.contacts.length && localContacts.length) void upsertContacts(localContacts);
         void reconcileAlarms(get().tasks);
       },
+      /**
+       * Wipe this device of the signed-in person's data.
+       *
+       * Only ever correct on a deliberate sign-out. It used to be called
+       * whenever a session lookup came back empty at startup, which is not the
+       * same thing at all: an expired token, a failed refresh or simply being
+       * offline for a moment all look identical from here. Overnight the access
+       * token expires, and the next launch destroyed every task, contact and
+       * message on the device — permanently, since none of it had synced.
+       */
       clearLocal: () => {
         setSyncUser(null);
-        set({ signedIn: false, tasks: [], contacts: [], automations: [], profile: DEFAULT_PROFILE });
+        set({
+          signedIn: false,
+          tasks: [],
+          contacts: [],
+          automations: [],
+          chat: [],
+          profile: DEFAULT_PROFILE,
+          lastUserId: null,
+        });
       },
       completeOnboarding: () => {
-        set({ onboarded: true });
+        /*
+         * Also re-arms the demo offer.
+         *
+         * `signIn` resets it for a new account, but that only runs on the
+         * development mock path — a real Supabase signup goes through the auth
+         * gate instead and never calls it. So the flag kept whatever the device
+         * already had, and since resetting the demo, clearing all data and
+         * dismissing the card all set it to true, a fresh account on a
+         * previously-used device was never offered the tour at all.
+         *
+         * Onboarding only runs for a new account, which makes it the honest
+         * place to say "this person hasn't been asked yet".
+         */
+        set({ onboarded: true, demoOfferDismissed: false });
         upsertProfile(get().profile, get().settings, true);
       },
       addContact: (contact) => {
@@ -867,6 +963,7 @@ export const useAriaStore = create<AriaState>()(
           // Nothing left to offer a tour of, and they've just declined it by
           // action — don't ask again on the now-empty home screen.
           demoOfferDismissed: true,
+          chat: [],
         });
         // Alarms outlive the tasks that scheduled them, so a cleared planner
         // would otherwise still chime for something that no longer exists.
@@ -876,6 +973,9 @@ export const useAriaStore = create<AriaState>()(
         void replaceAllContacts([]);
       },
       dismissDemoOffer: () => set({ demoOfferDismissed: true }),
+      addChatMessage: (message) =>
+        set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
+      clearChat: () => set({ chat: [] }),
     }),
     {
       name: 'aria-store-v1',
@@ -893,9 +993,31 @@ export const useAriaStore = create<AriaState>()(
         signedIn: s.signedIn,
         onboarded: s.onboarded,
         demoOfferDismissed: s.demoOfferDismissed,
+        chat: s.chat,
+        lastUserId: s.lastUserId,
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+
+        /*
+         * Repair chat ids that collide.
+         *
+         * Messages used to be keyed by a counter that reset on every reload, so
+         * a stored thread can already hold several `c0`s. Fresh ids are uuids
+         * and won't collide, but the rows written before that still would, and
+         * React refuses to render a list with duplicate keys.
+         */
+        const seenIds = new Set<string>();
+        let repaired = false;
+        state.chat = state.chat.map((m) => {
+          if (!seenIds.has(m.id)) {
+            seenIds.add(m.id);
+            return m;
+          }
+          repaired = true;
+          return { ...m, id: uuidv4() };
+        });
+        if (repaired) console.warn('[aria] repaired duplicate chat message ids');
 
         // Theme names have changed more than once — the setting was
         // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',

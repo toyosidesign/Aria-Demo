@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { CalendarDays, ChevronRight, Mic, Send, Sparkles, X } from 'lucide-react-native';
+import { CalendarDays, ChevronRight, Eraser, Mic, Send, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import Animated, {
@@ -27,6 +27,7 @@ import {
 } from '@/lib/assistant';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
+import { uuidv4 } from '@/lib/id';
 import { formatFull, formatTime } from '@/lib/dates';
 import { hapticSelect, hapticTap } from '@/lib/haptics';
 import { KIND_ICON } from '@/lib/kind-icons';
@@ -58,9 +59,17 @@ const VOICE_SCRIPTS = [
   'I have a history essay due in 3 days',
 ];
 
-let mid = 0;
+/**
+ * A message id that survives a reload.
+ *
+ * This was a module-scoped counter — `c0`, `c1`, … — which was fine while the
+ * thread lived in component state and died with it. Now that the conversation
+ * persists, the counter still restarts at zero on every reload while the stored
+ * messages keep their old ids, so the next message collided with `c0` and React
+ * refused to render the list.
+ */
 const mk = (from: Msg['from'], text: string, pending?: ParsedTask[]): Msg => ({
-  id: `c${mid++}`,
+  id: uuidv4(),
   from,
   text,
   pending,
@@ -73,12 +82,28 @@ export default function ChatScreen() {
   const profileContext = useAriaStore((s) => s.profile.context);
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
 
-  const [messages, setMessages] = useState<Msg[]>([
-    mk(
-      'aria',
-      `Hi ${firstName}, I'm Aria. Pick a category below so I know what to focus on, or just tell me what you need, like “remind me to submit my lab report on Friday at 5pm.” You can type, or tap the mic to speak.`,
-    ),
-  ]);
+  // The thread lives in the store now, so closing the sheet keeps it.
+  const messages = useAriaStore((s) => s.chat);
+  const addChatMessage = useAriaStore((s) => s.addChatMessage);
+  const clearChat = useAriaStore((s) => s.clearChat);
+
+  /*
+   * Greet once, into an empty thread — not on every mount.
+   *
+   * Seeding this as initial state meant a fresh "Hi, I'm Aria" every time the
+   * sheet opened. It belongs in the history like any other turn, so it is
+   * written once and then scrolls away like the rest.
+   */
+  useEffect(() => {
+    if (messages.length > 0) return;
+    addChatMessage(
+      mk(
+        'aria',
+        `Hi ${firstName}, I'm Aria. Pick a category below so I know what to focus on, or just tell me what you need, like “remind me to submit my lab report on Friday at 5pm.” You can type, or tap the mic to speak.`,
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
@@ -106,7 +131,7 @@ export default function ChatScreen() {
       role: m.from === 'aria' ? 'assistant' : 'user',
       text: m.text,
     }));
-    setMessages((prev) => [...prev, mk('maya', trimmed)]);
+    addChatMessage(mk('maya', trimmed));
     setInput('');
     setSending(true);
 
@@ -119,10 +144,7 @@ export default function ChatScreen() {
     // be in the way.
     const reply =
       res.tasks.length === 0 && wantsRealConversation(trimmed) ? TESTING_NOTICE : res.reply;
-    setMessages((prev) => [
-      ...prev,
-      mk('aria', reply, res.tasks.length ? res.tasks : undefined),
-    ]);
+    addChatMessage(mk('aria', reply, res.tasks.length ? res.tasks : undefined));
   }
 
   function startVoice() {
@@ -152,6 +174,17 @@ export default function ChatScreen() {
             Ask me to add anything
           </Text>
         </View>
+        {/* History persists now, so there has to be a way to end a thread. */}
+        {messages.length > 1 ? (
+          <HeaderButton
+            icon={Eraser}
+            accessibilityLabel="Clear this conversation"
+            onPress={() => {
+              hapticSelect();
+              clearChat();
+            }}
+          />
+        ) : null}
         <HeaderButton icon={X} onPress={() => router.back()} />
       </View>
 

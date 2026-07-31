@@ -7,11 +7,11 @@ import { unlockWithBiometrics } from '@/lib/biometrics';
 /**
  * Matches the native splash and app.json's backgroundColor.
  *
- * The brand blue — primary-600. Fixed rather than theme-aware on purpose:
+ * The button fill — primary-500, the same colour a primary Button is filled with. Fixed rather than theme-aware on purpose:
  * this paints before the app knows the colour scheme, and it has to be
  * pixel-identical to the native splash or the hand-off flashes.
  */
-const BRAND = '#1570EF';
+const BRAND = '#333D56';
 
 /**
  * Stands between launch and the app when the biometric lock is on.

@@ -211,7 +211,10 @@ export default function TodayScreen() {
                 Let&apos;s get started, {firstName}
               </Text>
             </View>
-            <Text className="leading-6">
+            {/* `small` + muted, not body + ink. At 16px in the same tone as the
+                heading above it, four lines of explanation outweighed the thing
+                it was explaining — the two read as one undifferentiated block. */}
+            <Text variant="small" tone="muted" className="leading-5">
               You don&apos;t have anything scheduled yet. Tell me what&apos;s on your plate: a
               class, a birthday, an assignment, anything, and I&apos;ll set it up. Or add one
               yourself.
@@ -316,9 +319,14 @@ export default function TodayScreen() {
             on top of a tone. Still no opacity: stacking one on a 12px `caption`
             is what made this illegible before, and a palette step is something
             the theme controls in both light and dark. */}
-        <View className="mt-2 flex-row items-center justify-center gap-1.5">
+        {/* `shrink` on the text and a fixed icon. In a flex row a Text sizes to
+            its content and overflows rather than wrapping, so the sentence was
+            clipped at the right edge on narrower phones and at larger text
+            sizes. Shrinking lets it wrap; the padding keeps it off the edges
+            when it does. */}
+        <View className="mt-2 flex-row items-center justify-center gap-1.5 px-6">
           <Sparkles size={15} color={c.faint} />
-          <Text variant="small" tone="faint" className="text-center">
+          <Text variant="small" tone="faint" className="shrink text-center">
             Aria plans ahead, and always takes no for an answer.
           </Text>
         </View>

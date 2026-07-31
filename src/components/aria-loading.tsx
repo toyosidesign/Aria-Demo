@@ -13,16 +13,16 @@ import Animated, {
 /**
  * Matches the native splash and app.json's backgroundColor.
  *
- * The brand blue — primary-600. Fixed rather than theme-aware on purpose:
+ * The button fill — primary-500, the same colour a primary Button is filled with. Fixed rather than theme-aware on purpose:
  * this paints before the app knows the colour scheme, and it has to be
  * pixel-identical to the native splash or the hand-off flashes.
  */
-const BRAND = '#1570EF';
+const BRAND = '#333D56';
 
 /**
  * What's on screen between launch and the app being ready.
  *
- * Deliberately identical to the native splash — same blue, same mark in the
+ * Deliberately identical to the native splash — same colour, same mark in the
  * same place — so the swap from one to the other is invisible and the mark
  * simply starts breathing. Rendering nothing here (the old behaviour) left a
  * blank screen with no sign of life whenever hydration ran long.

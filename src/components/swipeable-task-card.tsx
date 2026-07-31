@@ -52,6 +52,15 @@ export function SwipeableTaskCard({
 }) {
   const c = useColors();
   const ref = useRef<SwipeableMethods>(null);
+  /**
+   * Whether the action panel is showing.
+   *
+   * The card underneath is a Pressable, so the tap that ends a swipe — or the
+   * next tap, aimed at the revealed button — also counted as "open this task".
+   * Swiping to reschedule dumped you into the task detail instead. While the
+   * row is open a press closes it rather than navigating.
+   */
+  const openRef = useRef(false);
   const completeTask = useAriaStore((s) => s.completeTask);
   const reopenTask = useAriaStore((s) => s.reopenTask);
   const snoozeTask = useAriaStore((s) => s.snoozeTask);
@@ -102,6 +111,12 @@ export function SwipeableTaskCard({
       <Animated.View style={hintStyle}>
         <ReanimatedSwipeable
           ref={ref}
+          onSwipeableWillOpen={() => {
+            openRef.current = true;
+          }}
+          onSwipeableWillClose={() => {
+            openRef.current = false;
+          }}
           // 1:1 with the finger — the old value of 2 moved the row at half speed,
           // which is what made the gesture feel sticky.
           friction={1}
@@ -131,7 +146,17 @@ export function SwipeableTaskCard({
                   />
                 )
           }>
-          <TaskCard task={task} onPress={onPress} />
+          <TaskCard
+            task={task}
+            onPress={() => {
+              if (openRef.current) {
+                ref.current?.close();
+                return;
+              }
+              if (onPress) onPress();
+              else router.push(`/task/${task.id}`);
+            }}
+          />
         </ReanimatedSwipeable>
       </Animated.View>
 

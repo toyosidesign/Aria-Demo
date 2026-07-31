@@ -163,7 +163,7 @@ const NEUTRALS = {
   linen: {
     dark: false, label: 'Linen',
     bg: '#F1E9E2', surface: '#F9F3EE', elevated: '#FDF9F6', border: '#E3D8CF',
-    ink: '#2A2320', muted: '#6B5D54', faint: '#9C8C81',
+    ink: '#2A2320', muted: '#655850', faint: '#9C8C81',
     // Warm, and a step below Linen's *page* colour. A fixed powder blue read as
     // a foreign card on warm paper; a step below `surface` was invisible once
     // it sat on `bg`.

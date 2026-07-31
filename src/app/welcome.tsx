@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   CalendarDays,
   MessageCircle,
@@ -10,6 +11,7 @@ import { ScrollView, View } from 'react-native';
 
 import { AriaAvatar } from '@/components/aria-avatar';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
@@ -43,9 +45,25 @@ export default function WelcomeScreen() {
   const c = useColors();
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const completeOnboarding = useAriaStore((s) => s.completeOnboarding);
+  const updateProfile = useAriaStore((s) => s.updateProfile);
+
+  /**
+   * Starts empty, never pre-filled.
+   *
+   * The profile ships with the demo persona's "Sophomore at State University",
+   * and that value feeds Aria's prompts as `senderContext` — so every draft for
+   * a new account was pitched at a student regardless of who had signed up.
+   * Onboarding only runs for new accounts, so there is nothing worth
+   * pre-filling and a great deal worth not assuming.
+   */
+  const [context, setContext] = useState('');
 
   function start() {
     hapticSelect();
+    // Written even when left blank, which is the point: an empty context is
+    // Aria knowing nothing about you, and that is far better than Aria
+    // confidently believing something untrue.
+    updateProfile({ context: context.trim() });
     completeOnboarding();
     router.replace('/');
   }
@@ -55,6 +73,8 @@ export default function WelcomeScreen() {
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ flexGrow: 1, gap: 28, paddingVertical: 20 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
         <View className="items-center gap-4 pt-4">
           <AriaAvatar size={72} />
@@ -82,8 +102,29 @@ export default function WelcomeScreen() {
           ))}
         </View>
 
+        {/* Asked here rather than left to Settings, because it changes how every
+            draft reads and almost nobody goes looking for it after the fact. */}
+        <View className="gap-2">
+          <Input
+            label="What are you up to these days?"
+            placeholder="e.g. Second year studying law, or Freelance designer"
+            value={context}
+            onChangeText={setContext}
+            returnKeyType="done"
+          />
+          <Text variant="caption" tone="faint" className="leading-5">
+            Optional, and you can change it any time in your profile. It only shapes how I word
+            things for you.
+          </Text>
+        </View>
+
         <View className="mt-auto gap-3">
-          <Button title="Get started" block size="lg" onPress={start} />
+          <Button
+            title={context.trim() ? 'Get started' : 'Skip for now'}
+            block
+            size="lg"
+            onPress={start}
+          />
           <Text variant="caption" tone="faint" className="text-center">
             You don&apos;t have any tasks yet. Add your first one whenever you&apos;re ready.
           </Text>

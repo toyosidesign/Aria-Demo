@@ -16,6 +16,7 @@ import { vars } from 'nativewind';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from 'nativewind';
+import { useColorScheme as useDeviceScheme } from 'react-native';
 
 import { AriaLoading } from '@/components/aria-loading';
 import { LockScreen } from '@/components/lock-screen';
@@ -74,7 +75,10 @@ export default function RootLayout() {
   });
   const fontsSettled = fontsLoaded || !!fontError;
 
-  const { colorScheme, setColorScheme } = useColorScheme();
+  // `setColorScheme` drives nativewind's `dark:` utilities; the device scheme
+  // is read from Appearance so the two can't feed each other. See useTheme.
+  const { setColorScheme } = useColorScheme();
+  const deviceScheme = useDeviceScheme();
   const hydrated = useAriaStore((s) => s.hydrated);
   const themePref = useAriaStore((s) => s.settings.theme);
   const signedIn = useAriaStore((s) => s.signedIn);
@@ -141,17 +145,22 @@ export default function RootLayout() {
       if (session?.user) {
         setSyncUser(session.user.id);
         await useAriaStore.getState().hydrate(session.user.id);
-      } else {
-        useAriaStore.getState().clearLocal();
       }
+      // No session at startup does *not* mean signed out. An expired token, a
+      // refresh that hasn't finished, or no network for a moment all land here,
+      // and clearing on any of them destroyed the device's only copy of the
+      // data. The auth gate below routes to /login either way; the data waits.
       setAuthReady(true);
-      const listener = supabase.auth.onAuthStateChange((_event, s) => {
+
+      const listener = supabase.auth.onAuthStateChange((event, s) => {
         if (s?.user) {
           setSyncUser(s.user.id);
           void useAriaStore.getState().hydrate(s.user.id);
-        } else {
-          useAriaStore.getState().clearLocal();
+          return;
         }
+        // Only a deliberate sign-out wipes the device. Every other event that
+        // arrives without a session is transient.
+        if (event === 'SIGNED_OUT') useAriaStore.getState().clearLocal();
       });
       sub = listener.data.subscription;
     })();
@@ -180,7 +189,7 @@ export default function RootLayout() {
    * navigation chrome still agree with a theme that is neither plain light nor
    * plain dark — "Cream" is a light theme, "Charcoal" a dark one.
    */
-  const theme = resolveTheme(themePref, colorScheme === 'dark');
+  const theme = resolveTheme(themePref, deviceScheme === 'dark');
 
   useEffect(() => {
     if (!hydrated) return;

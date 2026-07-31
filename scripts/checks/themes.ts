@@ -91,6 +91,20 @@ for (const name of THEME_NAMES) {
   });
 }
 
+console.log('\nsecondary text is legible on tinted panels too');
+for (const name of THEME_NAMES) {
+  const p = THEMES[name].palette;
+  t(`${name}: muted clears AA on accentSoft as well as surface`, () => {
+    // Tinted panels — the welcome card, the demo invite, the "not now" banner —
+    // all carry muted body copy. Tuning `muted` against `surface` alone left
+    // Linen at 4.46 on its own panel: legible on a card, not on a banner.
+    const onPanel = ratio(p.muted, p.accentSoft);
+    const onCard = ratio(p.muted, p.surface);
+    assert.ok(onPanel >= 4.5, `${onPanel.toFixed(2)} on accentSoft`);
+    assert.ok(onCard >= 4.5, `${onCard.toFixed(2)} on surface`);
+  });
+}
+
 console.log('\ncharcoal stays neutral');
 t('charcoal has no hue anywhere in its palette', () => {
   // It is the monochrome theme; a cool cast is Midnight's job. The iOS system
