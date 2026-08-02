@@ -45,11 +45,25 @@ export function SwipeableTaskCard({
    * you deliberately opened.
    */
   advanceOnComplete = true,
+  scrollRef,
 }: {
   task: Task;
   onPress?: () => void;
   hintGesture?: boolean;
   advanceOnComplete?: boolean;
+  /**
+   * The scrolling container this row sits in.
+   *
+   * Without it the parent scroll and this row's pan compete for the same drag,
+   * and the scroll usually wins: the row follows your finger far enough to look
+   * like it's opening, the scroll claims the gesture, the pan is cancelled, and
+   * the row springs back. Nothing in the release logic runs at all — it looks
+   * like a threshold problem and isn't one.
+   *
+   * Passing the container makes the row's gesture take precedence over it, so a
+   * horizontal drag belongs to the row and a vertical one still scrolls.
+   */
+  scrollRef?: React.RefObject<unknown>;
 }) {
   const c = useColors();
   const ref = useRef<SwipeableMethods>(null);
@@ -153,6 +167,8 @@ export function SwipeableTaskCard({
           onSwipeableWillClose={markClosed}
           onSwipeableOpenStartDrag={stopHint}
           onSwipeableCloseStartDrag={stopHint}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          blocksExternalGesture={scrollRef as any}
           // 1:1 with the finger — the old value of 2 moved the row at half speed,
           // which is what made the gesture feel sticky.
           friction={1}

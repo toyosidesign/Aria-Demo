@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { CalendarClock, CheckCircle2, Plus } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
@@ -9,11 +9,26 @@ import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
-import { selectDone, selectLate, selectUpcoming, useAriaStore } from '@/store/aria-store';
+import { selectDone, selectLate, selectUpcoming, useAriaStore, type Task } from '@/store/aria-store';
 
 type Tab = 'upcoming' | 'done' | 'late';
 
 export default function TasksScreen() {
+  /*
+   * The list, and a row renderer that keeps its identity.
+   *
+   * `blocksExternalGesture={listRef}` makes each row's drag take precedence
+   * over the list's scroll — without it the scroll claims the pan and rows
+   * spring back mid-swipe. `renderRow` is memoised because an inline arrow
+   * rebuilds every row on each render, which is the same identity problem that
+   * has broken this gesture before.
+   */
+  const listRef = useRef(null);
+  const renderRow = useCallback(
+    ({ item }: { item: Task }) => <SwipeableTaskCard task={item} scrollRef={listRef} />,
+    [],
+  );
+
   const c = useColors();
   const [tab, setTab] = useState<Tab>('upcoming');
   const tasks = useAriaStore((s) => s.tasks);
@@ -48,9 +63,10 @@ export default function TasksScreen() {
       />
 
       <FlatList
+        ref={listRef}
         data={list}
         keyExtractor={(t) => t.id}
-        renderItem={({ item }) => <SwipeableTaskCard task={item} />}
+        renderItem={renderRow}
         contentContainerStyle={{ gap: 12, paddingTop: 16, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

@@ -9,7 +9,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
@@ -50,6 +50,11 @@ export default function TodayScreen() {
   const proactive = useAriaStore((s) => s.settings.proactiveAria);
   const demoOfferDismissed = useAriaStore((s) => s.demoOfferDismissed);
   const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
+  /*
+   * Handed to every swipeable row so the row's drag beats the page's.
+   * Without it the scroll steals the pan and rows snap back mid-swipe.
+   */
+  const scrollRef = useRef(null);
 
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [deferred, setDeferred] = useState<{ id: string; title: string } | null>(null);
@@ -85,6 +90,7 @@ export default function TodayScreen() {
   return (
     <Screen padded>
       <ScrollView
+        ref={scrollRef}
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32, gap: 20 }}
         showsVerticalScrollIndicator={false}>
@@ -268,12 +274,20 @@ export default function TodayScreen() {
                       task={task}
                       hintGesture={first}
                       advanceOnComplete={false}
+                      scrollRef={scrollRef}
                     />
                   );
                 }
                 // Completing from here keeps you here: the home screen is where
                 // you survey the day, not a queue to be marched through.
-                return <SwipeableTaskCard key={task.id} task={task} advanceOnComplete={false} />;
+                return (
+                  <SwipeableTaskCard
+                    key={task.id}
+                    task={task}
+                    advanceOnComplete={false}
+                    scrollRef={scrollRef}
+                  />
+                );
               })
             )}
 
@@ -310,7 +324,12 @@ export default function TodayScreen() {
               ) : null}
             </View>
             {comingUp.map((task) => (
-              <SwipeableTaskCard key={task.id} task={task} advanceOnComplete={false} />
+              <SwipeableTaskCard
+                key={task.id}
+                task={task}
+                advanceOnComplete={false}
+                scrollRef={scrollRef}
+              />
             ))}
           </View>
         ) : null}
