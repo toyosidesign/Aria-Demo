@@ -44,6 +44,7 @@ import { Text } from '@/components/ui/text';
 import { ensureAlarmPermission, runPreview } from '@/lib/alarms';
 import {
   CATEGORY_KINDS,
+  TITLE_FIELD,
   EVENT_OCCASIONS,
   isEventKind,
   isMessageMethod,
@@ -133,7 +134,9 @@ export default function NewTaskScreen() {
   const lostTask = !!params.editId && !editing;
   const initialKind =
     editing?.kind ??
-    (KIND_VALUES.includes(params.kind as TaskKind) ? (params.kind as TaskKind) : 'general');
+    // 'reminder', not 'general': Task is no longer an offered category, so
+    // defaulting to it would open the screen with nothing selected.
+    (KIND_VALUES.includes(params.kind as TaskKind) ? (params.kind as TaskKind) : 'reminder');
 
   const [title, setTitle] = useState(editing?.title ?? params.title ?? '');
   const [kind, setKind] = useState<TaskKind>(initialKind);
@@ -481,8 +484,8 @@ export default function NewTaskScreen() {
 
           <Input
             ref={titleRef}
-            label="What needs doing?"
-            placeholder="e.g. Wish Jane a happy birthday"
+            label={TITLE_FIELD[kind].label}
+            placeholder={TITLE_FIELD[kind].example}
             value={title}
             onChangeText={setTitle}
             returnKeyType="next"

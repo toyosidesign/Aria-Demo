@@ -313,7 +313,7 @@ export default function WelcomeScreen() {
             <ChoiceGroup options={INTERESTS} value={interests} onChange={setInterests} />
             <Input
               label="Anything else"
-              placeholder="e.g. chess, baking — separate with commas"
+              placeholder="e.g. chess, baking (separate with commas)"
               value={otherInterest}
               onChangeText={setOtherInterest}
               returnKeyType="done"

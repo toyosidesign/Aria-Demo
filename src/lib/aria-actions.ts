@@ -1,5 +1,6 @@
 import { defaultMethodFor, type Task, type TaskKind, type TaskMethod } from '@/store/aria-store';
 import { postJson } from '@/lib/api-client';
+import type { Learner } from '@/lib/learner';
 
 export type AriaActionType = 'message' | 'assignment';
 
@@ -94,12 +95,47 @@ export const TASK_METHODS: TaskMethod[] = [
  * handles it: a birthday defaults to a card, an anniversary to a message.
  */
 export const CATEGORY_KINDS: { value: TaskKind; label: string }[] = [
-  { value: 'general', label: 'Task' },
-  { value: 'reminder', label: 'Reminder' },
   { value: 'event', label: 'Event' },
+  { value: 'reminder', label: 'Reminder' },
   { value: 'assignment', label: 'Assignment' },
   { value: 'project', label: 'Project' },
 ];
+
+/*
+ * 'general' is deliberately absent from the list above, and deliberately still
+ * a `TaskKind`.
+ *
+ * "Task" as a category next to Event and Assignment was a catch-all that said
+ * nothing about how Aria should handle the thing, which is the only reason the
+ * category exists. Removing it from the picker stops new ones being made.
+ *
+ * The kind itself stays in the model because tasks already carry it — the demo
+ * seed included. Dropping it from the type would leave those rows referring to
+ * a category the app no longer understands, which breaks the icon, the method
+ * list and the Aria action for every one of them.
+ */
+
+/**
+ * What the title field asks for, and an example of an answer.
+ *
+ * Both were fixed strings: "What needs doing?" over "e.g. Wish Jane a happy
+ * birthday", shown unchanged when the category was Assignment. A worked example
+ * is the most useful thing on a blank form and the least useful when it belongs
+ * to a different kind of thing entirely.
+ *
+ * Phrased for a form, not for the chat. `KIND_OPENER` in lib/task-flow.ts asks
+ * the same questions conversationally, and the two registers are deliberately
+ * separate: a label is not a sentence Aria says.
+ */
+export const TITLE_FIELD: Record<TaskKind, { label: string; example: string }> = {
+  event: { label: "What's the event?", example: 'e.g. Dinner with Sam' },
+  reminder: { label: 'What should I remind you about?', example: 'e.g. Take the bins out' },
+  assignment: { label: "What's the assignment?", example: 'e.g. History essay on the Cold War' },
+  project: { label: "What's the project?", example: 'e.g. Group presentation on rent controls' },
+  birthday: { label: 'Whose birthday is it?', example: 'e.g. Wish Jane a happy birthday' },
+  anniversary: { label: 'Whose anniversary is it?', example: "e.g. Mum and Dad's anniversary" },
+  general: { label: 'What needs doing?', example: 'e.g. Book the dentist' },
+};
 
 /** Everything that lives under the Event category. */
 export const EVENT_KINDS: TaskKind[] = ['event', 'birthday', 'anniversary'];
@@ -124,6 +160,29 @@ export const TASK_KINDS: { value: TaskKind; label: string }[] = [
   { value: 'assignment', label: 'Assignment' },
   { value: 'project', label: 'Project' },
 ];
+
+/**
+ * What Aria says the moment a category is chosen.
+ *
+ * Picking a chip used to do nothing visible — it set a parse hint and changed
+ * the placeholder, so the burden of knowing what to say next stayed with the
+ * student, in a chat where Aria had just gone quiet. Each of these names the
+ * one thing that category needs, so the reply can be a fragment ("Sam, next
+ * Tuesday") rather than a whole sentence.
+ *
+ * Phrased as a question Aria asks, not an instruction to the user: this is a
+ * conversation, and "What shall I remind you about?" invites an answer in a way
+ * that "Enter reminder details" does not.
+ */
+export const KIND_PROMPT: Record<TaskKind, string> = {
+  general: 'What would you like me to take care of?',
+  reminder: 'What shall I remind you about, and when?',
+  event: "What's the event, and when is it?",
+  birthday: 'Whose birthday is it, and what date?',
+  anniversary: 'Whose anniversary, and what date?',
+  assignment: "What's the assignment, and when is it due?",
+  project: "What's the project, and when is it due?",
+};
 
 const ASSIGNMENT_KINDS: TaskKind[] = ['assignment', 'project'];
 const TASKLIKE_KINDS: TaskKind[] = ['general', 'event', 'reminder'];
@@ -313,6 +372,9 @@ export interface DraftRequest {
   subtaskTitle?: string;
   /** Research help: return notes/key points for the subtask rather than prose. */
   research?: boolean;
+  /** Explain the topic, using how this student said they learn best. */
+  explain?: boolean;
+  learner?: Learner;
   senderName?: string;
   /** One line on who the sender is, so drafts match how they'd write. */
   senderContext?: string;

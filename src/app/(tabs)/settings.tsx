@@ -16,7 +16,7 @@ import { hapticSelect } from '@/lib/haptics';
 import { biometricSupport } from '@/lib/biometrics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
-import { useAriaStore } from '@/store/aria-store';
+import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
 
 export default function SettingsScreen() {
   const c = useColors();
@@ -167,6 +167,37 @@ export default function SettingsScreen() {
               ) : null
             }
           />
+          {/*
+            Only rendered with Pro, rather than shown disabled.
+
+            This switch decides whether a real email reaches a real person
+            without anyone seeing it first, so an account that isn't entitled to
+            it should not have it on screen at all — a greyed-out control still
+            advertises the behaviour as one tap away, and `Switch` here has no
+            disabled state to lean on anyway. The row above is the upgrade path.
+
+            Off is not "Aria does nothing": it still drafts, addresses and
+            schedules. Off only means it asks before anything leaves.
+          */}
+          {pro ? (
+            <SettingsRow
+              label="Send without asking"
+              description={
+                autoSendEnabled(settings, pro)
+                  ? 'Aria sends at the scheduled time and tells you afterwards.'
+                  : 'Aria gets everything ready, then asks you before it sends.'
+              }
+              right={
+                <Switch
+                  value={autoSendEnabled(settings, pro)}
+                  onValueChange={(v) => {
+                    hapticSelect();
+                    setSetting('autoSend', v);
+                  }}
+                />
+              }
+            />
+          ) : null}
           {pro ? (
             <SettingsRow
               label="Aria Pro"

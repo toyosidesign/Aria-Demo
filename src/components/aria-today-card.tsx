@@ -19,10 +19,20 @@ export function AriaTodayCard({
   task,
   action,
   onDismiss,
+  /**
+   * Opening the task, when something else owns that decision.
+   *
+   * Home nests this inside `SwipeableTaskCard` so the offer can also be dragged
+   * to complete, and a swipeable row has to be able to swallow the tap that
+   * ends a drag rather than navigate on it. Left unset it does the obvious
+   * thing, so every other caller is unaffected.
+   */
+  onPress,
 }: {
   task: Task;
   action: AriaAction;
   onDismiss: () => void;
+  onPress?: () => void;
 }) {
   const c = useColors();
   const [sendOpen, setSendOpen] = useState(false);
@@ -32,7 +42,7 @@ export function AriaTodayCard({
       exiting={FadeOutUp.duration(220)}
       className="gap-3 rounded-3xl border border-accent/25 bg-accent-soft p-5">
       <Pressable
-        onPress={() => router.push(`/task/${task.id}`)}
+        onPress={onPress ?? (() => router.push(`/task/${task.id}`))}
         accessibilityLabel="Open task to view or edit"
         className="flex-row items-center gap-2.5 active:opacity-70">
         <AriaAvatar size={34} />

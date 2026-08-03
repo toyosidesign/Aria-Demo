@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+import { describeLearner } from '@/lib/learner';
 import { protectedRoute } from '@/lib/api-auth';
 import { DraftSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
@@ -35,11 +36,31 @@ Rules:
 function buildPrompt(req: DraftRequest): string {
   const who = req.contactName ? `to ${req.contactName}` : '';
   const lines: string[] = [];
+  const learner = describeLearner(req.learner);
 
   // A text/email/card/call is a message flow whatever the category is.
   const messaging = isMessageMethod(req.method);
 
   if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
+    if (req.explain) {
+      /*
+       * The thing onboarding was collecting all along.
+       *
+       * "How should I explain things?" and the interests list have been stored
+       * since the welcome flow and read by exactly one route, so a student who
+       * asked for examples from what they are into got them when subtasks were
+       * generated and nowhere else. An explanation is the one place that
+       * preference most obviously belongs.
+       */
+      lines.push(
+        `The student wants "${req.title}" explained${req.subtaskTitle ? ` — specifically "${req.subtaskTitle}"` : ''}.`,
+        'Explain the topic itself, not how to write about it. Break it into a few labelled parts, and ground at least one of them in a concrete real-world situation they would recognise.',
+        'No preamble, no restating the question.',
+      );
+      if (learner) lines.push(learner);
+      return lines.join('\n');
+    }
+
     if (req.subtaskTitle && req.research) {
       lines.push(
         `For the assignment "${req.title}", help the student research the "${req.subtaskTitle}" topic. Give concise research notes as bullet points: the key facts/dates/people, the main angles and viewpoints to explore, and 2–3 specific things or source types to look up. No prose paragraphs, no preamble.`,

@@ -1,5 +1,5 @@
 import { addDays } from 'date-fns';
-import { Check, Clock } from 'lucide-react-native';
+import { CalendarDays, Check, Clock } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -35,13 +35,26 @@ function minutesFromNow(mins: number): Date {
  * the buttons on a task screen offer the same choices. Two copies of these
  * options would drift the moment one gained a duration the other lacked.
  */
+/**
+ * Presets answer "not now", but not "the 14th".
+ *
+ * The four durations above cover pushing something a few hours out, and nothing
+ * else — a reminder you want next Tuesday could only be moved by opening the
+ * task and rescheduling it, which is not something anyone finds from a swipe.
+ * `onPickDate` hands that case to the Reschedule screen, which already draws a
+ * month calendar and a time, so there is one date picker in the app rather than
+ * a second one grown here.
+ */
 export function SnoozeChips({
   onPick,
+  onPickDate,
   onCancel,
 }: {
   onPick: (at: Date) => void;
+  onPickDate?: () => void;
   onCancel: () => void;
 }) {
+  const c = useColors();
   return (
     <View className="gap-2">
       <Text variant="label" tone="muted">
@@ -52,15 +65,25 @@ export function SnoozeChips({
           <Pressable
             key={o.label}
             onPress={() => onPick(o.at())}
-            className="rounded-full border border-accent bg-accent-soft px-3.5 py-2.5 active:opacity-70">
+            className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-accent bg-accent-soft px-3.5 py-2.5 active:opacity-70">
             <Text variant="small" tone="accent" className="font-strong">
               {o.label}
             </Text>
           </Pressable>
         ))}
+        {onPickDate ? (
+          <Pressable
+            onPress={onPickDate}
+            className="min-h-[44px] min-w-[44px] flex-row items-center justify-center gap-1.5 rounded-full border border-accent/40 bg-accent-soft px-3.5 py-2.5 active:opacity-70">
+            <CalendarDays size={14} color={c.accent} />
+            <Text variant="small" tone="accent" className="font-strong">
+              Pick a date
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={onCancel}
-          className="rounded-full border border-border bg-surface px-3.5 py-2.5 active:opacity-70">
+          className="min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-border bg-surface px-3.5 py-2.5 active:opacity-70">
           <Text variant="small" tone="muted" className="font-strong">
             Cancel
           </Text>

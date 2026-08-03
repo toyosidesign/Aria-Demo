@@ -17,7 +17,19 @@ import { AriaBubble } from '@/components/aria-bubble';
 import { HeaderButton } from '@/components/header-button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { TASK_KINDS } from '@/lib/aria-actions';
+import { KIND_PROMPT, TASK_KINDS, requestDraft } from '@/lib/aria-actions';
+import { TaskFlowPanel } from '@/components/task-flow-panel';
+import {
+  ackFor,
+  flowTitle,
+  isPersonKind,
+  nextStep,
+  promptFor,
+  startFlow,
+  toTaskInput,
+  type FlowDraft,
+  type FlowStep,
+} from '@/lib/task-flow';
 import {
   TESTING_NOTICE,
   requestAssistant,
@@ -29,7 +41,7 @@ import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 import { uuidv4 } from '@/lib/id';
 import { formatFull, formatTime } from '@/lib/dates';
-import { hapticSelect, hapticTap } from '@/lib/haptics';
+import { hapticSelect, hapticSuccess, hapticTap } from '@/lib/haptics';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useAriaStore, type TaskKind } from '@/store/aria-store';
 
@@ -40,6 +52,10 @@ type Msg = {
   pending?: ParsedTask[];
   /** Scripted parser rather than the model. Shown in development only. */
   fallback?: boolean;
+  /** A question from the guided setup, see mkPrompt. */
+  flowPrompt?: boolean;
+  /** Renders as a labelled rule rather than a bubble. */
+  divider?: string;
 };
 
 /** Build a pre-filled Create-task route from a parsed task. */
@@ -88,6 +104,12 @@ const mk = (
   fallback,
 });
 
+/** A question the setup flow asked. Marked so a stranded thread is detectable. */
+const mkPrompt = (text: string): Msg => ({ ...mk('aria', text), flowPrompt: true });
+
+/** A seam between one task's setup and the next. */
+const mkDivider = (label: string): Msg => ({ ...mk('aria', label), divider: label });
+
 export default function ChatScreen() {
   const c = useColors();
   const demoDate = useAriaStore((s) => s.demoDate);
@@ -121,6 +143,175 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [listening, setListening] = useState(false);
   const [focus, setFocus] = useState<TaskKind | null>(null);
+  /*
+   * The conversational setup, when one is running.
+   *
+   * Null means ordinary chat. Non-null means Aria is part-way through building
+   * something and the composer steps aside for the step's own control — a
+   * calendar, a contact picker, two buttons — because the whole point is that
+   * this should be less typing than the form, not more.
+   */
+  const [flow, setFlow] = useState<FlowDraft | null>(null);
+  const [flowStep, setFlowStep] = useState<FlowStep>('who');
+  const [drafting, setDrafting] = useState(false);
+  const addTask = useAriaStore((s) => s.addTask);
+  const profile = useAriaStore((s) => s.profile);
+
+  /** Move the flow on: record the answer, echo it, ask the next thing. */
+  function advanceFlow(patch: Partial<FlowDraft>, answered: FlowStep) {
+    const next: FlowDraft = {
+      ...flow!,
+      ...patch,
+      // `patch.answered` is merged, not overwritten: picking someone from the
+      // contact list answers both "who" and "have I got their details", and
+      // the step needs to be able to say so or the flow asks again.
+      answered: { ...flow!.answered, ...(patch.answered ?? {}), [answered]: true },
+    };
+    const ack = ackFor(answered, next);
+    if (ack) addChatMessage(mk('aria', ack));
+    const step = nextStep(next);
+    setFlow(next);
+    setFlowStep(step);
+    // The preview speaks for itself — its own panel is the message.
+    if (step !== 'done') addChatMessage(mkPrompt(promptFor(step, next)));
+  }
+
+  function beginFlow(kind: TaskKind) {
+    const d = startFlow(kind);
+    const step = nextStep(d);
+    setFlow(d);
+    setFlowStep(step);
+    addChatMessage(mkPrompt(promptFor(step, d)));
+  }
+
+  async function draftCardMessage(instruction?: string) {
+    if (!flow) return;
+    if (drafting) return;
+    setDrafting(true);
+    try {
+      const res = await requestDraft({
+      title: flowTitle(flow),
+      kind: flow.kind,
+      method: flow.delivery === 'card' ? 'card' : undefined,
+      contactName: flow.who,
+      senderName: profile.name,
+      senderContext: profile.context,
+      instruction,
+      previousDraft: instruction ? flow.message : undefined,
+      });
+      setFlow((f) => (f ? { ...f, message: res.message } : f));
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /**
+   * Teach the topic, pitched at how this student said they learn.
+   *
+   * The learner profile has been sitting in the store since onboarding and only
+   * subtask generation ever read it. This is the surface the welcome flow was
+   * always promising: ask for an explanation and get one built around what you
+   * are into, at the depth you asked for.
+   */
+  async function explainTopic() {
+    if (!flow) return;
+    if (drafting) return; // a second tap must not start a second request
+    setDrafting(true);
+    try {
+      const res = await requestDraft({
+      title: flowTitle(flow),
+      kind: flow.kind,
+      explain: true,
+      learner: {
+        studying: profile.studying,
+        level: profile.level,
+        interests: profile.interests,
+        explainStyle: profile.explainStyle,
+      },
+      senderName: profile.name,
+      senderContext: profile.context,
+      previousDraft: flow.explanation,
+      instruction: flow.explanation ? 'Go deeper, with another angle.' : undefined,
+      });
+      setFlow((f) => (f ? { ...f, explanation: res.message } : f));
+    } finally {
+      /*
+       * `finally`, not a line after the await.
+       *
+       * requestDraft catches its own failures today, but if anything above it
+       * ever throws, the spinner would stay up and the step would be stuck with
+       * both buttons disabled — an actual freeze rather than a slow reply.
+       */
+      setDrafting(false);
+    }
+  }
+
+  /**
+   * Put the screen back to a blank conversation.
+   *
+   * The eraser used to call `clearChat()` alone, which empties the messages the
+   * store holds and leaves everything the *screen* holds untouched — so the
+   * calendar, or whichever step was open, stayed on a thread that no longer had
+   * a question in it. Same split that stranded a half-finished setup on reopen:
+   * the conversation and the flow live in different places, and anything that
+   * ends one has to end the other.
+   */
+  function resetConversation() {
+    setFlow(null);
+    setFlowStep('who');
+    setFocus(null);
+    setDrafting(false);
+    strandedChecked.current = true; // nothing left to be stranded by
+    clearChat();
+  }
+
+  function saveFlow() {
+    if (!flow) return;
+    // The explanation goes onto the task, not just into the transcript: it is
+    // the thing the student will want again when they sit down to do the work.
+    const input = toTaskInput(flow);
+    addTask({
+      ...input,
+      description: flow.explanation
+        ? [input.description, flow.explanation].filter(Boolean).join('\n\n')
+        : input.description,
+    });
+    const title = flowTitle(flow);
+    setFlow(null);
+    setFlowStep('who');
+    setFocus(null);
+    hapticSuccess();
+    // Says where it went, not just that it worked. "Saved" on its own leaves
+    // the student wondering which of the app's lists now holds it.
+    addChatMessage(
+      mk('aria', `Done. "${title}" is saved and in your queue. You'll find it on the Tasks page.`),
+    );
+  }
+  /*
+   * A thread that ended mid-setup must not look like a live question.
+   *
+   * The conversation is persisted; the flow is not. So closing chat part-way
+   * through a birthday and coming back left Aria's last message reading
+   * "Who's this birthday for?" with no panel under it and no category
+   * selected — which looks exactly like the app having chosen birthday by
+   * itself and then frozen.
+   *
+   * Rather than persist the whole flow, Aria says the true thing: that one
+   * didn't finish, and here is how to start again. Runs once per mount, and
+   * only when the thread actually ended on an unanswered prompt.
+   */
+  const strandedChecked = useRef(false);
+  useEffect(() => {
+    if (strandedChecked.current || flow || messages.length === 0) return;
+    strandedChecked.current = true;
+    const last = messages[messages.length - 1];
+    if (last.from !== 'aria' || !last.flowPrompt) return;
+    addChatMessage(
+      mk('aria', "We didn't finish that one. Pick a category below when you want to start again."),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
+
   const focusLabel = focus ? TASK_KINDS.find((k) => k.value === focus)?.label : null;
   const voiceIdx = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
@@ -134,7 +325,7 @@ export default function ChatScreen() {
   useEffect(() => {
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
     return () => clearTimeout(t);
-  }, [messages, sending, listening]);
+  }, [messages, sending, listening, flowStep, flow?.message]);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -194,7 +385,7 @@ export default function ChatScreen() {
             accessibilityLabel="Clear this conversation"
             onPress={() => {
               hapticSelect();
-              clearChat();
+              resetConversation();
             }}
           />
         ) : null}
@@ -211,7 +402,18 @@ export default function ChatScreen() {
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {messages.map((m) => (
+          {messages.map((m) =>
+            m.divider ? (
+              /* A labelled rule, not a bubble: this is punctuation in the
+                 thread rather than something Aria said. */
+              <View key={m.id} className="flex-row items-center gap-3 py-3">
+                <View className="h-px flex-1 bg-border" />
+                <Text variant="label" tone="faint">
+                  {m.divider}
+                </Text>
+                <View className="h-px flex-1 bg-border" />
+              </View>
+            ) : (
             <View key={m.id} className="gap-2">
               <AriaBubble from={m.from}>{m.text}</AriaBubble>
               {/* Which one answered — development only.
@@ -221,7 +423,7 @@ export default function ChatScreen() {
                   right. Stripped from release builds. */}
               {__DEV__ && m.fallback ? (
                 <Text variant="caption" tone="faint" className="pl-10">
-                  scripted fallback — the model was not called
+                  scripted fallback, the model was not called
                 </Text>
               ) : null}
               {m.pending?.length
@@ -257,8 +459,65 @@ export default function ChatScreen() {
                   ))
                 : null}
             </View>
-          ))}
-          {sending ? (
+            )
+          )}
+            {/*
+              The controls, in the conversation.
+
+              These were docked above the composer, which put Aria's question at
+              the top of the screen and its answers at the bottom with the whole
+              transcript in between — one exchange split in half and reading as
+              two unrelated things. Rendering them here, straight after the
+              message that asked, makes the question and its answers a single
+              turn. The scroll-to-end below keeps them in view.
+            */}
+          {flow && flowStep !== 'done' ? (
+            <View className="pb-1">
+              <TaskFlowPanel
+                step={flowStep}
+                draft={flow}
+                drafting={drafting}
+                onAnswer={advanceFlow}
+                onDraftMessage={() => void draftCardMessage()}
+              onExplain={() => void explainTopic()}
+                onMessageChange={(text) => setFlow((f) => (f ? { ...f, message: text } : f))}
+                onTone={(instruction) => void draftCardMessage(instruction)}
+                onAccept={saveFlow}
+                /*
+                 * Changing an answer happens here, not on the task form.
+                 *
+                 * Edit used to push to /task/new and drop the flow. Backing out
+                 * of that form without saving left the conversation stranded:
+                 * the preview was gone, the questions were all answered, and
+                 * there was no way to reach either the task or the flow again.
+                 * Re-opening one step keeps everything in the chat, which is the
+                 * whole point of doing it here.
+                 */
+                onEdit={(stepToRedo: FlowStep) => {
+                  setFlow((f) => {
+                    if (!f) return f;
+                    const answered: FlowDraft['answered'] = { ...f.answered };
+                    delete answered[stepToRedo];
+                    delete answered.preview;
+                    return { ...f, answered };
+                  });
+                  const reopened: FlowDraft = { ...flow, answered: { ...flow.answered } };
+                  delete reopened.answered[stepToRedo];
+                  delete reopened.answered.preview;
+                  const step = nextStep(reopened);
+                  setFlowStep(step);
+                  addChatMessage(mkPrompt(promptFor(step, reopened)));
+                }}
+                onCancel={() => {
+                  setFlow(null);
+                  setFocus(null);
+                  addChatMessage(mk('aria', "Dropped that one. Tell me when you're ready."));
+                }}
+              />
+            </View>
+          ) : null}
+
+          {sending || drafting ? (
             <View className="ml-10 flex-row items-center gap-2 self-start rounded-2xl rounded-tl-md bg-accent-soft px-4 py-3">
               <Sparkles size={15} color={c.accent} />
               <Text tone="accent" variant="small">
@@ -283,7 +542,27 @@ export default function ChatScreen() {
                   key={k.value}
                   onPress={() => {
                     hapticSelect();
-                    setFocus(active ? null : k.value);
+                    if (active) {
+                      setFocus(null);
+                      return;
+                    }
+                    setFocus(k.value);
+                    /*
+                     * The divider goes here, not inside beginFlow.
+                     *
+                     * It lived in beginFlow, which only runs for birthdays and
+                     * anniversaries, so picking an event after finishing a
+                     * birthday produced no seam at all: the two setups ran
+                     * together exactly as before. Every category starts a new
+                     * piece of work, so every category earns the rule.
+                     *
+                     * Skipped on an empty thread, where there is nothing yet to
+                     * divide it from.
+                     */
+                    if (messages.length > 0) addChatMessage(mkDivider(k.label));
+                    // Every category is walked now. `nextStep` decides which
+                    // questions each kind actually needs.
+                    beginFlow(k.value);
                   }}
                   className={cn(
                     'flex-row items-center gap-1.5 rounded-full border px-3 py-1.5',

@@ -2,12 +2,13 @@
 
 ## Controls to not accidentally remove
 
-- **RLS is the only thing authorizing database access.** There is no server-side
-  DB layer and no `service_role` key anywhere in this repo — the app talks to
-  Supabase with the anon key and every table's policy does the work. If you add
-  a table, it needs `enable row level security` plus a policy with **both**
-  `using` and `with check`. Without `with check`, a client can insert rows owned
-  by someone else. See `supabase/schema.sql`.
+- **RLS is the only thing authorizing database access from the app.** There is no
+  server-side DB layer — the app talks to Supabase with the anon key and every
+  table's policy does the work. If you add a table, it needs `enable row level
+  security` plus a policy with **both** `using` and `with check`. Without
+  `with check`, a client can insert rows owned by someone else. See
+  `supabase/schema.sql`.
+- **Exactly one thing bypasses RLS, and it is not in the app.** See below.
 - **API routes are declared with `protectedRoute`** (`src/lib/api-auth.ts`), not
   as bare `export async function POST`. Expo Router has no middleware, so that
   wrapper is the only thing making auth default-deny. A route that exports POST
@@ -17,6 +18,62 @@
 - **Sessions are never persisted on web** (`src/lib/supabase.ts`). The only
   browser store available is localStorage, which is readable by any script on
   the origin, and a refresh token there is a lasting account takeover.
+
+## The one `service_role` key, and why it exists
+
+Until the scheduler, this project had no RLS-bypassing key anywhere, and that
+absence was a property worth having. Adding one was a deliberate change to the
+security model. This section is the reasoning; do not undo it by accident, and
+do not widen it casually.
+
+**Why there was no alternative.** Aria could not act while the app was closed.
+`runAutomation` was called from exactly one place — a *screen* — so an email
+scheduled for Friday sat on the device until the student opened the app, which
+is the moment they did not need an assistant. Sending it without a device means
+a scheduled job; a scheduled job has no user session; with no session
+`auth.uid()` is null and every policy in the schema denies it. There is no way
+to send on a student's behalf from a cron under RLS. The key is the feature.
+
+**Where it lives.** `supabase/functions/run-automations/index.ts`, read from the
+Edge Function's own environment (`SUPABASE_SERVICE_ROLE_KEY`, injected by the
+platform). It is never written to a file, never in `.env.local`, never in the
+repo, and never sent to a client. Expo compiles `EXPO_PUBLIC_*` into the app
+bundle, so that prefix is the one mistake that would turn "a key on a server"
+into "RLS is off for everyone" — the suite fails if a service_role key ever
+appears under `src/`, or under an `EXPO_PUBLIC_` name in any env file.
+
+**What bounds it.**
+
+- One job. The function sends email automations that are due and does nothing
+  else. It has no other entry point and takes no input — the request body is
+  ignored entirely, so there is no parameter for a caller to steer it with.
+- It is not reachable by app users. Supabase's `verify_jwt` would accept the
+  anon key, which ships inside the bundle, so "has a valid JWT" is a property
+  every user of the app already has. It is deployed `--no-verify-jwt` and
+  authenticates on `x-aria-cron-secret`, which only the cron holds; everything
+  else gets a 404. It is POST-only, so no method a browser issues on its own
+  can reach it even with the secret.
+- Email only. `channel=eq.email` is in the queue query, not a check in the loop.
+  No mobile OS lets an app send a text or a WhatsApp message as the user, so
+  those channels have no server-side equivalent to fall back to.
+- It cannot double-send. Both the cron and an open phone claim a row with the
+  same conditional update (`status = 'sending' where status = 'scheduled'`)
+  before sending, and send only if a row comes back. The update is the lock.
+  Reasoned through in full at the foot of `supabase/migrations/003_automations.sql`.
+  A phone that cannot reach Supabase to make that claim does not send — the mail
+  route is a different host, so an unreachable database is not evidence that the
+  send would have failed.
+- A run that dies mid-send marks the row failed, never sent, and never retries
+  it. A duplicate birthday email is a worse outcome than a late one, and
+  claiming to have sent something it cannot confirm is worse than both.
+- It reports counts. No address, subject or body reaches a log or the response —
+  the response is written into a `pg_net` table, which is not a place for who a
+  student is emailing.
+
+**If you extend it,** the thing to preserve is that the key does one narrowly
+defined job with no caller-supplied input. A second endpoint on the same
+function, or a body parameter that selects rows, gives up most of the argument
+above. `scripts/security-check/offline.ts` asserts each bound listed here.
 
 ## Accepted residual risk: two npm advisories
 

@@ -25,7 +25,7 @@ const MAX_INTERESTS = 4;
 
 const STYLE_GUIDANCE: Record<NonNullable<Learner['explainStyle']>, string> = {
   examples:
-    'When something is abstract, ground it in one of their interests — a concrete analogy from something they already understand well. One analogy, carried through; not a list of them.',
+    'When something is abstract, ground it in one of their interests, a concrete analogy from something they already understand well. One analogy, carried through; not a list of them.',
   direct: 'Be direct. Give the answer first and skip the warm-up.',
   stepwise:
     'Go one step at a time, in small pieces, and make each step land before moving on.',
@@ -45,14 +45,14 @@ export function describeLearner(l: Learner | undefined): string {
   const who = [l.level, l.studying && `studying ${l.studying}`].filter(Boolean).join(' ');
   if (who) {
     lines.push(
-      `You are helping a student: ${who}. Pitch the depth and vocabulary at that level — not below it, and not at a specialist.`,
+      `You are helping a student: ${who}. Pitch the depth and vocabulary at that level, not below it, and not at a specialist.`,
     );
   }
 
   const interests = (l.interests ?? []).map((i) => i.trim()).filter(Boolean);
   if (interests.length) {
     lines.push(
-      `They're into ${listPhrase(interests.slice(0, MAX_INTERESTS))}. Use these when an idea is hard to picture — never force one in where a plain explanation is already clear.`,
+      `They're into ${listPhrase(interests.slice(0, MAX_INTERESTS))}. Use these when an idea is hard to picture, never force one in where a plain explanation is already clear.`,
     );
   }
 

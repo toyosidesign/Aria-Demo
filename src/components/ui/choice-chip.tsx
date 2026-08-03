@@ -16,6 +16,15 @@ import { Text } from './text';
  * Selection is marked by a tick as well as by colour and weight. Colour alone
  * would leave the state invisible to a colourblind eye, and these chips are the
  * only thing on the screen carrying the answer.
+ *
+ * ── The 44pt floor ──────────────────────────────────────────────────────────
+ * `min-h`/`min-w`, not a fixed `h-11`. 44×44pt is Apple's minimum tap target
+ * and padding alone did not reach it — 14pt text on a 21pt line box with
+ * `py-2` came to 39pt including borders, which is a miss on every finger.
+ *
+ * A fixed height would hit 44 too, and then clip the label the moment anyone
+ * turns up Dynamic Type. A minimum sets the floor and still lets the chip grow,
+ * which is the behaviour that survives a text-size setting nobody here tested.
  */
 export function ChoiceChip({
   label,
@@ -38,7 +47,7 @@ export function ChoiceChip({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       className={cn(
-        'flex-row items-center gap-1.5 rounded-full border px-3.5 py-2 active:opacity-70',
+        'min-h-[44px] min-w-[44px] flex-row items-center justify-center gap-1.5 rounded-full border px-3.5 py-2 active:opacity-70',
         selected ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
         className,
       )}>

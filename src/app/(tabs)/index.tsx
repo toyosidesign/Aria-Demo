@@ -253,13 +253,29 @@ export default function TodayScreen() {
             ) : (
               today.map((task) => {
                 const action = ariaActionFor(task);
+                // Aria's offer, and still draggable.
+                //
+                // This branch used to return a bare AriaTodayCard, which has no
+                // gesture on it — so on the screen where most tasks land here,
+                // "drag to complete" quietly did nothing. It read as an
+                // intermittent bug because the cards that do swipe (a fired
+                // reminder below, anything under Coming up) sit right beside
+                // the ones that didn't.
                 if (proactive && action) {
                   return (
-                    <AriaTodayCard
+                    <SwipeableTaskCard
                       key={task.id}
                       task={task}
-                      action={action}
-                      onDismiss={() => defer(task)}
+                      scrollRef={scrollRef}
+                      advanceOnComplete={false}
+                      renderCard={({ onPress }) => (
+                        <AriaTodayCard
+                          task={task}
+                          action={action}
+                          onDismiss={() => defer(task)}
+                          onPress={onPress}
+                        />
+                      )}
                     />
                   );
                 }

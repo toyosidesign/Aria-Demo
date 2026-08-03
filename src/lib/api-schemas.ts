@@ -35,6 +35,13 @@ const TASK_METHODS = [
   'plan',
 ] as const;
 
+export const LearnerSchema = z.object({
+  studying: z.string().max(80).optional(),
+  level: z.string().max(40).optional(),
+  interests: z.array(z.string().max(40)).max(12).optional(),
+  explainStyle: z.enum(['direct', 'examples', 'stepwise']).optional(),
+});
+
 /** POST /api/draft */
 export const DraftSchema = z.object({
   kind: z.enum(TASK_KINDS),
@@ -44,6 +51,9 @@ export const DraftSchema = z.object({
   method: z.enum(TASK_METHODS).optional(),
   subtaskTitle: z.string().max(300).optional(),
   research: z.boolean().optional(),
+  /** Explain the topic itself, pitched at how this student asked to be taught. */
+  explain: z.boolean().optional(),
+  learner: LearnerSchema.optional(),
   senderName: z.string().max(120).optional(),
   senderContext: z.string().max(300).optional(),
   instruction: z.string().max(1000).optional(),
@@ -76,12 +86,6 @@ export const AssistantSchema = z.object({
  * string here is an instruction-injection surface as much as a size one — the
  * limits are small enough that nothing useful fits besides an actual answer.
  */
-export const LearnerSchema = z.object({
-  studying: z.string().max(80).optional(),
-  level: z.string().max(40).optional(),
-  interests: z.array(z.string().max(40)).max(12).optional(),
-  explainStyle: z.enum(['direct', 'examples', 'stepwise']).optional(),
-});
 
 /** POST /api/subtasks */
 export const ChecklistSchema = z.object({

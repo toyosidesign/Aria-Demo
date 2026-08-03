@@ -29,12 +29,16 @@ import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/th
 import { showToast } from '@/lib/toast';
 import { uuidv4 } from '@/lib/id';
 import {
+  cancelAutomationRow,
   deleteTaskRow,
   fetchAll,
+  replaceAllAutomations,
   replaceAllContacts,
   replaceAllTasks,
   setSyncUser,
+  settleAutomationRow,
   signOutRemote,
+  upsertAutomation,
   upsertContact,
   upsertContacts,
   upsertProfile,
@@ -144,6 +148,22 @@ export interface ChatMessage {
    * testing Aria and testing the fallback.
    */
   fallback?: boolean;
+  /**
+   * True when this was a question from the guided setup.
+   *
+   * The thread persists and the flow does not, so a conversation can end on a
+   * question nothing is still listening to. This is how the chat screen spots
+   * that on reopen and says so instead of looking frozen.
+   */
+  flowPrompt?: boolean;
+  /**
+   * Renders as a labelled rule instead of a bubble.
+   *
+   * One thread holds every task Aria has ever set up, so a finished birthday
+   * and the assignment started after it ran together as one long conversation
+   * with no seam. This is the seam.
+   */
+  divider?: string;
 }
 
 /** A titled block of content Aria drafted (e.g. one essay section). */
@@ -213,6 +233,22 @@ export interface Settings {
   proactiveAria: boolean;
   haptics: boolean;
   notifications: boolean;
+  /**
+   * Send at the scheduled moment without asking first. Pro only.
+   *
+   * Off means Aria still does the work — drafts it, addresses it, has it
+   * waiting — and asks before anything leaves. On means it goes.
+   *
+   * Deliberately **not** a device preference like `theme`. The cron sends with
+   * nobody watching and no device involved, so this has to be readable from the
+   * server or it cannot govern the thing it exists to govern. It lives in the
+   * `profiles` row (migration 005) and the Edge Function reads it there.
+   *
+   * Defaults off, and stays off for anyone without Pro — see `autoSendEnabled`,
+   * which is the only correct way to ask this question. The raw flag can be
+   * true on an account whose Pro has lapsed.
+   */
+  autoSend: boolean;
 }
 
 /** Effective "today" for the whole app — the real current date, overridable so
@@ -246,7 +282,26 @@ export const DEFAULT_SETTINGS: Settings = {
   proactiveAria: true,
   haptics: true,
   notifications: true,
+  /*
+   * Off, on the same reasoning as `theme` above: sending on someone's behalf
+   * without asking is a thing to be agreed to, not assumed. Defaulting it on
+   * would mean the first a student hears of it is an email their contact
+   * already received.
+   */
+  autoSend: false,
 };
+
+/**
+ * Whether Aria may send without asking.
+ *
+ * The only correct way to ask. `settings.autoSend` on its own is not the
+ * answer: Pro can lapse while the stored preference stays true, and reading the
+ * raw flag would keep sending for an account that no longer pays for it. Both
+ * conditions, every time.
+ */
+export function autoSendEnabled(settings: Settings, pro: boolean): boolean {
+  return pro && settings.autoSend;
+}
 
 let counter = 0;
 function uid() {
@@ -647,7 +702,7 @@ export const useAriaStore = create<AriaState>()(
       setDemoDate: (date) => set({ demoDate: date }),
       updateProfile: (patch) => {
         set((s) => ({ profile: { ...s.profile, ...patch } }));
-        upsertProfile(get().profile, get().settings, get().onboarded);
+        upsertProfile(get().profile, get().settings, get().onboarded, get().pro);
       },
       setPro: (pro) => set({ pro }),
       rememberUser: ({ name, email }) =>
@@ -668,7 +723,7 @@ export const useAriaStore = create<AriaState>()(
           void reconcileAlarms(get().tasks);
           void reconcileAutomationNotices(get().automations);
         }
-        upsertProfile(get().profile, get().settings, get().onboarded);
+        upsertProfile(get().profile, get().settings, get().onboarded, get().pro);
       },
       signIn: (input) =>
         set((s) => ({
@@ -753,6 +808,7 @@ export const useAriaStore = create<AriaState>()(
         // what's on the device and push it up instead.
         const localTasks = get().tasks;
         const localContacts = get().contacts;
+        const localAutomations = get().automations;
         const remembered = get().lastUser;
         const remote = data.profile ? definedFields(data.profile) : {};
         // A profile row created by the signup trigger carries only an email, so
@@ -769,6 +825,17 @@ export const useAriaStore = create<AriaState>()(
           onboarded: data.onboarded || s.onboarded,
           tasks: data.tasks.length ? data.tasks : s.tasks,
           contacts: data.contacts.length ? data.contacts : s.contacts,
+          /*
+           * The remote list wins outright when it has anything, and this is the
+           * one place where that matters for correctness rather than tidiness.
+           *
+           * The server is where automations are actually run from now, so its
+           * copy is the one that knows whether Friday's email went. A device
+           * that was asleep at 09:00 still has the row as 'scheduled'; merging
+           * by preferring the local value would keep showing it as pending
+           * forever, and — worse — leave it looking due to the run screen.
+           */
+          automations: data.automations.length ? data.automations : s.automations,
         }));
         setNotificationsEnabled(get().settings.notifications);
         const profile = get().profile;
@@ -777,10 +844,22 @@ export const useAriaStore = create<AriaState>()(
         }
         // Repair the remote row so the name is there next time, on any device.
         if (!remote.name && profile.name) {
-          upsertProfile(profile, get().settings, get().onboarded);
+          upsertProfile(profile, get().settings, get().onboarded, get().pro);
         }
         if (!data.tasks.length && localTasks.length) void upsertTasks(localTasks);
         if (!data.contacts.length && localContacts.length) void upsertContacts(localContacts);
+        /*
+         * Automations scheduled before this device ever synced — including
+         * every one made by a build that predates the table — get pushed up so
+         * the cron can see them at all. One write each rather than a bulk
+         * insert, deliberately: these go through the outbox, so the ones that
+         * fail here are retried on the next foreground instead of being lost,
+         * and an automation that never reaches the server is one that will
+         * never fire while the app is closed.
+         */
+        if (!data.automations.length && localAutomations.length) {
+          for (const a of localAutomations) upsertAutomation(a);
+        }
         void reconcileAlarms(get().tasks);
       },
       /**
@@ -1017,6 +1096,11 @@ export const useAriaStore = create<AriaState>()(
           createdAt: new Date().toISOString(),
         };
         set((s) => ({ automations: [automation, ...s.automations] }));
+        // Server-side first, because that is what can act without this device.
+        // The notification below is the fallback for the same moment, not the
+        // mechanism: it only fires if the phone is on and reachable, and it
+        // still needs the student to tap it.
+        upsertAutomation(automation);
         // A local notification is what lets Aria act at the right moment even
         // when the app has been closed since.
         void scheduleAutomationNotice(automation);
@@ -1028,6 +1112,9 @@ export const useAriaStore = create<AriaState>()(
             a.id === id ? { ...a, status: 'cancelled' as const } : a,
           ),
         }));
+        // Cancelling has to reach the server or it hasn't happened — the cron
+        // is holding the only copy that can still send it.
+        cancelAutomationRow(id);
         void cancelAutomationNotice(id);
         showToast('Scheduled task cancelled', 'undo');
       },
@@ -1039,6 +1126,7 @@ export const useAriaStore = create<AriaState>()(
               : a,
           ),
         }));
+        settleAutomationRow(id, outcome.status, outcome.error);
         void cancelAutomationNotice(id);
         // Sending was the whole task — check it off the same way Aria does
         // when it handles something end to end.
@@ -1055,6 +1143,10 @@ export const useAriaStore = create<AriaState>()(
         set({ tasks, demoDate: DEFAULT_DEMO_DATE, contacts, automations: [], demoOfferDismissed: true });
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
+        // Clearing the list locally is not enough now that the cron holds a
+        // copy: rows left behind would still send, for tasks that no longer
+        // exist in the app the student is looking at.
+        void replaceAllAutomations([]);
       },
       clearAllData: () => {
         set({
@@ -1075,6 +1167,7 @@ export const useAriaStore = create<AriaState>()(
         void reconcileAutomationNotices([]);
         void replaceAllTasks([]);
         void replaceAllContacts([]);
+        void replaceAllAutomations([]);
       },
       dismissDemoOffer: () => set({ demoOfferDismissed: true }),
       addChatMessage: (message) =>

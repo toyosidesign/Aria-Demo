@@ -11,7 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { isConfirmedUser, protectedRoute } from '@/lib/api-auth';
@@ -570,6 +570,326 @@ await test('the service_role key appears nowhere in src/', () => {
     { encoding: 'utf8' },
   ).trim();
   assert.equal(hits, '', 'an RLS-bypassing key must never enter the app');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The scheduled runner — the one thing here that holds a service_role key');
+
+/*
+ * Aria can now act while the app is closed, and the price was the first
+ * RLS-bypassing key in the project. A cron has no user session, so every policy
+ * in the schema denies it, and sending on a student's behalf needs the key that
+ * ignores them.
+ *
+ * These are the bounds that make that acceptable, asserted rather than trusted.
+ * Nothing below runs the function — it is Deno and cannot be imported — so each
+ * one reads the source and checks a property that would be expensive to notice
+ * being wrong: an unauthenticated send endpoint, a second copy of an email, or
+ * a key reaching the bundle.
+ */
+const RUNNER = path.join(ROOT, 'supabase/functions/run-automations/index.ts');
+const runnerSrc = readFileSync(RUNNER, 'utf8');
+
+await test('the runner reads its keys from the environment, never from the repo', () => {
+  assert.match(
+    runnerSrc,
+    /Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)/,
+    'the service_role key must come from the function environment',
+  );
+  // A key pasted in as a literal is the failure this is really watching for.
+  // Supabase keys are JWTs, so anything starting eyJ is one.
+  assert.doesNotMatch(runnerSrc, /['"`]eyJ[A-Za-z0-9_-]{20,}/, 'a key is hardcoded in the runner');
+});
+
+await test('no service_role key is exposed under an EXPO_PUBLIC_ name', () => {
+  // EXPO_PUBLIC_* is compiled into the bundle and readable by anyone who
+  // downloads the app. This is the single mistake that would turn the whole
+  // change from "a key on a server" into "RLS is off for everybody".
+  const files = ['.env.example', '.env.local']
+    .map((f) => path.join(ROOT, f))
+    .filter((f) => existsSync(f));
+  assert.ok(files.length, 'expected at least .env.example to exist');
+  for (const file of files) {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      // Only assignments — .env.example talks *about* the service_role key in
+      // its comments, and warning about it is the opposite of leaking it.
+      const assignment = line.match(/^\s*([A-Z0-9_]+)\s*=(.*)$/);
+      if (!assignment) continue;
+      const [, name, value] = assignment;
+      if (!name.startsWith('EXPO_PUBLIC_')) continue;
+      assert.doesNotMatch(
+        name,
+        /SERVICE_ROLE/i,
+        `${path.basename(file)} exposes ${name} to the app bundle`,
+      );
+      assert.doesNotMatch(
+        value,
+        /service_role/i,
+        `${path.basename(file)} puts a service_role key in ${name}, which ships in the bundle`,
+      );
+    }
+  }
+});
+
+await test('the runner authenticates on a secret the app bundle does not carry', () => {
+  // Supabase's own verify_jwt would accept the anon key, which ships inside the
+  // app — "has a valid JWT" is a property every user already has, and this
+  // endpoint spends money and emails strangers.
+  assert.match(runnerSrc, /x-aria-cron-secret/, 'must require the cron secret header');
+  assert.match(
+    runnerSrc,
+    /CRON_SECRET\b[\s\S]{0,200}?status:\s*404/,
+    'an unauthenticated caller must get 404, not a hint that the route exists',
+  );
+  assert.doesNotMatch(
+    runnerSrc,
+    /SUPABASE_ANON_KEY/,
+    'the anon key must play no part in authenticating the cron',
+  );
+});
+
+await test('the runner can only ever send email, never a text or a WhatsApp message', () => {
+  // Neither iOS nor Android lets an app send a message as the user, so there is
+  // no server-side equivalent. A row of either kind reaching the send path could
+  // only produce a "sent" that did not send.
+  assert.match(runnerSrc, /channel=eq\.email/, 'the queue query must filter to email');
+  assert.doesNotMatch(runnerSrc, /api\.whatsapp\.com|sms:|twilio/i, 'no other channel may send');
+});
+
+await test('every send claims its row first, so the cron and a phone cannot both send it', () => {
+  // The conditional update is the lock. Without `status=eq.scheduled` on the
+  // claim, two runners — or a runner and an open app — both read the same row
+  // as due and the student's contact gets the email twice.
+  assert.match(
+    runnerSrc,
+    /automations\?id=in\.\(\$\{ids\}\)&status=eq\.scheduled/,
+    'the runner must claim with a PATCH conditional on the row still being scheduled',
+  );
+  assert.match(
+    runnerSrc,
+    /automations\?id=eq\.\$\{id\}&status=eq\.sending/,
+    'a verdict may only be written onto a row this run actually claimed',
+  );
+
+  const syncSrc = readFileSync(path.join(ROOT, 'src/lib/sync.ts'), 'utf8');
+  assert.match(
+    syncSrc,
+    /\.eq\('status', 'scheduled'\)/,
+    'the device must claim through the same conditional update',
+  );
+  const runSrc = readFileSync(path.join(ROOT, 'src/app/aria/run.tsx'), 'utf8');
+  assert.match(runSrc, /claimAutomation\(/, 'the run screen must claim before running');
+  assert.match(
+    runSrc,
+    /outcome === 'taken'/,
+    'and must skip the send when something else already has the row',
+  );
+  /*
+   * And skip it when it cannot find out who owns the row.
+   *
+   * The first version of this collapsed "no server to arbitrate with" and
+   * "could not reach the server" into one answer and sent on both. The mail
+   * route is a different host from Supabase, so an unreachable database does
+   * not mean the send would fail — it means a cron tick in the same window
+   * makes it two emails.
+   */
+  // Asserted on the failure paths themselves, not just on the type. Checking
+  // only that the union has an `unreachable` member let the whole distinction
+  // be reverted with every test still green.
+  assert.match(
+    syncSrc,
+    /if \(error\) return \{ outcome: 'unreachable' \};/,
+    'a failed claim must report unreachable, not unavailable',
+  );
+  assert.match(
+    syncSrc,
+    /if \(lookupError\) return \{ outcome: 'unreachable' \};/,
+    'a failed ownership lookup must report unreachable',
+  );
+  assert.match(
+    syncSrc,
+    /\} catch \{\s*\n\s*return \{ outcome: 'unreachable' \};/,
+    'a thrown claim must report unreachable',
+  );
+  assert.match(
+    runSrc,
+    /outcome === 'unreachable'/,
+    'the run screen must not send when ownership is unknown',
+  );
+});
+
+await test('autonomous sending needs Pro AND the setting, and fails closed', () => {
+  /*
+   * "Send without asking" is the one setting that lets a real email reach a
+   * real person with nobody having seen it. Two ways it could go wrong, both
+   * asserted here:
+   *
+   *   · reading `auto_send` alone — Pro can lapse while the stored preference
+   *     stays true, and the account would keep sending after it stopped paying;
+   *   · failing open — a profile row that cannot be read must hold the send,
+   *     not assume consent.
+   */
+  assert.match(
+    runnerSrc,
+    /Boolean\(profile\?\.pro\) && Boolean\(profile\?\.auto_send\)/,
+    'entitlement must require both Pro and the preference',
+  );
+  assert.match(
+    runnerSrc,
+    /if \(!res\.ok\) return false;/,
+    'an unreadable profile must deny, not assume consent',
+  );
+  assert.match(
+    runnerSrc,
+    /\} catch \{\s*\n\s*return false;\s*\n\s*\}\s*\n\}/,
+    'a thrown entitlement check must deny',
+  );
+  // And the app must ask the same question the same way.
+  const storeSrc = readFileSync(path.join(ROOT, 'src/store/aria-store.ts'), 'utf8');
+  assert.match(
+    storeSrc,
+    /export function autoSendEnabled\([^)]*\): boolean \{\s*\n\s*return pro && settings\.autoSend;/,
+    'the app-side gate must require both as well',
+  );
+  // A held automation goes back to 'scheduled', never 'failed' — nothing was
+  // attempted, and "couldn't send" would be a lie about a message that was
+  // simply left for a human.
+  assert.match(
+    runnerSrc,
+    /status: 'scheduled', ran_at: null/,
+    'a held automation must return to the queue, not be marked failed',
+  );
+});
+
+await test('the runner refuses any method a browser issues on its own', () => {
+  // Same rule the app's own routes follow: nothing that acts on the world may
+  // be reachable by a bare GET.
+  assert.match(
+    runnerSrc,
+    /req\.method !== 'POST'[\s\S]{0,120}status: 405/,
+    'the runner must be POST-only',
+  );
+});
+
+await test('a stale device cannot rewind a sent automation back into the queue', () => {
+  const syncSrc = readFileSync(path.join(ROOT, 'src/lib/sync.ts'), 'utf8');
+  // A phone that was asleep at 09:00 still has the row as 'scheduled'. Writing
+  // that copy up as an upsert would put a sent automation back in the queue for
+  // the cron to find and send a second time, so status moves are conditional on
+  // the states they are legal from.
+  assert.match(syncSrc, /\.in\('status', op\.from\)/, 'status writes must be conditional');
+  const froms = [...syncSrc.matchAll(/from: \[([^\]]*)\]/g)].map((m) => m[1]);
+  assert.ok(froms.length >= 2, `expected the status moves to declare a from-list, found ${froms.length}`);
+  for (const from of froms) {
+    assert.doesNotMatch(from, /'sent'|'done'|'failed'/, 'nothing may move out of a terminal state');
+  }
+});
+
+await test('the subject rule has not drifted between the app and the runner', () => {
+  /*
+   * The runner cannot import from src/, so it carries its own copy of
+   * normaliseSubject — and a copy that quietly drifts is worse than no copy,
+   * because every app-side test would still be green while the server sent
+   * subjects the app would have refused.
+   *
+   * So the copy is lifted out of the Deno source and run against the real one.
+   */
+  const body = runnerSrc.match(/function normaliseSubject\(text: string\): string \{([\s\S]*?)\n\}/);
+  assert.ok(body, 'could not find normaliseSubject in the runner');
+  const runnerNormalise = new Function('text', body![1]) as (t: string) => string;
+
+  for (const input of [
+    'Happy birthday!\nBcc: attacker@evil.example',
+    'Email prof\nabout the essay\r\n\tdraft',
+    '  Hi\nthere  ',
+    'already fine',
+  ]) {
+    assert.equal(
+      runnerNormalise(input),
+      normaliseSubject(input),
+      `the runner and the app disagree on ${JSON.stringify(input)}`,
+    );
+    assert.doesNotMatch(runnerNormalise(input), /[\r\n]/, 'a subject is one header line');
+  }
+});
+
+await test('the runner keeps addresses, subjects and bodies out of its logs', () => {
+  // Its response goes to pg_net, which writes it into a database table, and its
+  // console goes to the function log. Neither is a place for who a student is
+  // emailing or what they said.
+  for (const log of runnerSrc.matchAll(/console\.(error|log|warn)\(([^)]*)\)/g)) {
+    assert.doesNotMatch(
+      log[2],
+      /row\.(body|subject|to_email|task_title)|\bto\b(?!ken)/,
+      `a log line leaks message content: ${log[0]}`,
+    );
+  }
+  assert.match(
+    runnerSrc,
+    /Response\.json\(\{ swept, claimed: claimed\.length, sent, failed, held \}\)/,
+    'the response must be counts only',
+  );
+});
+
+await test('the automations table is protected by RLS like every other table', () => {
+  const migration = readFileSync(
+    path.join(ROOT, 'supabase/migrations/003_automations.sql'),
+    'utf8',
+  );
+  assert.match(migration, /alter table public\.automations enable row level security/);
+  assert.match(
+    migration,
+    /create policy "automations are self" on public\.automations\s*\n\s*for all using \(auth\.uid\(\) = user_id\) with check \(auth\.uid\(\) = user_id\)/,
+    'the policy must constrain both reads and writes to the owner',
+  );
+  /*
+   * The cron is the only thing that may bypass this, and it does so from the
+   * Edge Function's environment — not from a security definer function that a
+   * signed-in user could also call. An earlier draft of this migration had one,
+   * taking "am I the cron?" as an argument, which any authenticated caller
+   * could have passed to claim somebody else's automation.
+   *
+   * Comments are stripped first: the migration *discusses* security definer at
+   * length, and the prose explaining why there isn't one must not read as one.
+   */
+  const statements = migration
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
+  assert.doesNotMatch(statements, /security definer/i, 'no RLS-bypassing function on this table');
+});
+
+await test('API calls resolve an absolute URL, so a phone reaches the real routes', () => {
+  /*
+   * A relative `/api/...` only resolves against a document. React Native has no
+   * origin, so every such fetch threw, every caller caught it, and every AI
+   * feature quietly served its scripted fallback — on a device, nothing ever
+   * reached the model while the app looked entirely healthy.
+   *
+   * The suite guards two things: that the resolver still exists, and that
+   * nobody has gone back to fetching a bare path.
+   */
+  const client = readFileSync(path.join(ROOT, 'src/lib/api-client.ts'), 'utf8');
+  assert.match(client, /export function apiUrl\(/, 'the resolver must exist');
+  assert.match(client, /fetch\(apiUrl\(path\)/, 'postJson must go through it');
+  assert.match(client, /hostUri/, 'dev must follow the Metro host rather than a hardcoded IP');
+
+  /*
+   * Every caller must go through postJson rather than fetching a path itself.
+   *
+   * api-client.ts is excluded, and only it: the comment above spells the
+   * anti-pattern out in full to explain the bug, so scanning it would flag the
+   * prose describing the fix. Its own use of the resolver is asserted directly
+   * above, which is the stronger check anyway.
+   */
+  const callers = execSync(
+    `grep -rln "fetch(['\\"]/api/" ${JSON.stringify(path.join(ROOT, 'src'))} || true`,
+    { encoding: 'utf8' },
+  )
+    .trim()
+    .split('\n')
+    .filter((f) => f && !f.endsWith('lib/api-client.ts'));
+  assert.deepEqual(callers, [], 'a bare relative fetch will silently fall back on a device');
 });
 
 await test('the password reset screen does not echo the provider error', () => {

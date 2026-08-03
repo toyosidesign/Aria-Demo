@@ -63,7 +63,7 @@ export function sectionsToText(sections: { title: string; content: string }[]): 
   return sections
     .filter((s) => s.content.trim())
     .map((s) => `${s.title}\n\n${s.content.trim()}`)
-    .join('\n\n———\n\n');
+    .join('\n\n---\n\n');
 }
 
 /**

@@ -32,7 +32,7 @@ const REQUIREMENTS: Requirement[] = [
   },
   {
     name: 'ARIA_FROM_EMAIL',
-    effect: 'the same as a missing RESEND_API_KEY — no mail can be sent server-side',
+    effect: 'the same as a missing RESEND_API_KEY: no mail can be sent server-side',
   },
 ];
 
@@ -53,7 +53,7 @@ export function checkServerConfig(): void {
   const gaps = missing();
   if (!gaps.length) return;
 
-  const detail = gaps.map((g) => `  · ${g.name} — ${g.effect}`).join('\n');
+  const detail = gaps.map((g) => `  · ${g.name}: ${g.effect}`).join('\n');
   const strict = process.env.ARIA_STRICT_CONFIG === '1';
 
   if (strict) {
@@ -65,7 +65,7 @@ export function checkServerConfig(): void {
   }
 
   console.warn(
-    `[aria] running with degraded functionality — configuration missing:\n${detail}\n` +
+    `[aria] running with degraded functionality, configuration missing:\n${detail}\n` +
       '  Set these in .env.local, or set ARIA_STRICT_CONFIG=1 to refuse to start without them.',
   );
 }

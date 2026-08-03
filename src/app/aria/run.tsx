@@ -14,6 +14,7 @@ import { runAutomation } from '@/lib/automation-runner';
 import { CHANNEL_META, type Automation } from '@/lib/automations';
 import { useColors } from '@/lib/colors';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
+import { claimAutomation } from '@/lib/sync';
 import { selectDueAutomations, useAriaStore } from '@/store/aria-store';
 
 type Line = { id: string; from: 'aria' | 'maya'; text: string };
@@ -60,7 +61,7 @@ export default function AriaRunScreen() {
           : `${queue.length} things are due now. I’ll go through them one at a time.`,
       ),
     );
-    void perform(queue[0]);
+    void perform(queue[0], 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -69,9 +70,83 @@ export default function AriaRunScreen() {
     return () => clearTimeout(t);
   }, [lines, busy]);
 
-  async function perform(a: Automation) {
+  /**
+   * The position is passed in, not read from `index`.
+   *
+   * `advance` closes over the `index` of the render that made it, and `perform`
+   * calls it directly rather than through one — so perform → advance → perform
+   * re-enters the same closure with `index` frozen, and a queue of three looped
+   * on the second item forever.
+   *
+   * Only the autonomous chain hit it: a handed-off item resumes from a button
+   * press, which is a fresh render with a fresh closure.
+   */
+  async function perform(a: Automation, at: number) {
     const meta = CHANNEL_META[a.channel];
     setBusy(true);
+
+    /*
+     * Ask the server first, for anything Aria sends on its own.
+     *
+     * The cron works the same queue this screen does, so without a claim an
+     * email that went out at 09:00 gets sent again the moment the student opens
+     * the app. Whoever moves the row out of 'scheduled' owns it; the loser is
+     * told what became of it rather than quietly repeating the work.
+     *
+     * Only autonomous channels. A text or a WhatsApp message sits waiting for
+     * the student to tap send, which can take minutes, and claiming one would
+     * hand it to the server's stuck-claim sweep as an abandoned send. The cron
+     * never touches those channels, so there is nothing to arbitrate.
+     */
+    if (meta.autonomous) {
+      const claim = await claimAutomation(a.id);
+      if (claim.outcome === 'taken') {
+        setBusy(false);
+        const who = a.toName ?? 'them';
+        if (claim.status === 'sent' || claim.status === 'done') {
+          push(mk('aria', `I already emailed ${who} for “${a.taskTitle}”. That one’s done.`));
+          settleAutomation(a.id, { status: 'sent' });
+        } else if (claim.status === 'cancelled') {
+          push(mk('aria', `“${a.taskTitle}” was cancelled, so I’ve left it.`));
+          settleAutomation(a.id, { status: 'cancelled' });
+        } else if (claim.status === 'failed') {
+          push(mk('aria', `I tried “${a.taskTitle}” already and it didn’t go through.`));
+          settleAutomation(a.id, { status: 'failed', error: a.error });
+        } else {
+          /*
+           * 'sending' — in flight elsewhere this second — or anything this
+           * build doesn't recognise. Say so and settle nothing.
+           *
+           * The tempting `else` here writes 'failed', and that would be a lie
+           * in both cases: an in-flight send has not failed, and a status a
+           * newer build introduced is not evidence of anything. Leaving it
+           * alone costs one repeated line on the next run and keeps the result
+           * coming from whoever actually owns the send.
+           */
+          push(mk('aria', `I’m sending the email to ${who} for “${a.taskTitle}” right now.`));
+        }
+        advance(at);
+        return;
+      }
+
+      if (claim.outcome === 'unreachable') {
+        // Can't establish who owns this, and the mail route is a different host
+        // from Supabase — so "couldn't reach the database" does not mean the
+        // send would fail. Leave it scheduled and let it come round again.
+        setBusy(false);
+        push(
+          mk(
+            'aria',
+            `I couldn’t check whether “${a.taskTitle}” had already gone, so I’ve left it for now rather than risk sending it twice.`,
+          ),
+        );
+        advance(at);
+        return;
+      }
+      // 'claimed' and 'unavailable' both mean carry on — see claimAutomation
+      // for why those two are the safe ones.
+    }
+
     push(
       mk(
         'aria',
@@ -93,18 +168,18 @@ export default function AriaRunScreen() {
 
     settleAutomation(a.id, { status: outcome.status, error: outcome.error });
     if (outcome.status === 'sent') hapticSuccess();
-    advance();
+    advance(at);
   }
 
-  function advance() {
-    const next = index + 1;
+  function advance(at: number) {
+    const next = at + 1;
     if (next >= queue.length) {
       push(mk('aria', reportSummary()));
       setFinished(true);
       return;
     }
     setIndex(next);
-    void perform(queue[next]);
+    void perform(queue[next], next);
   }
 
   function reportSummary() {
@@ -121,7 +196,8 @@ export default function AriaRunScreen() {
     hapticSuccess();
     push(mk('aria', `✓ ${CHANNEL_META[current.channel].label} to ${current.toName ?? 'them'} done.`));
     setAwaitingConfirm(false);
-    advance();
+    // Safe to read `index` here: a button press is a fresh render's closure.
+    advance(index);
   }
 
   function markNotSent() {
@@ -133,7 +209,8 @@ export default function AriaRunScreen() {
     });
     push(mk('aria', 'Noted, I’ve left that one on your list so it isn’t lost.'));
     setAwaitingConfirm(false);
-    advance();
+    // Safe to read `index` here: a button press is a fresh render's closure.
+    advance(index);
   }
 
   return (

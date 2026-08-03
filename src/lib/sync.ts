@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { Automation, AutoChannel, AutoStatus } from '@/lib/automations';
 import { type Contact } from '@/lib/contacts';
 import type { Repeat } from '@/lib/dates';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
@@ -21,6 +22,7 @@ const SETTINGS_DEFAULTS: Settings = {
   proactiveAria: true,
   haptics: true,
   notifications: true,
+  autoSend: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -66,6 +68,35 @@ interface ContactRow {
   email: string | null;
   phone: string | null;
 }
+/**
+ * The statuses the *table* allows, which is one more than the app has.
+ *
+ * 'sending' is the claim marker that stops the cron and the device from both
+ * sending the same email. It is deliberately not in `AutoStatus`: it is never
+ * shown, never chosen, and nothing in the UI should have to hold an opinion
+ * about a state that exists for a few hundred milliseconds inside a
+ * transaction.
+ */
+type DbAutoStatus = AutoStatus | 'sending';
+
+interface AutomationRow {
+  id: string;
+  user_id: string;
+  task_id: string;
+  task_title: string;
+  channel: string;
+  run_at: string;
+  to_name: string | null;
+  to_email: string | null;
+  to_phone: string | null;
+  subject: string | null;
+  body: string;
+  status: string;
+  created_at: string;
+  ran_at: string | null;
+  error: string | null;
+  updated_at: string;
+}
 interface ProfileRow {
   id: string;
   name: string | null;
@@ -84,6 +115,8 @@ interface ProfileRow {
   proactive_aria: boolean | null;
   haptics: boolean | null;
   notifications: boolean | null;
+  auto_send: boolean | null;
+  pro: boolean | null;
   onboarded: boolean | null;
   updated_at: string;
 }
@@ -146,6 +179,50 @@ function rowToTask(r: TaskRow): Task {
   };
 }
 
+function automationToRow(a: Automation, userId: string): AutomationRow {
+  return {
+    id: a.id,
+    user_id: userId,
+    task_id: a.taskId,
+    task_title: a.taskTitle,
+    channel: a.channel,
+    run_at: a.runAt,
+    to_name: a.toName ?? null,
+    to_email: a.toEmail ?? null,
+    to_phone: a.toPhone ?? null,
+    subject: a.subject ?? null,
+    body: a.body,
+    status: a.status,
+    created_at: a.createdAt,
+    ran_at: a.ranAt ?? null,
+    error: a.error ?? null,
+    updated_at: now(),
+  };
+}
+function rowToAutomation(r: AutomationRow): Automation {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    taskTitle: r.task_title,
+    channel: r.channel as AutoChannel,
+    runAt: r.run_at,
+    toName: r.to_name ?? undefined,
+    toEmail: r.to_email ?? undefined,
+    toPhone: r.to_phone ?? undefined,
+    subject: r.subject ?? undefined,
+    body: r.body,
+    // 'sending' is a database-only state — the claim marker that stops the cron
+    // and the device from both sending the same email. It has no app-side
+    // meaning, and the honest reading of "somebody is mid-send and it is not
+    // confirmed yet" is the state it came from. The device cannot act on it
+    // either way: its own claim will find the row already taken and skip.
+    status: (r.status === 'sending' ? 'scheduled' : r.status) as AutoStatus,
+    createdAt: r.created_at,
+    ranAt: r.ran_at ?? undefined,
+    error: r.error ?? undefined,
+  };
+}
+
 function contactToRow(c: Contact, userId: string): ContactRow {
   return { id: c.id, user_id: userId, name: c.name, email: c.email ?? null, phone: c.phone ?? null };
 }
@@ -158,6 +235,7 @@ export function profileToRow(
   settings: Settings,
   onboarded: boolean,
   userId: string,
+  pro = false,
 ): ProfileRow {
   return {
     id: userId,
@@ -177,6 +255,10 @@ export function profileToRow(
     proactive_aria: settings.proactiveAria,
     haptics: settings.haptics,
     notifications: settings.notifications,
+    // Server-visible on purpose: the cron sends with no device involved, so
+    // these two are the only way it can know whether it is allowed to.
+    auto_send: settings.autoSend,
+    pro,
     onboarded,
     updated_at: now(),
   };
@@ -216,6 +298,7 @@ function rowToProfile(r: ProfileRow): {
   if (r.proactive_aria != null) settings.proactiveAria = r.proactive_aria;
   if (r.haptics != null) settings.haptics = r.haptics;
   if (r.notifications != null) settings.notifications = r.notifications;
+  if (r.auto_send != null) settings.autoSend = r.auto_send;
 
   return {
     profile: {
@@ -243,6 +326,27 @@ type Op = (
   | { table: 'tasks'; kind: 'delete'; id: string }
   | { table: 'contacts'; kind: 'upsert'; row: ContactRow }
   | { table: 'profiles'; kind: 'upsert'; row: ProfileRow }
+  | { table: 'automations'; kind: 'upsert'; row: AutomationRow }
+  /**
+   * A status move, expressed as a *conditional* update rather than an upsert.
+   *
+   * An upsert here would be a resend waiting to happen. The device's copy of an
+   * automation can easily be behind the server's — the cron sends at 09:00 and
+   * writes 'sent', the phone was asleep and still says 'scheduled' — and a blind
+   * upsert from that stale copy would put the row back to 'scheduled' for the
+   * cron to find and send a second time. `from` names the states the move is
+   * legal from, so a write that arrives after the fact matches nothing and is
+   * discarded instead of rewinding the row.
+   */
+  | {
+      table: 'automations';
+      kind: 'status';
+      id: string;
+      status: AutoStatus;
+      ranAt?: string;
+      error?: string;
+      from: DbAutoStatus[];
+    }
 ) & { attempts?: number };
 
 const OUTBOX_KEY = 'aria-outbox-v1';
@@ -298,6 +402,27 @@ async function runOp(op: Op): Promise<boolean> {
       const { error } = await supabase.from('profiles').upsert(op.row);
       return !error;
     }
+    if (op.table === 'automations' && op.kind === 'upsert') {
+      const { error } = await supabase.from('automations').upsert(op.row);
+      return !error;
+    }
+    if (op.table === 'automations' && op.kind === 'status') {
+      const { error } = await supabase
+        .from('automations')
+        .update({
+          status: op.status,
+          ran_at: op.ranAt ?? null,
+          error: op.error ?? null,
+          updated_at: now(),
+        })
+        .eq('id', op.id)
+        // Matching nothing is a success, not a failure: it means the row has
+        // already moved past this state and the write is stale. Retrying it
+        // would never succeed, and queueing it forever is how the outbox grows
+        // without bound.
+        .in('status', op.from);
+      return !error;
+    }
   } catch {
     return false;
   }
@@ -340,13 +465,131 @@ export function upsertContact(contact: Contact) {
   if (!currentUserId) return;
   void write({ table: 'contacts', kind: 'upsert', row: contactToRow(contact, currentUserId) });
 }
-export function upsertProfile(profile: Profile, settings: Settings, onboarded: boolean) {
+export function upsertProfile(
+  profile: Profile,
+  settings: Settings,
+  onboarded: boolean,
+  pro = false,
+) {
   if (!currentUserId) return;
   void write({
     table: 'profiles',
     kind: 'upsert',
-    row: profileToRow(profile, settings, onboarded, currentUserId),
+    row: profileToRow(profile, settings, onboarded, currentUserId, pro),
   });
+}
+
+/**
+ * Record a newly scheduled automation server-side.
+ *
+ * This is what makes the cron possible at all: until the row exists in Postgres
+ * the only copy of "email Mum on Friday" is on a phone that will be in a bag on
+ * Friday morning.
+ */
+export function upsertAutomation(automation: Automation) {
+  if (!currentUserId) return;
+  void write({
+    table: 'automations',
+    kind: 'upsert',
+    row: automationToRow(automation, currentUserId),
+  });
+}
+
+/** The user called it off. Only legal while it hasn't gone yet. */
+export function cancelAutomationRow(id: string) {
+  void write({
+    table: 'automations',
+    kind: 'status',
+    id,
+    status: 'cancelled',
+    from: ['scheduled', 'ready'],
+  });
+}
+
+/** It ran, one way or another — record how it went. */
+export function settleAutomationRow(id: string, status: AutoStatus, error?: string) {
+  void write({
+    table: 'automations',
+    kind: 'status',
+    id,
+    status,
+    ranAt: now(),
+    error,
+    // 'sending' is included because the device claims a row before running it,
+    // so the state it is settling *from* is the claim it just made.
+    from: ['scheduled', 'sending', 'ready'],
+  });
+}
+
+export type ClaimResult =
+  | { outcome: 'claimed' }
+  /** Somebody else has it. `status` is what the server says became of it. */
+  | { outcome: 'taken'; status: DbAutoStatus }
+  /** There is no server to arbitrate with, so nothing else can be sending. */
+  | { outcome: 'unavailable' }
+  /** There is one and it could not be reached, so who owns this is unknown. */
+  | { outcome: 'unreachable' };
+
+/**
+ * Take ownership of an automation before running it, so the cron cannot also.
+ *
+ * The conditional update is the lock — see the long note in
+ * `supabase/migrations/003_automations.sql`. A row comes back only to whoever
+ * actually moved it out of 'scheduled'.
+ *
+ * The two negative answers are deliberately different, and collapsing them was
+ * a bug in the first version of this:
+ *
+ *   · `unavailable` — there is no server. Supabase isn't configured, or nobody
+ *     is signed in, or the automation was scheduled offline and has no row yet.
+ *     No cron can be running against data that isn't there, so the device is
+ *     the only candidate and proceeds. The demo build lives here permanently.
+ *
+ *   · `unreachable` — there *is* a server and we couldn't talk to it, so who
+ *     owns this row is simply unknown. The caller must not send. Note that the
+ *     mail route is a different host from Supabase: "Supabase is unreachable"
+ *     does not imply "the send would fail anyway", and a cron tick landing in
+ *     the same window would make it two emails. Late beats twice.
+ */
+export async function claimAutomation(id: string): Promise<ClaimResult> {
+  if (!isSupabaseConfigured || !currentUserId) return { outcome: 'unavailable' };
+  try {
+    const { data, error } = await supabase
+      .from('automations')
+      .update({ status: 'sending', ran_at: now(), updated_at: now() })
+      .eq('id', id)
+      .eq('status', 'scheduled')
+      .select('id');
+    if (error) return { outcome: 'unreachable' };
+    if (data && data.length) return { outcome: 'claimed' };
+
+    /*
+     * Nothing matched, which is two very different situations.
+     *
+     * Either the row is there and somebody already has it — the cron sent this
+     * a moment ago — or there is no row at all, because it was scheduled while
+     * offline and the outbox hasn't drained yet. Reading the second as `taken`
+     * would mean an automation created on a plane never runs anywhere: the
+     * device refuses because it thinks the server has it, and the server has
+     * nothing to run.
+     *
+     * A row that does not exist cannot be claimed by a cron either, so the
+     * device is the only candidate and proceeds.
+     */
+    const { data: existing, error: lookupError } = await supabase
+      .from('automations')
+      .select('status')
+      .eq('id', id)
+      .maybeSingle();
+    if (lookupError) return { outcome: 'unreachable' };
+    if (!existing) return { outcome: 'unavailable' };
+    // Reported raw, 'sending' included: the caller needs to tell "the cron sent
+    // this an hour ago" from "the cron is sending it right now", and those want
+    // different things said to the student.
+    return { outcome: 'taken', status: (existing as { status: string }).status as DbAutoStatus };
+  } catch {
+    return { outcome: 'unreachable' };
+  }
 }
 
 /** Bulk upsert (used when seeding the current account with demo data). */
@@ -380,6 +623,26 @@ export async function replaceAllTasks(tasks: Task[]) {
 }
 
 /**
+ * And for automations, on a reset or a clear-out.
+ *
+ * Wiping the local list without this would leave the cron holding rows nobody
+ * can see — the student clears their data and still gets an email on Friday
+ * from a task that no longer exists anywhere in the app.
+ */
+export async function replaceAllAutomations(automations: Automation[]) {
+  if (!isSupabaseConfigured || !currentUserId) return;
+  try {
+    await supabase.from('automations').delete().eq('user_id', currentUserId);
+    if (automations.length) {
+      const rows = automations.map((a) => automationToRow(a, currentUserId!));
+      await supabase.from('automations').upsert(rows);
+    }
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
  * The same for contacts.
  *
  * Needed because clearing the demo out has to clear the sample *people* too —
@@ -407,6 +670,7 @@ export interface HydrateResult {
   onboarded: boolean;
   tasks: Task[];
   contacts: Contact[];
+  automations: Automation[];
 }
 
 /** Create the initial profile row on signup (name + defaults, not onboarded). */
@@ -432,10 +696,15 @@ export async function signOutRemote() {
 export async function fetchAll(userId: string): Promise<HydrateResult | null> {
   if (!isSupabaseConfigured) return null;
   try {
-    const [profileRes, tasksRes, contactsRes] = await Promise.all([
+    const [profileRes, tasksRes, contactsRes, automationsRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('tasks').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
       supabase.from('contacts').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+      supabase
+        .from('automations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false }),
     ]);
 
     // Supabase reports failures as { data: null, error } rather than throwing.
@@ -443,6 +712,22 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
     // "couldn't reach the data", never as "the user has none" — otherwise
     // hydrate would treat it as an empty account and wipe the local cache.
     if (tasksRes.error || contactsRes.error) return null;
+
+    /*
+     * Automations are the exception, and only in one direction.
+     *
+     * A device running against a project where 003 hasn't been applied gets an
+     * error here for a table that genuinely isn't there. Failing the whole
+     * hydrate over it would take tasks and contacts down with it and brick the
+     * app on an un-migrated project, so the error degrades to "no automations
+     * synced" and the device keeps its local list.
+     *
+     * It degrades to the *local* list, never to an empty one — see how hydrate
+     * merges this. An empty result must not be read as "this account has none".
+     */
+    const automations = automationsRes.error
+      ? []
+      : ((automationsRes.data as AutomationRow[] | null) ?? []).map(rowToAutomation);
 
     const prof = profileRes.data ? rowToProfile(profileRes.data as ProfileRow) : null;
 
@@ -452,6 +737,7 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
       onboarded: prof?.onboarded ?? false,
       tasks: ((tasksRes.data as TaskRow[] | null) ?? []).map(rowToTask),
       contacts: ((contactsRes.data as ContactRow[] | null) ?? []).map(rowToContact),
+      automations,
     };
   } catch {
     return null;

@@ -11,7 +11,7 @@ import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
 import { selectDone, selectLate, selectUpcoming, useAriaStore, type Task } from '@/store/aria-store';
 
-type Tab = 'upcoming' | 'done' | 'late';
+type Tab = 'upcoming' | 'due' | 'late' | 'done';
 
 export default function TasksScreen() {
   /*
@@ -25,7 +25,17 @@ export default function TasksScreen() {
    */
   const listRef = useRef(null);
   const renderRow = useCallback(
-    ({ item }: { item: Task }) => <SwipeableTaskCard task={item} scrollRef={listRef} />,
+    /*
+     * `advanceOnComplete={false}`, matching Home.
+     *
+     * Finishing a task here used to push you into the next one that was due. On
+     * a list you are working through, being thrown into a detail screen for
+     * clearing one item takes away the view you deliberately opened. The card
+     * just goes.
+     */
+    ({ item }: { item: Task }) => (
+      <SwipeableTaskCard task={item} scrollRef={listRef} advanceOnComplete={false} />
+    ),
     [],
   );
 
@@ -34,11 +44,22 @@ export default function TasksScreen() {
   const tasks = useAriaStore((s) => s.tasks);
   const demoDate = useAriaStore((s) => s.demoDate);
 
-  const upcoming = useMemo(() => selectUpcoming(tasks, demoDate), [tasks, demoDate]);
+  /*
+   * "Due" is split out of upcoming rather than given its own selector.
+   *
+   * `selectUpcoming` is shared with Home, where today and the days after it are
+   * deliberately one list. Splitting it at the source would have changed that
+   * screen too, so the divide happens here, where it is a property of this
+   * page's tabs rather than of the data.
+   */
+  const scheduled = useMemo(() => selectUpcoming(tasks, demoDate), [tasks, demoDate]);
+  const due = useMemo(() => scheduled.filter((t) => t.date === demoDate), [scheduled, demoDate]);
+  const upcoming = useMemo(() => scheduled.filter((t) => t.date > demoDate), [scheduled, demoDate]);
   const late = useMemo(() => selectLate(tasks, demoDate), [tasks, demoDate]);
   const done = useMemo(() => selectDone(tasks), [tasks]);
 
-  const list = tab === 'upcoming' ? upcoming : tab === 'late' ? late : done;
+  const list =
+    tab === 'upcoming' ? upcoming : tab === 'due' ? due : tab === 'late' ? late : done;
 
   return (
     <Screen padded>
@@ -57,8 +78,9 @@ export default function TasksScreen() {
         onChange={setTab}
         options={[
           { value: 'upcoming', label: 'Upcoming', count: upcoming.length },
-          { value: 'done', label: 'Done', count: done.length },
+          { value: 'due', label: 'Due', count: due.length },
           { value: 'late', label: 'Late', count: late.length },
+          { value: 'done', label: 'Done', count: done.length },
         ]}
       />
 
@@ -75,6 +97,12 @@ export default function TasksScreen() {
               icon={CalendarClock}
               title="Nothing scheduled"
               subtitle="Tap + to add a task and pick a date."
+            />
+          ) : tab === 'due' ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="Nothing due today"
+              subtitle="Anything scheduled for later is under Upcoming."
             />
           ) : tab === 'late' ? (
             <EmptyState
