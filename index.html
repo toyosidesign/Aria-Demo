@@ -1,0 +1,307 @@
+<title>Aria: interactive demo</title>
+
+<style>
+  :root{
+    --stage:#E7EAF0; --stage-ink:#12161E; --stage-muted:#5A6478; --stage-rule:#CDD4E0;
+    --panel:#FFFFFF;
+    /* Aria's own White theme */
+    --bg:#F4F6F9; --surface:#FFFFFF; --border:#DDE2EB; --ink:#12161E;
+    --muted:#5A6478; --faint:#8A94A8; --accent:#333D56; --accentInk:#FFFFFF;
+    --accentSoft:#DEE4ED; --success:#2F6B4F;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --stage:#0E1218; --stage-ink:#E8ECF3; --stage-muted:#97A1B4; --stage-rule:#242C3A; --panel:#161C26; }
+  }
+  :root[data-theme="dark"]{ --stage:#0E1218; --stage-ink:#E8ECF3; --stage-muted:#97A1B4; --stage-rule:#242C3A; --panel:#161C26; }
+  :root[data-theme="light"]{ --stage:#E7EAF0; --stage-ink:#12161E; --stage-muted:#5A6478; --stage-rule:#CDD4E0; --panel:#FFFFFF; }
+
+  /* Aria Midnight, swapped in for the last scene */
+  .phone.midnight{
+    --bg:#12161E; --surface:#1E2534; --border:#262E41; --ink:#EDF0F5;
+    --muted:#A8B2C6; --faint:#75809A; --accent:#BAC3D6; --accentInk:#12161E; --accentSoft:#283145;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--stage);color:var(--stage-ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    gap:1.25rem;padding:1.75rem 1rem 3rem;min-height:100vh;
+  }
+  h1{
+    font-family:ui-serif,Georgia,serif;font-weight:600;letter-spacing:-.02em;
+    font-size:1.5rem;margin:0;text-align:center;
+  }
+  .sub{margin:0;color:var(--stage-muted);font-size:.9rem;text-align:center;max-width:44ch}
+
+  /* ---------- phone ---------- */
+  .phone{
+    width:min(370px,92vw);height:740px;max-height:78vh;
+    background:var(--bg);border-radius:38px;
+    border:10px solid #10141B;
+    box-shadow:0 24px 60px rgba(9,13,20,.35);
+    overflow:hidden;position:relative;display:flex;flex-direction:column;
+    transition:background .45s ease;
+  }
+  .notch{height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:.66rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .screen{flex:1;overflow:hidden;position:relative}
+  .pane{position:absolute;inset:0;padding:4px 14px 0;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;opacity:0;transform:translateX(14px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease}
+  .pane.on{opacity:1;transform:none;pointer-events:auto}
+
+  .title{font-size:1.32rem;font-weight:700;color:var(--ink);letter-spacing:-.02em;margin:6px 0 0}
+  .label{font-size:.63rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 13px;
+    display:flex;flex-direction:column;gap:5px;position:relative;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s}
+  .card .row{display:flex;align-items:center;gap:8px}
+  .card b{font-size:.9rem;color:var(--ink);font-weight:600}
+  .card small{font-size:.74rem;color:var(--faint)}
+  .card.offer{background:var(--accentSoft);border-color:var(--accent);border-radius:22px}
+  .card.done b{text-decoration:line-through;color:var(--muted)}
+
+  .swipe-wrap{position:relative;border-radius:16px;overflow:hidden}
+  .swipe-act{position:absolute;inset:0;display:flex;align-items:center;padding-left:20px;
+    background:var(--success);border-radius:16px;color:#fff;font-size:1.2rem}
+
+  .pill{border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    border-radius:999px;padding:9px 14px;font-size:.78rem;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;min-height:38px}
+  .pill.on{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+  .pills{display:flex;flex-wrap:wrap;gap:7px}
+
+  .bubble{max-width:84%;padding:10px 13px;border-radius:16px;font-size:.83rem;line-height:1.45}
+  .bubble.aria{background:var(--accentSoft);color:var(--ink);border-top-left-radius:5px;align-self:flex-start}
+  .bubble.me{background:var(--accent);color:var(--accentInk);border-top-right-radius:5px;align-self:flex-end}
+  .thread{display:flex;flex-direction:column;gap:7px;padding-bottom:4px}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px;
+    display:flex;flex-direction:column;gap:9px}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal span{aspect-ratio:1;display:grid;place-items:center;font-size:.7rem;color:var(--muted);border-radius:8px}
+  .cal span.sel{background:var(--accent);color:var(--accentInk);font-weight:700}
+  .btn{background:var(--accent);color:var(--accentInk);border:0;border-radius:14px;
+    padding:11px;font-size:.82rem;font-weight:700;text-align:center;min-height:44px}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .draftbox{border:1px solid var(--border);border-radius:12px;padding:10px;font-size:.8rem;
+    color:var(--ink);background:var(--bg);min-height:64px;line-height:1.45}
+
+  .tabs{flex:0 0 54px;border-top:1px solid var(--border);display:flex;background:var(--surface)}
+  .tabs div{flex:1;display:grid;place-items:center;font-size:.62rem;color:var(--faint);gap:2px;font-weight:600}
+  .tabs div.on{color:var(--accent)}
+
+  .caption{position:absolute;left:0;right:0;bottom:60px;display:flex;justify-content:center;pointer-events:none}
+  .caption span{background:rgba(12,16,24,.9);color:#fff;font-size:.72rem;padding:6px 12px;border-radius:999px;
+    max-width:88%;text-align:center;opacity:0;transition:opacity .3s}
+  .caption span.on{opacity:1}
+
+  /* ---------- transport ---------- */
+  .transport{width:min(370px,92vw);display:flex;flex-direction:column;gap:.5rem}
+  .bar{height:4px;background:var(--stage-rule);border-radius:2px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--stage-ink);border-radius:2px}
+  .controls{display:flex;align-items:center;gap:.6rem;justify-content:center}
+  button{font:inherit;cursor:pointer}
+  .ctl{background:var(--panel);border:1px solid var(--stage-rule);color:var(--stage-ink);
+    border-radius:999px;padding:8px 16px;font-size:.8rem;font-weight:600;min-height:40px}
+  .ctl:hover{border-color:var(--stage-ink)}
+  .time{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem;
+    color:var(--stage-muted);font-variant-numeric:tabular-nums;min-width:74px;text-align:center}
+  .foot{max-width:44ch;text-align:center;color:var(--stage-muted);font-size:.76rem;line-height:1.55}
+  :focus-visible{outline:2px solid var(--stage-ink);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<h1>Aria: interactive demo</h1>
+<p class="sub">A 90-second walkthrough of the assistant flow. It plays on its own; pause or restart at any point.</p>
+
+<div class="phone" id="phone">
+  <div class="notch"><span>9:41</span><span>▮▮▮</span></div>
+  <div class="screen">
+
+    <!-- HOME -->
+    <div class="pane" id="p-home">
+      <div class="title">Today</div>
+      <span class="label">Tuesday, 4 August</span>
+      <div class="card offer">
+        <div class="row"><b>Aria · Today</b></div>
+        <b>Email Dr Reyes about the essay</b>
+        <small>Aria can draft it. Tap to see</small>
+      </div>
+      <div class="swipe-wrap" id="swipe">
+        <div class="swipe-act">✓</div>
+        <div class="card" id="swipe-card">
+          <b>Pick up prescription</b>
+          <small>Today · 5:00 PM</small>
+        </div>
+      </div>
+      <span class="label" style="margin-top:6px">Coming up</span>
+      <div class="card"><b>Chemistry lab report</b><small>Friday · due 5:00 PM</small></div>
+      <div class="card"><b>Gym</b><small>Saturday · 9:00 AM</small></div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="pane" id="p-chat">
+      <div class="title">Aria</div>
+      <div class="thread" id="thread"></div>
+      <div id="flowpanel"></div>
+      <div class="pills" id="kinds" style="margin-top:auto;padding:8px 0">
+        <span class="pill" id="k-task">Task</span>
+        <span class="pill" id="k-bday">Birthday</span>
+        <span class="pill">Event</span>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="pane" id="p-tasks">
+      <div class="title">Tasks</div>
+      <span class="label">This week</span>
+      <div class="card" id="new-task" style="border-color:var(--accent)">
+        <b>Sam's birthday</b>
+        <small>Mon 10 Aug · 9:00 AM · card · alarm on</small>
+      </div>
+      <div class="card"><b>Chemistry lab report</b><small>Friday · 5:00 PM</small></div>
+      <div class="card done"><b>Pick up prescription</b><small>Completed today</small></div>
+      <div class="card"><b>Gym</b><small>Saturday · 9:00 AM</small></div>
+    </div>
+
+  </div>
+
+  <div class="caption"><span id="cap"></span></div>
+
+  <div class="tabs">
+    <div id="t-home" class="on">Today</div>
+    <div id="t-tasks">Tasks</div>
+    <div id="t-chat">Aria</div>
+    <div id="t-set">Settings</div>
+  </div>
+</div>
+
+<div class="transport">
+  <div class="bar"><i id="prog"></i></div>
+  <div class="controls">
+    <button class="ctl" id="play">Pause</button>
+    <span class="time" id="time">0:00 / 1:30</span>
+    <button class="ctl" id="restart">Restart</button>
+  </div>
+</div>
+
+<p class="foot">
+  A faithful prototype of the flow, not a recording of the build. It runs the same
+  sequence the app does, so it can be shared without a device.
+</p>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const phone = $('phone'), cap = $('cap'), thread = $('thread'), flowpanel = $('flowpanel');
+  const TOTAL = 90000;
+
+  function show(pane){
+    ['p-home','p-chat','p-tasks'].forEach(p => $(p).classList.toggle('on', p === pane));
+    const tab = {'p-home':'t-home','p-chat':'t-chat','p-tasks':'t-tasks'}[pane];
+    ['t-home','t-chat','t-tasks','t-set'].forEach(t => $(t).classList.toggle('on', t === tab));
+  }
+  function say(text){ cap.textContent = text; cap.classList.add('on'); }
+  function quiet(){ cap.classList.remove('on'); }
+  function bubble(from, text){
+    const b = document.createElement('div');
+    b.className = 'bubble ' + from; b.textContent = text;
+    thread.appendChild(b); thread.scrollTop = thread.scrollHeight;
+  }
+  function panel(html){ flowpanel.innerHTML = html ? '<div class="panel">' + html + '</div>' : ''; }
+
+  const CAL = n => {
+    let out = '';
+    for (let d = 3; d <= 16; d++) out += `<span class="${d===10?'sel':''}">${d}</span>`;
+    return `<div class="cal">${out}</div>`;
+  };
+
+  // The sequence, in the same order as the run of show.
+  const script = [
+    [0,     () => { show('p-home'); thread.innerHTML=''; panel(''); phone.classList.remove('midnight');
+                    $('swipe-card').style.transform=''; say('Your day, and what Aria can take off it'); }],
+    [7000,  () => say('Drag a card across to finish it')],
+    [8600,  () => { $('swipe-card').style.transform = 'translateX(300px)'; }],
+    [9400,  () => { $('swipe-card').style.opacity = '0'; }],
+    [10200, () => { $('swipe').style.display='none'; say('Done. One gesture, no second tap'); }],
+    [13500, () => { show('p-chat'); quiet(); }],
+    [14500, () => { bubble('aria','Hi Toyosi, what do you need?'); say('Pick a category and Aria starts asking'); }],
+    [17000, () => { $('k-bday').classList.add('on'); }],
+    [18200, () => { bubble('aria',"Who's this birthday for?");
+                    panel('<div class="pills"><span class="pill">Sam</span><span class="pill">Jane</span><span class="pill">Mum</span></div>'); }],
+    [21500, () => { bubble('me','Sam'); panel(''); }],
+    [22600, () => { bubble('aria','Sam, got it.'); }],
+    [24000, () => { bubble('aria',"Do you have Sam's contact?");
+                    panel('<div class="pills"><span class="pill">Pick from contacts</span><span class="pill">Skip</span></div>');
+                    say('Contacts come from the phone, not a form'); }],
+    [28000, () => { bubble('aria',"Saved Sam's details."); panel(''); }],
+    [29500, () => { bubble('aria',"What date is Sam's birthday?"); panel(CAL()); quiet(); }],
+    [34000, () => { bubble('me','Mon 10 August'); panel(''); }],
+    [35200, () => { bubble('aria','What time? Skip it if the day is enough.');
+                    panel('<div class="pills"><span class="pill on">9:00 AM</span><span class="pill">No time</span></div>'); }],
+    [38500, () => { bubble('me','9:00 AM'); panel(''); }],
+    [39600, () => { bubble('aria','Do you want an alarm on the day?');
+                    panel('<div class="pills"><span class="pill on">Yes</span><span class="pill">No</span></div>'); }],
+    [42500, () => { bubble('me','Yes'); bubble('aria',"I'll chime on the day."); panel(''); }],
+    [44500, () => { bubble('aria','Would you like a card for Sam?');
+                    panel('<div class="pills"><span class="pill on">Yes</span><span class="pill">No</span></div>'); }],
+    [47500, () => { bubble('me','Yes'); panel(''); }],
+    [48600, () => { bubble('aria','What would you like it to say? I can draft it.');
+                    panel('<div class="draftbox" id="db">Write it yourself, or let Aria draft it…</div><div class="btn ghost">Draft it for me</div>');
+                    say('Aria writes it, then rewrites it'); }],
+    [52500, () => { panel('<div class="draftbox" id="db">Sam, another year, and somehow still the one who replies to group chats at 3am. Have a brilliant one.</div><div class="pills"><span class="pill">Warmer</span><span class="pill on">Funnier</span><span class="pill">Shorter</span></div>'); }],
+    [58000, () => { panel('<div class="draftbox" id="db">Sam! Officially old now. Still the fastest text back in the group chat though. Never change. Have a cracking day.</div><div class="pills"><span class="pill">Warmer</span><span class="pill on">Funnier</span><span class="pill">Shorter</span></div>');
+                    say('Tone changed, without leaving the chat'); }],
+    [63000, () => { bubble('aria',"Here's what I've got. Have a look before I save it.");
+                    panel(`<span class="label">Preview</span><b style="font-size:.92rem">Sam's birthday</b>
+                      <small style="color:var(--muted);font-size:.76rem">Mon 10 Aug · 9:00 AM · Sam · alarm on · card included</small>
+                      <div class="draftbox">Sam! Officially old now. Still the fastest text back in the group chat though. Never change.</div>
+                      <div class="btn">Save it</div>`);
+                    say('Nothing is saved until you have seen it'); }],
+    [71000, () => { panel(''); bubble('aria','Done. "Sam’s birthday" is saved and in your queue. You’ll find it on the Tasks page.'); quiet(); }],
+    [75000, () => { show('p-tasks'); say('A real task, not a chat transcript'); }],
+    [81000, () => { phone.classList.add('midnight'); say('Four themes, remembered per device'); }],
+    [87000, () => { quiet(); }],
+  ];
+
+  let t0 = performance.now(), paused = false, pausedAt = 0, fired = -1, raf;
+
+  function reset(){
+    fired = -1; $('swipe').style.display=''; $('swipe-card').style.opacity='1';
+    $('swipe-card').style.transform=''; $('k-bday').classList.remove('on');
+    thread.innerHTML=''; panel(''); phone.classList.remove('midnight');
+  }
+
+  function frame(now){
+    const t = paused ? pausedAt : now - t0;
+    const clamped = Math.min(t, TOTAL);
+    for (let i = fired + 1; i < script.length; i++){
+      if (script[i][0] <= clamped){ script[i][1](); fired = i; } else break;
+    }
+    $('prog').style.width = (clamped / TOTAL * 100) + '%';
+    const s = Math.floor(clamped / 1000);
+    const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, '0');
+    $('time').textContent = `${mm}:${ss} / 1:30`;
+    if (t >= TOTAL){ paused = true; pausedAt = TOTAL; $('play').textContent = 'Replay'; return; }
+    raf = requestAnimationFrame(frame);
+  }
+
+  $('play').addEventListener('click', () => {
+    if (pausedAt >= TOTAL){ reset(); t0 = performance.now(); paused = false; pausedAt = 0;
+      $('play').textContent = 'Pause'; raf = requestAnimationFrame(frame); return; }
+    paused = !paused;
+    if (paused){ pausedAt = performance.now() - t0; cancelAnimationFrame(raf); $('play').textContent = 'Play'; }
+    else { t0 = performance.now() - pausedAt; $('play').textContent = 'Pause'; raf = requestAnimationFrame(frame); }
+  });
+
+  $('restart').addEventListener('click', () => {
+    cancelAnimationFrame(raf); reset(); t0 = performance.now(); paused = false; pausedAt = 0;
+    $('play').textContent = 'Pause'; raf = requestAnimationFrame(frame);
+  });
+
+  show('p-home');
+  raf = requestAnimationFrame(frame);
+})();
+</script>
