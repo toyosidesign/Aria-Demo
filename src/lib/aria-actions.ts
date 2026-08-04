@@ -222,11 +222,20 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
 
   const noun = `${occasion} ${meta.short}`.trim();
 
-  // A card carries its own message, written on the task. Once that's there
-  // there's nothing left to draft — offering to write it again would suggest
-  // Aria is about to replace what Maya already decided it should say.
-  const written = !!task.description?.trim();
-  if (method === 'card' && written) {
+  /*
+   * A card is always a reminder to send, never an offer to write.
+   *
+   * The message is authored when the task is created now — the create screen
+   * gives cards, pictures, texts and emails the same drafting field — so by the
+   * time this card reaches Today there is nothing left to write. It used to
+   * check whether anything had been written and fall back to "Draft the text"
+   * if not, which was right when drafting happened afterwards and is now just a
+   * second chance to do a job already done.
+   *
+   * The send sheet still shows the message and still lets it be edited there,
+   * so an empty one is not a dead end.
+   */
+  if (method === 'card') {
     return {
       type: 'message',
       method,
@@ -239,7 +248,7 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
       drafting: `the card${forWho}`,
     };
   }
-  if (method === 'photo' && written && !!task.photoUri) {
+  if (method === 'photo' && !!task.photoUri) {
     return {
       type: 'message',
       method,
@@ -250,6 +259,29 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
       needsSend: true,
       readyToSend: true,
       drafting: `the message${forWho}`,
+    };
+  }
+
+  /*
+   * Written already? Then this is a send, not a draft.
+   *
+   * The same rule the card branch above follows, and it belongs here too: the
+   * create screen now gives texts and emails the same drafting field, so by the
+   * time one of these reaches Today the message usually exists. Offering to
+   * write it again suggests Aria is about to replace what was already decided,
+   * and hides the only thing actually left to do.
+   */
+  if (task.description?.trim()) {
+    return {
+      type: 'message',
+      method,
+      offer: who
+        ? `Your ${meta.short} for ${who} is written and ready. Want to send it?`
+        : `Your ${meta.short} is written and ready. Want to send it?`,
+      cta: 'Send it',
+      needsSend: true,
+      readyToSend: true,
+      drafting: `the ${meta.short}${forWho}`,
     };
   }
 

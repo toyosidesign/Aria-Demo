@@ -192,6 +192,15 @@ export default function NewTaskScreen() {
   const showsSubtasks = kind === 'assignment' || kind === 'project';
   // A call is only ever "who am I ringing" — nothing else to collect.
   const isCallMethod = method === 'call';
+  /*
+   * A text or an email needs writing too.
+   *
+   * Only cards and pictures got the drafting field, so a birthday sent as a
+   * text offered a plain "Notes" box here and Aria's "shall I draft it?" turned
+   * up afterwards, on the offer card on Today. Writing the thing is part of
+   * setting it up, not a follow-up question on another screen.
+   */
+  const isWrittenMessage = method === 'sms' || method === 'email';
 
   // You can't schedule something into the past. Reported against each control
   // separately so the error sits next to whichever one caused it.
@@ -741,6 +750,15 @@ export default function NewTaskScreen() {
                 </Text>
               </Pressable>
             </>
+          ) : isWrittenMessage ? (
+            <CardMessageField
+              kind={kind}
+              title={title}
+              contactName={contactName}
+              value={description}
+              onChange={setDescription}
+              label={method === 'email' ? 'What the email says' : 'What the message says'}
+            />
           ) : !isCallMethod ? (
             <Input
               label="Notes (optional)"

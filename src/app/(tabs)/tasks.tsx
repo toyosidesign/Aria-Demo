@@ -9,9 +9,15 @@ import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
-import { selectDone, selectLate, selectUpcoming, useAriaStore, type Task } from '@/store/aria-store';
+import {
+  selectDone,
+  selectLate,
+  selectUpcoming,
+  useAriaStore,
+  type Task,
+} from '@/store/aria-store';
 
-type Tab = 'upcoming' | 'due' | 'late' | 'done';
+type Tab = 'upcoming' | 'late' | 'done';
 
 export default function TasksScreen() {
   /*
@@ -53,13 +59,23 @@ export default function TasksScreen() {
    * page's tabs rather than of the data.
    */
   const scheduled = useMemo(() => selectUpcoming(tasks, demoDate), [tasks, demoDate]);
-  const due = useMemo(() => scheduled.filter((t) => t.date === demoDate), [scheduled, demoDate]);
-  const upcoming = useMemo(() => scheduled.filter((t) => t.date > demoDate), [scheduled, demoDate]);
+  /*
+   * No "Due" tab, deliberately.
+   *
+   * It held a transient slice — today, not a reminder, within a couple of hours
+   * of its moment — which is empty most of the time, and a tab that is usually
+   * empty teaches you not to open it. Nothing is lost by dropping it: the Due
+   * badge still marks urgency on the card itself wherever the task appears, and
+   * Home already answers "what is on me now".
+   *
+   * `isDueToday` stays and still earns its keep. It is what the badge, the task
+   * screen and the card all read.
+   */
+  const upcoming = scheduled;
   const late = useMemo(() => selectLate(tasks, demoDate), [tasks, demoDate]);
   const done = useMemo(() => selectDone(tasks), [tasks]);
 
-  const list =
-    tab === 'upcoming' ? upcoming : tab === 'due' ? due : tab === 'late' ? late : done;
+  const list = tab === 'upcoming' ? upcoming : tab === 'late' ? late : done;
 
   return (
     <Screen padded>
@@ -78,7 +94,6 @@ export default function TasksScreen() {
         onChange={setTab}
         options={[
           { value: 'upcoming', label: 'Upcoming', count: upcoming.length },
-          { value: 'due', label: 'Due', count: due.length },
           { value: 'late', label: 'Late', count: late.length },
           { value: 'done', label: 'Done', count: done.length },
         ]}
@@ -97,12 +112,6 @@ export default function TasksScreen() {
               icon={CalendarClock}
               title="Nothing scheduled"
               subtitle="Tap + to add a task and pick a date."
-            />
-          ) : tab === 'due' ? (
-            <EmptyState
-              icon={CheckCircle2}
-              title="Nothing due today"
-              subtitle="Anything scheduled for later is under Upcoming."
             />
           ) : tab === 'late' ? (
             <EmptyState

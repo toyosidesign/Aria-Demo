@@ -404,6 +404,18 @@ async function runOp(op: Op): Promise<boolean> {
     }
     if (op.table === 'automations' && op.kind === 'upsert') {
       const { error } = await supabase.from('automations').upsert(op.row);
+      /*
+       * The one write whose failure is invisible.
+       *
+       * Everything else here degrades to the offline outbox and retries, which
+       * is right — but an automation that never reaches the server is one the
+       * cron can never send, and nothing on the device looks wrong. Logging it
+       * in development turns a silent no-op into something findable in the
+       * Metro output.
+       */
+      if (error && __DEV__) {
+        console.error('[aria] automation did not sync:', error.code, error.message, error.details);
+      }
       return !error;
     }
     if (op.table === 'automations' && op.kind === 'status') {
@@ -487,7 +499,18 @@ export function upsertProfile(
  * Friday morning.
  */
 export function upsertAutomation(automation: Automation) {
-  if (!currentUserId) return;
+  if (!currentUserId) {
+    /*
+     * No signed-in Supabase user, so there is nobody to attach the row to.
+     *
+     * Worth saying out loud in development. The app has its own `signedIn`
+     * flag, and it is possible to look signed in while Supabase holds no
+     * session — in which case every automation stays on the phone and the
+     * scheduler has nothing to send, with nothing on screen to suggest it.
+     */
+    if (__DEV__) console.error('[aria] automation not synced: no Supabase session (currentUserId is null)');
+    return;
+  }
   void write({
     table: 'automations',
     kind: 'upsert',

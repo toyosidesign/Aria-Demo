@@ -108,7 +108,21 @@ export function AriaTodayCard({
           }
           className="flex-1"
         />
-        <Button title="Not now" variant="secondary" onPress={onDismiss} />
+        {/*
+          "Not now" belongs on an offer, not on a reminder.
+          
+          Aria proposing to draft or plan something is a suggestion, and a
+          suggestion needs a clear way to decline — that is the consent-first
+          rule this card was built around. A card that is written and waiting is
+          a different thing: it is you being reminded to send something you
+          already decided to send, and offering to dismiss it invites the one
+          outcome nobody wants, which is the birthday passing quietly.
+          
+          Pushing it to another day is still possible from the task itself.
+        */}
+        {action.readyToSend ? null : (
+          <Button title="Not now" variant="secondary" onPress={onDismiss} />
+        )}
       </View>
 
       {action.readyToSend ? (

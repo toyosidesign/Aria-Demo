@@ -408,8 +408,11 @@ export default function TaskDetailScreen() {
           <View className="gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4">
             <View className="flex-row items-center gap-2">
               <AriaAvatar size={26} />
+              {/* Once the message is written the offer is not help any more,
+                  it is a prompt to send. Saying "Aria can help" over a finished
+                  card suggests there is still something to write. */}
               <Text variant="subtitle" tone="accent" className="text-[16px] leading-[22px]">
-                Aria can help
+                {action.readyToSend ? 'Ready to send' : 'Aria can help'}
               </Text>
             </View>
             <Text className="text-[14px] leading-[20px]">{action.offer}</Text>

@@ -144,7 +144,11 @@ export default function RootLayout() {
       const session = data.session;
       if (session?.user) {
         setSyncUser(session.user.id);
+        if (__DEV__) console.log('[aria] Supabase session found, sync user set');
         await useAriaStore.getState().hydrate(session.user.id);
+      }
+      if (__DEV__ && !session?.user) {
+        console.error('[aria] no Supabase session at startup — nothing will sync to the server');
       }
       // No session at startup does *not* mean signed out. An expired token, a
       // refresh that hasn't finished, or no network for a moment all land here,

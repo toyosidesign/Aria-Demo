@@ -179,6 +179,29 @@ export default function SettingsScreen() {
             Off is not "Aria does nothing": it still drafts, addresses and
             schedules. Off only means it asks before anything leaves.
           */}
+          {/*
+            A way in, in development only.
+            
+            Pro cannot be bought — the upgrade path joins a waiting list rather
+            than pretending to take payment — which leaves no way to exercise
+            anything behind it, including the scheduler's autonomous sending.
+            Stripped from release builds, like the chat's fallback marker.
+          */}
+          {__DEV__ && !pro ? (
+            <SettingsRow
+              label="Turn Pro on (testing)"
+              description="Development builds only. Enables the settings below and tells the server."
+              right={
+                <Switch
+                  value={false}
+                  onValueChange={() => {
+                    hapticSelect();
+                    setPro(true);
+                  }}
+                />
+              }
+            />
+          ) : null}
           {pro ? (
             <SettingsRow
               label="Send without asking"

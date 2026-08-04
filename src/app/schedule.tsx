@@ -61,7 +61,35 @@ export default function ScheduleScreen() {
   const canSchedule = !!task && body.trim().length > 0 && recipientOk && inFuture;
 
   function confirm() {
-    if (!canSchedule || !runAt || !task) return;
+    if (!canSchedule || !runAt || !task) {
+      /*
+       * Four conditions, and failing any of them did nothing at all.
+       *
+       * No toast, no message, no disabled reason — the button simply returned.
+       * That is indistinguishable from the app being broken, and it is the
+       * reason a scheduled send appeared to vanish rather than never existing.
+       */
+      if (__DEV__) {
+        console.error('[aria] schedule refused:', {
+          hasTask: !!task,
+          hasBody: body.trim().length > 0,
+          recipientOk,
+          inFuture,
+        });
+      }
+      showToast(
+        !task
+          ? 'That task no longer exists'
+          : !body.trim()
+            ? 'Write the message first'
+            : !recipientOk
+              ? channel === 'email'
+                ? 'Add a valid email address'
+                : 'Add a phone number'
+              : 'Pick a time in the future',
+      );
+      return;
+    }
     scheduleAutomation({
       taskId: task.id,
       taskTitle: task.title,

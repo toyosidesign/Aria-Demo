@@ -15,14 +15,22 @@ import Animated, {
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { HeaderButton } from '@/components/header-button';
+import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { KIND_PROMPT, TASK_KINDS, requestDraft } from '@/lib/aria-actions';
+import { TASK_KINDS, requestDraft } from '@/lib/aria-actions';
 import { TaskFlowPanel } from '@/components/task-flow-panel';
+import { historyForModel } from '@/lib/chat-scope';
+import { requestChecklist } from '@/lib/subtasks';
+import { SAVE_QUESTION, saveConfirmation, saveTarget, wantsSave, type SaveTarget } from '@/lib/save-intent';
+import { exportWork } from '@/lib/export';
+import { openEmailDraft } from '@/lib/send';
 import {
   ackFor,
+  applyTypedAnswer,
+  flowDocument,
+  isTypedStep,
   flowTitle,
-  isPersonKind,
   nextStep,
   promptFor,
   startFlow,
@@ -154,7 +162,44 @@ export default function ChatScreen() {
   const [flow, setFlow] = useState<FlowDraft | null>(null);
   const [flowStep, setFlowStep] = useState<FlowStep>('who');
   const [drafting, setDrafting] = useState(false);
+  /*
+   * A finished piece of work, waiting to be taken somewhere.
+   *
+   * Kept separate from the flow: the task is already saved by this point, so
+   * this is an offer rather than a step, and dismissing it must not look like
+   * losing the work.
+   */
+  const [exportable, setExportable] = useState<{ title: string; body: string; taskTitle: string } | null>(
+    null,
+  );
+  /*
+   * The last piece of work discussed, so "save this" has a referent.
+   *
+   * Survives the export card being dismissed: asking again later must still
+   * find something, and the task it points at already holds the content.
+   */
+  const lastWork = useRef<{ id: string; title: string; body: string } | null>(null);
+  /** True once Aria has asked where to save and is waiting on the answer. */
+  const awaitingTarget = useRef(false);
+
+  /** Carry out a save to wherever was asked for. */
+  function performSave(target: SaveTarget) {
+    const work = lastWork.current;
+    if (!work) return;
+    awaitingTarget.current = false;
+    setExportable(null);
+    if (target === 'note') {
+      addDraftSection(work.id, { title: 'Worked out with Aria', content: work.body });
+    } else if (target === 'doc') {
+      void exportWork(work.title, work.body);
+    } else {
+      void openEmailDraft({ subject: work.title, body: work.body });
+    }
+    addChatMessage(mk('aria', saveConfirmation(target, work.title)));
+  }
   const addTask = useAriaStore((s) => s.addTask);
+  const addSubtasks = useAriaStore((s) => s.addSubtasks);
+  const addDraftSection = useAriaStore((s) => s.addDraftSection);
   const profile = useAriaStore((s) => s.profile);
 
   /** Move the flow on: record the answer, echo it, ask the next thing. */
@@ -265,17 +310,77 @@ export default function ChatScreen() {
     clearChat();
   }
 
+  /** Break the work into the things it actually involves. */
+  async function buildPlan() {
+    if (!flow || drafting) return;
+    setDrafting(true);
+    try {
+      const items = await requestChecklist({
+        title: flowTitle(flow),
+        // The approach is the difference between a generic checklist and one
+        // worth reading. It goes in as the description the breakdown works from.
+        description: [flow.approach, flow.explanation].filter(Boolean).join('\n\n') || undefined,
+        learner: {
+          studying: profile.studying,
+          level: profile.level,
+          interests: profile.interests,
+          explainStyle: profile.explainStyle,
+        },
+      });
+      setFlow((f) => (f ? { ...f, checklist: items } : f));
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /** Dig into one item of the plan and keep the answer with the task. */
+  async function askAbout(item: string) {
+    if (!flow || drafting) return;
+    setDrafting(true);
+    try {
+      const res = await requestDraft({
+        title: flowTitle(flow),
+        kind: flow.kind,
+        subtaskTitle: item,
+        research: true,
+        learner: {
+          studying: profile.studying,
+          level: profile.level,
+          interests: profile.interests,
+          explainStyle: profile.explainStyle,
+        },
+        senderName: profile.name,
+        senderContext: profile.context,
+      });
+      setFlow((f) =>
+        f
+          ? {
+              ...f,
+              // Replace rather than append: asking the same item twice should
+              // refine the answer, not stack two of them on the task.
+              notes: [
+                ...(f.notes ?? []).filter((n) => n.title !== item),
+                { title: item, content: res.message },
+              ],
+            }
+          : f,
+      );
+    } finally {
+      setDrafting(false);
+    }
+  }
+
   function saveFlow() {
     if (!flow) return;
     // The explanation goes onto the task, not just into the transcript: it is
     // the thing the student will want again when they sit down to do the work.
     const input = toTaskInput(flow);
-    addTask({
-      ...input,
-      description: flow.explanation
-        ? [input.description, flow.explanation].filter(Boolean).join('\n\n')
-        : input.description,
-    });
+    const id = addTask(input);
+    // The plan becomes the task's checklist, and everything Aria worked out
+    // becomes sections on it — so the work survives the conversation.
+    if (flow.checklist?.length) addSubtasks(id, flow.checklist);
+    const doc = flowDocument(flow);
+    if (doc) addDraftSection(id, { title: 'Worked out with Aria', content: doc });
     const title = flowTitle(flow);
     setFlow(null);
     setFlowStep('who');
@@ -286,6 +391,11 @@ export default function ChatScreen() {
     addChatMessage(
       mk('aria', `Done. "${title}" is saved and in your queue. You'll find it on the Tasks page.`),
     );
+    // Offered only when there is something worth taking out of the app.
+    if (doc) {
+      lastWork.current = { id, title, body: doc };
+      setExportable({ title, body: doc, taskTitle: title });
+    }
   }
   /*
    * A thread that ended mid-setup must not look like a live question.
@@ -331,12 +441,58 @@ export default function ChatScreen() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     hapticTap();
-    const history: AssistantTurn[] = messages.map((m) => ({
+    /*
+     * Only this task's stretch of conversation.
+     *
+     * The whole thread used to go, dividers and every earlier setup included,
+     * so Aria answered about the wrong task and blended details between them.
+     * The transcript already draws the seams; this makes them real.
+     */
+    const history: AssistantTurn[] = historyForModel(messages).map((m) => ({
       role: m.from === 'aria' ? 'assistant' : 'user',
       text: m.text,
     }));
     addChatMessage(mk('maya', trimmed));
     setInput('');
+
+    /*
+     * A typed answer to a question Aria just asked belongs to the flow.
+     *
+     * These steps have no input of their own any more — the composer is the
+     * input — so what gets typed here is the answer, not a new subject for the
+     * model to reply to. Sending it on would have Aria answer "History essay"
+     * as though it were a question.
+     */
+    if (flow && isTypedStep(flowStep)) {
+      advanceFlow(applyTypedAnswer(flowStep, trimmed), flowStep);
+      return;
+    }
+
+    /*
+     * Saving is answered here, not by the model.
+     *
+     * It has to work with the API unreachable — which is the exact moment the
+     * scripted fallback would otherwise answer "save this" with something
+     * plausible and do nothing — and it should feel instant rather than like
+     * waiting for a reply.
+     */
+    if (lastWork.current) {
+      const named = saveTarget(trimmed);
+      if (awaitingTarget.current && named) {
+        performSave(named);
+        return;
+      }
+      if (wantsSave(trimmed)) {
+        if (named) {
+          performSave(named);
+          return;
+        }
+        awaitingTarget.current = true;
+        addChatMessage(mk('aria', SAVE_QUESTION));
+        return;
+      }
+    }
+
     setSending(true);
 
     const res = await requestAssistant(trimmed, demoDate, history, focus ?? undefined, profileName, profileContext);
@@ -430,7 +586,41 @@ export default function ChatScreen() {
                 ? m.pending.map((t, i) => (
                     <Pressable
                       key={`${m.id}-${i}`}
+                      /*
+                       * Tapping creates it, here.
+                       *
+                       * This used to replace the chat with the create form,
+                       * pre-filled — which meant a task described in a sentence
+                       * still had to be confirmed on a screen full of fields,
+                       * and the conversation was closed to do it. Aria has
+                       * everything it needs; the point of saying it out loud is
+                       * not having to fill the form in.
+                       *
+                       * Long-press still opens the form, for the times the
+                       * parse was close but not right.
+                       */
                       onPress={() => {
+                        hapticSuccess();
+                        const id = addTask({
+                          title: t.title,
+                          date: t.date,
+                          priority: t.priority,
+                          kind: t.kind,
+                          contactName: t.contactName,
+                          contactEmail: t.contactEmail,
+                          method: t.method,
+                          time: t.time,
+                        });
+                        lastWork.current = {
+                          id,
+                          title: t.title,
+                          body: `${t.title}\n${formatFull(t.date)}${t.time ? ` at ${formatTime(t.time)}` : ''}`,
+                        };
+                        addChatMessage(
+                          mk('aria', `Added "${t.title}" for ${formatFull(t.date)}. Say the word if you want it saved somewhere.`),
+                        );
+                      }}
+                      onLongPress={() => {
                         hapticSelect();
                         // Replace (not push) so the create modal opens in the chat's
                         // place — iOS won't stack a modal on top of a modal.
@@ -451,7 +641,7 @@ export default function ChatScreen() {
                       </View>
                       <View className="flex-row items-center gap-0.5">
                         <Text variant="caption" tone="accent" className="font-strong">
-                          Review
+                          Add
                         </Text>
                         <ChevronRight size={15} color={c.accent} />
                       </View>
@@ -461,6 +651,42 @@ export default function ChatScreen() {
             </View>
             )
           )}
+            {/*
+              Taking the work out of the app.
+
+              Offered after saving, not instead of it: the task already holds a
+              copy, so this is about getting it somewhere else rather than about
+              not losing it. `exportWork` writes a file and opens the share
+              sheet, falling back to the clipboard, so one button covers every
+              destination the phone has.
+            */}
+            {exportable ? (
+              <View className="ml-10 gap-3 rounded-2xl rounded-tl-sm border border-accent/25 bg-accent-soft/60 p-3.5">
+                <Text variant="label" tone="muted">
+                  Keep a copy?
+                </Text>
+                <View className="flex-row gap-2">
+                  <Button
+                    title="Save or share"
+                    className="flex-1"
+                    onPress={() => {
+                      void exportWork(exportable.title, exportable.body);
+                      setExportable(null);
+                    }}
+                  />
+                  <Button
+                    title="Email"
+                    variant="secondary"
+                    onPress={() => {
+                      void openEmailDraft({ subject: exportable.title, body: exportable.body });
+                      setExportable(null);
+                    }}
+                  />
+                  <Button title="No" variant="secondary" onPress={() => setExportable(null)} />
+                </View>
+              </View>
+            ) : null}
+
             {/*
               The controls, in the conversation.
 
@@ -480,6 +706,8 @@ export default function ChatScreen() {
                 onAnswer={advanceFlow}
                 onDraftMessage={() => void draftCardMessage()}
               onExplain={() => void explainTopic()}
+              onPlan={() => void buildPlan()}
+              onAsk={(item) => void askAbout(item)}
                 onMessageChange={(text) => setFlow((f) => (f ? { ...f, message: text } : f))}
                 onTone={(instruction) => void draftCardMessage(instruction)}
                 onAccept={saveFlow}
@@ -598,7 +826,15 @@ export default function ChatScreen() {
               <TextInput
                 value={input}
                 onChangeText={setInput}
-                placeholder={focusLabel ? `Add ${focusLabel.toLowerCase()} details…` : 'Message Aria…'}
+                /* The composer answers the open question now, so it says so
+                   rather than offering a generic prompt beneath one. */
+                placeholder={
+                  flow && isTypedStep(flowStep)
+                    ? 'Type your answer…'
+                    : focusLabel
+                      ? `Add ${focusLabel.toLowerCase()} details…`
+                      : 'Message Aria…'
+                }
                 placeholderTextColor={c.faint}
                 multiline
                 editable={!listening}

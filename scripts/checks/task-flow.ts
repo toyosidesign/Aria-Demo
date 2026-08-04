@@ -15,6 +15,9 @@ import path from 'node:path';
 
 import {
   ackFor,
+  applyTypedAnswer,
+  flowDocument,
+  isTypedStep,
   flowMethod,
   flowTitle,
   isPersonKind,
@@ -25,6 +28,8 @@ import {
   type FlowDraft,
   type FlowStep,
 } from '@/lib/task-flow';
+import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
+import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
 import type { TaskKind } from '@/store/aria-store';
 
 let passed = 0;
@@ -364,6 +369,150 @@ test('isPersonKind agrees with the walk', () => {
   assert.equal(isPersonKind('birthday'), true);
   assert.equal(isPersonKind('anniversary'), true);
   assert.equal(isPersonKind('assignment'), false);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Planning a piece of work');
+
+test('work is asked how to handle it, then broken down', () => {
+  /*
+   * A title alone produces a generic checklist. "Work with me on creating a
+   * design system" is the sentence that makes the breakdown worth reading, and
+   * the flow never asked for it — it went from a name straight to a date.
+   */
+  for (const kind of ['general', 'assignment', 'project'] as TaskKind[]) {
+    const seen = walk(kind);
+    assert.ok(seen.includes('approach'), `${kind} must be asked how to handle it`);
+    assert.ok(seen.includes('plan'), `${kind} must be broken down`);
+    assert.ok(seen.indexOf('approach') < seen.indexOf('plan'), 'the approach shapes the plan');
+    assert.ok(seen.indexOf('plan') < seen.indexOf('date'), 'plan before scheduling');
+  }
+  // An occasion has nothing to break down.
+  for (const kind of ['birthday', 'reminder', 'event'] as TaskKind[]) {
+    assert.ok(!walk(kind).includes('plan'), `${kind} has nothing to plan`);
+  }
+});
+
+test('the document carries everything Aria worked out', () => {
+  /*
+   * One text for both the copy kept on the task and the one that leaves via the
+   * share sheet. If they diverged, the version someone emailed to a colleague
+   * would not be the version they could still see in the app.
+   */
+  const doc = flowDocument({
+    ...startFlow('project'),
+    title: 'Design system',
+    approach: 'Work with me on creating a design system',
+    checklist: ['Audit existing components', 'Define the type scale'],
+    notes: [{ title: 'Define the type scale', content: 'Start from the body size.' }],
+  });
+  assert.match(doc, /Work with me on creating a design system/);
+  assert.match(doc, /- Audit existing components/);
+  assert.match(doc, /Start from the body size/);
+  // Nothing collected means nothing offered to export.
+  assert.equal(flowDocument(startFlow('project')), '');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Typed answers come from the composer');
+
+test('the steps that need typing have no input of their own', () => {
+  /*
+   * They each rendered a text box inside the panel, directly above the composer
+   * — two places to type the same answer, one of them redundant. The composer
+   * is the one people already use.
+   */
+  for (const step of ['what', 'approach', 'who'] as const) {
+    assert.equal(isTypedStep(step), true, `${step} is answered by typing`);
+  }
+  for (const step of ['date', 'time', 'priority', 'alarm', 'card', 'preview'] as const) {
+    assert.equal(isTypedStep(step), false, `${step} is answered by tapping`);
+  }
+});
+
+test('a typed answer lands on the right field', () => {
+  assert.deepEqual(applyTypedAnswer('what', ' History essay '), { title: 'History essay' });
+  assert.deepEqual(applyTypedAnswer('who', 'Sam'), { who: 'Sam' });
+  assert.deepEqual(applyTypedAnswer('approach', 'work with me on it'), {
+    approach: 'work with me on it',
+  });
+  // A tap step typed into: nothing, rather than a wrong field.
+  assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Aria talks about one task at a time');
+
+test('only the current task reaches the model', () => {
+  /*
+   * The whole thread was going, so an assignment question was answered with a
+   * birthday two tasks earlier still in context. The transcript already draws
+   * the seams; this is what makes them real.
+   */
+  const thread = [
+    { text: "Sam's birthday", from: 'maya' },
+    { text: 'Saved it', from: 'aria' },
+    { text: 'Assignment', from: 'aria', divider: 'Assignment' },
+    { text: 'History essay', from: 'maya' },
+    { text: 'When is it due?', from: 'aria' },
+  ];
+  const scoped = currentTaskMessages(thread);
+  assert.equal(scoped.length, 2, 'only what follows the last divider');
+  assert.equal(scoped[0].text, 'History essay');
+  assert.ok(!scoped.some((m) => m.text.includes('birthday')), 'the earlier task must not leak in');
+});
+
+test('dividers are never sent as things Aria said', () => {
+  // Their text is a bare category word, which as an assistant turn reads as
+  // Aria saying "Birthday" unprompted.
+  const thread = [
+    { text: 'Birthday', from: 'aria', divider: 'Birthday' },
+    { text: 'Who for?', from: 'aria' },
+  ];
+  const sent = historyForModel(thread);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].text, 'Who for?');
+});
+
+test('a thread with no dividers is sent whole, up to the window', () => {
+  const thread: { text: string; from: string; divider?: string }[] = Array.from(
+    { length: 30 },
+    (_, i) => ({ text: `m${i}`, from: 'maya' }),
+  );
+  assert.equal(currentTaskMessages(thread).length, 30, 'nothing to scope to');
+  const sent = historyForModel(thread);
+  assert.equal(sent.length, 20, 'bounded');
+  assert.equal(sent[sent.length - 1].text, 'm29', 'and it keeps the most recent');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Saving by asking for it');
+
+test('a request to save is recognised, a report of saving is not', () => {
+  for (const t of ['save this task', 'save it', 'can you export this plan', 'email that to me', 'share these notes']) {
+    assert.equal(wantsSave(t), true, `should ask to save: ${t}`);
+  }
+  /*
+   * False positives derail a conversation; false negatives cost nothing,
+   * because the buttons are still on screen. So the bar sits high on purpose.
+   */
+  for (const t of ["I already saved it", "don't send that", 'email from my tutor', 'what should I do next']) {
+    assert.equal(wantsSave(t), false, `should not: ${t}`);
+  }
+});
+
+test('a named destination is carried out, an unnamed one is asked about', () => {
+  assert.equal(saveTarget('email it to me'), 'email');
+  assert.equal(saveTarget('save it as a doc'), 'doc');
+  assert.equal(saveTarget('keep it as a note'), 'note');
+  // "save this" alone names nothing, which is the cue to ask rather than guess.
+  assert.equal(saveTarget('save this'), null);
+  assert.match(SAVE_QUESTION, /note.*document.*email/i);
+});
+
+test('email wins when a sentence names two destinations', () => {
+  // "email it to me as a doc" is an email with an attachment, not a file save.
+  assert.equal(saveTarget('email it to me as a doc'), 'email');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

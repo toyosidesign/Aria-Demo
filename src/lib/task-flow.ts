@@ -27,6 +27,8 @@ import type { Priority, TaskKind, TaskMethod } from '@/store/aria-store';
 export type FlowStep =
   | 'what' // the title, for anything that isn't about a person
   | 'explain' // offer to teach the topic before planning the work
+  | 'approach' // how you want Aria to handle it, in your own words
+  | 'plan' // the list of things to do, and drilling into any of them
   | 'who' // whose birthday / who the message is for
   | 'contact' // their number or email, if we can get it
   | 'date'
@@ -51,6 +53,12 @@ export interface FlowDraft {
   priority?: Priority;
   /** Aria's explanation of the topic, when one was asked for. */
   explanation?: string;
+  /** How you asked Aria to handle it: "work with me on a design system". */
+  approach?: string;
+  /** The things to do, as Aria broke them down from the title and approach. */
+  checklist?: string[];
+  /** Answers to anything drilled into, kept so they reach the saved task. */
+  notes?: { title: string; content: string }[];
   alarm?: boolean;
   /**
    * How it goes out.
@@ -95,6 +103,15 @@ const KIND_OPENER: Record<TaskKind, string> = {
 /** Work with a deadline, which reads differently from an occasion. */
 const WORK_KINDS: TaskKind[] = ['assignment', 'project'];
 
+/**
+ * Kinds worth planning out rather than just scheduling.
+ *
+ * A birthday is a date and a message; there is nothing to break down. A project
+ * or a piece of work is the opposite — the breakdown *is* the value, and the
+ * reason to bring it to an assistant at all.
+ */
+const PLANNING_KINDS: TaskKind[] = ['assignment', 'project', 'general'];
+
 /** Kinds where a card is a natural thing to offer. */
 const CARD_KINDS: TaskKind[] = ['birthday', 'anniversary'];
 
@@ -136,6 +153,16 @@ export function nextStep(d: FlowDraft): FlowStep {
    * is due.
    */
   if (WORK_KINDS.includes(d.kind) && !d.answered.explain) return 'explain';
+  /*
+   * Ask how it should be handled before breaking it down.
+   *
+   * A title alone produces a generic checklist. "Work with me on creating a
+   * design system" is the sentence that makes the list worth reading, and it is
+   * the one thing the old flow never asked for — it went straight from a name
+   * to a date, so the plan Aria could have built never existed.
+   */
+  if (PLANNING_KINDS.includes(d.kind) && !d.answered.approach) return 'approach';
+  if (PLANNING_KINDS.includes(d.kind) && !d.answered.plan) return 'plan';
   if (isPersonKind(d.kind) && !d.answered.who) return 'who';
   if (isPersonKind(d.kind) && !d.answered.contact) return 'contact';
   if (!d.answered.date) return 'date';
@@ -159,6 +186,12 @@ export function promptFor(step: FlowStep, d: FlowDraft): string {
       return KIND_OPENER[d.kind];
     case 'explain':
       return 'Want me to explain the topic first, in a way that fits how you learn?';
+    case 'approach':
+      return 'How would you like me to handle this? Tell me in your own words.';
+    case 'plan':
+      return d.checklist?.length
+        ? 'Here is what I think this involves. Tap anything you want to dig into.'
+        : 'Let me break this into the things it actually involves.';
     case 'who':
       return d.kind === 'anniversary'
         ? "Whose anniversary is it? Just the name is fine."
@@ -203,6 +236,10 @@ export function ackFor(step: FlowStep, d: FlowDraft): string | null {
       return d.title?.trim() ? `"${d.title.trim()}", got it.` : null;
     case 'explain':
       return d.explanation ? null : "No problem, let's get it scheduled.";
+    case 'approach':
+      return d.approach?.trim() ? 'Got it.' : null;
+    case 'plan':
+      return d.checklist?.length ? `That's ${d.checklist.length} things to work through.` : null;
     case 'who':
       return d.who ? `${d.who}, got it.` : null;
     case 'contact':
@@ -304,6 +341,48 @@ export function toTaskInput(d: FlowDraft): {
     cardTemplateId: d.delivery === 'card' ? d.cardTemplateId : undefined,
     description: d.message?.trim() || undefined,
   };
+}
+
+/**
+ * Everything Aria produced, as one readable document.
+ *
+ * Used for the copy saved onto the task and for the share sheet, so what leaves
+ * the app and what stays in it are the same text. A plan nobody can get out of
+ * the app is a plan they will rewrite somewhere else.
+ */
+export function flowDocument(d: FlowDraft): string {
+  const parts: string[] = [];
+  if (d.approach?.trim()) parts.push(`How I'm handling this\n${d.approach.trim()}`);
+  if (d.explanation?.trim()) parts.push(`The topic\n${d.explanation.trim()}`);
+  if (d.checklist?.length) {
+    parts.push(`What this involves\n${d.checklist.map((i) => `- ${i}`).join('\n')}`);
+  }
+  for (const n of d.notes ?? []) parts.push(`${n.title}\n${n.content}`);
+  return parts.join('\n\n');
+}
+
+/**
+ * Steps answered by typing, which means answered in the composer.
+ *
+ * These used to render their own text box inside the panel, so the screen
+ * offered two places to type the same answer, one of them directly above the
+ * other. The composer is the one people already use, so the panel shows only
+ * the choices that are not typing and the message goes to the flow instead of
+ * the model.
+ */
+export const TYPED_STEPS: FlowStep[] = ['what', 'approach', 'who'];
+
+export function isTypedStep(step: FlowStep): boolean {
+  return TYPED_STEPS.includes(step);
+}
+
+/** Fold a typed answer into the draft for whichever step asked for it. */
+export function applyTypedAnswer(step: FlowStep, text: string): Partial<FlowDraft> {
+  const value = text.trim();
+  if (step === 'what') return { title: value };
+  if (step === 'approach') return { approach: value };
+  if (step === 'who') return { who: value };
+  return {};
 }
 
 /** Tone buttons offered after a draft, mirroring the task screen's rewrites. */

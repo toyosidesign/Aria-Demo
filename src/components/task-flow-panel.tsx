@@ -1,4 +1,11 @@
-import { CalendarDays, Check, Sparkles, UserPlus, X } from 'lucide-react-native';
+import {
+  CalendarDays,
+  Check,
+  MessageCircleQuestion,
+  Sparkles,
+  UserPlus,
+  X,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
@@ -102,6 +109,8 @@ export function TaskFlowPanel({
   onAnswer,
   onDraftMessage,
   onExplain,
+  onPlan,
+  onAsk,
   onTone,
   onMessageChange,
   onAccept,
@@ -116,6 +125,10 @@ export function TaskFlowPanel({
   onDraftMessage: () => void;
   /** Teach the topic, using the learner profile from onboarding. */
   onExplain: () => void;
+  /** Break the work down, using the title and the approach just given. */
+  onPlan: () => void;
+  /** Dig into one item and keep the answer. */
+  onAsk: (item: string) => void;
   onTone: (instruction: string) => void;
   /**
    * The card message is owned by the caller, not held here.
@@ -140,7 +153,6 @@ export function TaskFlowPanel({
   const c = useColors();
   const demoDate = useAriaStore((s) => s.demoDate);
   const contacts = useAriaStore((s) => s.contacts);
-  const [text, setText] = useState('');
   const [date, setDate] = useState(draft.date ?? demoDate);
   const [time, setTime] = useState<string | null>(draft.time ?? null);
 
@@ -157,58 +169,77 @@ export function TaskFlowPanel({
   const shell =
     'ml-10 -mt-1 gap-3 rounded-2xl rounded-tl-sm border border-accent/25 bg-accent-soft/60 p-3.5';
 
-  if (step === 'what') {
+  if (step === 'approach') {
     return (
       <View className={shell}>
-        <View className="flex-row items-center gap-2">
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Type it here"
-            placeholderTextColor={c.faint}
-            className="min-h-[44px] flex-1 rounded-2xl border border-border bg-bg px-4"
-            style={{ color: c.ink }}
-            onSubmitEditing={() => text.trim() && onAnswer({ title: text.trim() }, 'what')}
-            returnKeyType="done"
-          />
-          <Button
-            title="Next"
-            size="sm"
-            disabled={!text.trim()}
-            onPress={() => onAnswer({ title: text.trim() }, 'what')}
-          />
-        </View>
+        {/* Type the answer in the composer. This is only the way out. */}
+        <Choice label="Just schedule it" onPress={() => onAnswer({}, 'approach')} />
       </View>
     );
   }
 
-  if (step === 'explain') {
+  if (step === 'plan') {
+    const items = draft.checklist ?? [];
+    if (!items.length) {
+      return (
+        <View className={shell}>
+          <Choice
+            label={drafting ? 'Working it out…' : 'Break it down'}
+            primary
+            busy={drafting}
+            onPress={onPlan}
+          />
+        </View>
+      );
+    }
     return (
       <View className={shell}>
-        {draft.explanation ? (
-          <View className="rounded-xl border border-border bg-bg p-3">
-            <Text variant="small" tone="muted">
-              {draft.explanation}
-            </Text>
+        {/* Each item is a question waiting to be asked, so each one is a
+            control rather than a bullet. */}
+        {items.map((item) => {
+          const answered = draft.notes?.some((n) => n.title === item);
+          return (
+            <Pressable
+              key={item}
+              disabled={drafting}
+              onPress={() => {
+                hapticSelect();
+                onAsk(item);
+              }}
+              className={`min-h-[44px] flex-row items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
+                answered ? 'border-accent bg-accent-soft' : 'border-border bg-surface'
+              } ${drafting ? 'opacity-60' : 'active:opacity-70'}`}>
+              {answered ? (
+                <Check size={14} color={c.accent} />
+              ) : (
+                <MessageCircleQuestion size={14} color={c.muted} />
+              )}
+              <Text variant="small" tone={answered ? 'accent' : 'muted'} className="flex-1">
+                {item}
+              </Text>
+            </Pressable>
+          );
+        })}
+        {draft.notes?.length ? (
+          <View className="gap-2">
+            {draft.notes.map((n) => (
+              <View key={n.title} className="rounded-xl border border-border bg-bg p-3">
+                <Text variant="label" tone="muted">
+                  {n.title}
+                </Text>
+                <Text variant="small" tone="muted" className="mt-1">
+                  {n.content}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : null}
         <View className="flex-row gap-2">
           <Choice
-            label={
-              drafting
-                ? 'Thinking…'
-                : draft.explanation
-                  ? 'Explain more'
-                  : 'Yes, explain it'
-            }
+            label={drafting ? 'Thinking…' : 'Done, carry on'}
             primary
             busy={drafting}
-            onPress={onExplain}
-          />
-          <Choice
-            label={draft.explanation ? 'Got it' : 'No thanks'}
-            busy={drafting}
-            onPress={() => onAnswer({}, 'explain')}
+            onPress={() => onAnswer({}, 'plan')}
           />
         </View>
       </View>
@@ -249,24 +280,7 @@ export function TaskFlowPanel({
             }}
           />
         ) : null}
-        <View className="flex-row items-center gap-2">
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Or type a name"
-            placeholderTextColor={c.faint}
-            className="min-h-[44px] flex-1 rounded-2xl border border-border bg-bg px-4"
-            style={{ color: c.ink }}
-            onSubmitEditing={() => text.trim() && onAnswer({ who: text.trim() }, 'who')}
-            returnKeyType="done"
-          />
-          <Button
-            title="Next"
-            size="sm"
-            disabled={!text.trim()}
-            onPress={() => onAnswer({ who: text.trim() }, 'who')}
-          />
-        </View>
+        {/* Or just type the name in the composer. */}
       </View>
     );
   }

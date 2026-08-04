@@ -16,7 +16,19 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
   const late = isLate(task, demoDate);
   const dueToday = isDueToday(task, demoDate);
   const doneCount = task.subtasks.filter((s) => s.done).length;
-  const canAria = task.status === 'todo' && ariaActionFor(task) !== null;
+  /*
+   * "Aria can help" is an offer, so it stops once the help has happened.
+   *
+   * A birthday whose card is already written does not need Aria to write it;
+   * what is left is sending it, and the task already says so through its own
+   * status. Leaving the offer up reads as though the message were still
+   * outstanding, and invites a second pass over something finished.
+   *
+   * `readyToSend` is the marker for exactly that state: the work is done and
+   * the only remaining step is the send.
+   */
+  const ariaAction = task.status === 'todo' ? ariaActionFor(task) : null;
+  const canAria = ariaAction !== null && !ariaAction.readyToSend;
 
   return (
     <Pressable

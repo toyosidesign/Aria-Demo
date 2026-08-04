@@ -704,7 +704,20 @@ export const useAriaStore = create<AriaState>()(
         set((s) => ({ profile: { ...s.profile, ...patch } }));
         upsertProfile(get().profile, get().settings, get().onboarded, get().pro);
       },
-      setPro: (pro) => set({ pro }),
+      setPro: (pro) => {
+        set({ pro });
+        /*
+         * Pro has to reach the server, not just the device.
+         *
+         * The cron sends with no session and reads entitlement from
+         * `profiles.pro`. This only ever set local state, so the flag never
+         * left the phone: the runner saw `pro: false` for everyone, failed
+         * closed as designed, and held every automation. Autonomous sending
+         * could not have worked at all, and nothing about it would have looked
+         * broken from inside the app.
+         */
+        upsertProfile(get().profile, get().settings, get().onboarded, pro);
+      },
       rememberUser: ({ name, email }) =>
         set((s) => ({
           lastUser: {
@@ -1101,9 +1114,23 @@ export const useAriaStore = create<AriaState>()(
         // mechanism: it only fires if the phone is on and reachable, and it
         // still needs the student to tap it.
         upsertAutomation(automation);
-        // A local notification is what lets Aria act at the right moment even
-        // when the app has been closed since.
-        void scheduleAutomationNotice(automation);
+        /*
+         * The nudge is for the ones Aria cannot send itself.
+         *
+         * This notification predates the scheduler: it existed so the student
+         * could be told to open the app at the right moment and press send.
+         * With the cron live and autonomous sending on, an email now gets both
+         * — the server sends it, and the phone still asks you to go and do it
+         * — which reads as the automation having failed when it has just
+         * succeeded.
+         *
+         * Only email can be sent unattended, so only email skips the nudge.
+         * A text or a WhatsApp message always needs a human, whatever the
+         * setting says, because no mobile OS lets an app send one as the user.
+         */
+        const sendsItself =
+          automation.channel === 'email' && autoSendEnabled(get().settings, get().pro);
+        if (!sendsItself) void scheduleAutomationNotice(automation);
         return id;
       },
       cancelAutomation: (id) => {
@@ -1411,10 +1438,41 @@ export function isLate(task: Task, demoDate: string) {
  * can't be both "get to this today" and "you've missed this", and showing both
  * labels would say nothing.
  */
+/**
+ * How close a timed task has to be before it counts as due.
+ *
+ * Long enough to be a warning rather than a surprise, short enough that a task
+ * set for the evening does not spend the whole day calling itself due.
+ */
+const DUE_SOON_MINUTES = 120;
+
 export function isDueToday(task: Task, demoDate: string) {
   if (task.status !== 'todo') return false;
   if (task.date !== demoDate) return false;
-  return !isLate(task, demoDate);
+  if (isLate(task, demoDate)) return false;
+
+  /*
+   * A reminder is never "due".
+   *
+   * Due means something has to be attended to or sent — a task, an assignment,
+   * a project. A reminder does the opposite: it comes and finds you at its
+   * moment, and nothing is owed until then. Marking one due asks for action
+   * that has not been asked for.
+   */
+  if (isReminderOnly(task)) return false;
+
+  /*
+   * With a time set, due means the moment is near, not merely today.
+   *
+   * A task set for 6pm was showing as due at lunchtime, which reads as a demand
+   * when the whole afternoon is still ahead of it. Without a time there is no
+   * moment to be near, so the whole day is the window.
+   */
+  if (!task.time) return true;
+  const at = parseISO(task.date);
+  const [h, m] = task.time.split(':').map(Number);
+  at.setHours(h || 0, m || 0, 0, 0);
+  return at.getTime() - Date.now() <= DUE_SOON_MINUTES * 60_000;
 }
 
 /**
