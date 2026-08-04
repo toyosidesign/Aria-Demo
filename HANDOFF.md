@@ -38,9 +38,9 @@ its key *list* — the full key appears only in the dialog at creation) and once
 plausible and then fail, and the app degrades to scripted replies rather than
 erroring, so nothing tells you.
 
-Migrations 001 and 002 are already applied to the live Supabase project, which
-every machine shares. **003 and 004 are not** — see the scheduler section below;
-004 in particular is not copy-paste-and-run and needs two secrets set first.
+All five migrations are applied to the live Supabase project, which every
+machine shares, and the `run-automations` Edge Function is deployed with its
+secrets set. Nothing to do here on a new machine.
 
 ---
 
@@ -66,10 +66,10 @@ merging at some point, since a clone that needs a branch checkout to be useful
 is easy to get wrong.
 
 ```
-npm run security-check     56 checks
+npm run security-check     57 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
-npm run check:flow         14 checks   # the conversational task setup
+npm run check:flow         38 checks   # the conversational task setup
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -79,8 +79,9 @@ not been for a while; `npx tsc --noEmit` is the check that works.
 **Working:** auth with RLS, task capture and recurrence, four themes, chat with
 persisted history, onboarding that collects personalisation and feeds it to the
 model, assignment breakdown, server-side email sending, rate limiting, and
-automations that run without the app being open — once the scheduler is
-deployed, which it is not yet.
+automations that run without the app being open — the scheduler is deployed and
+the cron is firing, though nothing in the app has yet created an automation for
+it to send. See Next §2.
 
 **Configured:** Anthropic (verified generating), Resend (verified authenticating,
 sending from `onboarding@resend.dev` — delivers only to the Resend signup address
@@ -165,11 +166,33 @@ feed `leftElement`/`rightElement`, which are rendered output and never reach
 `updateAnimatedEvent`, whose own dependency arrays are shared values and numbers
 only. Wrapping the render props in `useCallback` would change nothing.
 
-### 2. The scheduler — written, not yet deployed
+### 2. The scheduler — deployed and running, but unreachable from the app
 
-**The code is done. Nothing has been run against the live project.** Until the
-three steps below are carried out, Aria still cannot act while the app is closed,
-exactly as before.
+**Deployed 2026-08-04, and verified end to end.** Migrations 003/004/005 are
+applied, the Edge Function is live and gated on a cron secret, and the job has
+been firing every 60 seconds returning `200` with counts.
+
+**The remaining gap is not the backend. It is that nothing in the app has ever
+successfully called `scheduleAutomation`,** so no automation has reached the
+`automations` table and the cron has nothing to send. The only caller is
+`app/schedule.tsx`, reached from a secondary row inside the "Aria can help"
+card on the task screen and from `app/aria/[taskId].tsx`. A whole afternoon was
+spent failing to find that row on a device, which is the finding: if it cannot
+be found, it does not exist.
+
+Worth considering whether scheduling belongs at the end of the chat flow
+instead. The guided setup already collects the recipient, the message and a
+time — everything an automation needs — and then only ever creates a task.
+
+Two things that cost hours and are worth knowing:
+
+  · `setPro` only set local state, so `profiles.pro` stayed false and the
+    runner held every automation, failing closed exactly as designed. Fixed.
+  · The phone can silently keep running old JavaScript across reloads. Four
+    rounds of diagnosis went into code the device was not executing. Confirm a
+    reload landed before believing anything about behaviour.
+
+The deploy steps below are done. They are kept for a fresh project.
 
 What was built:
 
@@ -245,7 +268,52 @@ get the opening question from `KIND_PROMPT`.
 *template* in chat — `cardTemplateId` is collected but nothing sets it yet, so a
 card task falls back to `defaultTemplateFor`.
 
-### 4. "Explain this to me"
+### 4. The Event flow — intended behaviour, written 2026-08-04
+
+Stated by the product owner, and the thing to build against. Recorded here
+because it lived only in a chat message otherwise.
+
+**Three occasions**, each opening with its own question:
+
+| Occasion | Asks |
+|---|---|
+| General | What's this event? (describe it) |
+| Birthday | Whose birthday is it? |
+| Anniversary | Whose anniversary is it? |
+
+Then, for all three: **date**, **time**, **should it repeat**, **priority**,
+and then *"How should Aria handle it?"* — Text, Email, Call, Picture, Card, or
+Just remind me.
+
+What each method needs:
+
+| Method | Name | Email | Phone | Also |
+|---|---|---|---|---|
+| Text | required | optional | **required** | what the message says |
+| Email | required | **required** | optional | what the mail says |
+| Call | — | — | the contact only | — |
+| Picture | required | optional | optional | the picture |
+| Card | required | optional | optional | pick a card, write what it says |
+| Just remind me | — | — | — | a plain reminder |
+
+**The rule that matters: choosing someone from the contact list hides the
+fields it filled.** No name box, no phone box — just the person, with a way to
+clear them. `components/contact-field.tsx` already does this, collapsing to a
+summary card once `fromPhone` is set, and asking only for a detail the contact
+genuinely lacks.
+
+Two ways a field still appears afterwards, both correct but easily mistaken for
+the rule not working:
+
+  · the contact has no phone and the method is Text, so Aria cannot send;
+  · the pick silently failed. `pickPhoneContact()` returns null for a cancel
+    **and** for a denied permission, and the form is left untouched either way.
+    A denied Contacts permission makes the button look dead. Worth telling the
+    user which happened.
+
+Reminder, Assignment and Project are to be gone through after Event is right.
+
+### 5. "Explain this to me"
 
 Onboarding collects interests and `lib/learner.ts` turns them into prompt text,
 but only `/api/subtasks` consumes it. There is no surface where a student says
@@ -253,7 +321,7 @@ but only `/api/subtasks` consumes it. There is no surface where a student says
 the basketball-explains-projectile-motion idea in the Phase 1 scope. The plumbing
 exists; the screen does not.
 
-### 4. Assignment submission
+### 6. Assignment submission
 
 In scope, not started, and the riskiest thing in it. Needs LMS integration
 (Canvas / Google Classroom). Recommend building it approval-gated first — an
