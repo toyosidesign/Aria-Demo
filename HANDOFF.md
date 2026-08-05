@@ -71,7 +71,7 @@ npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
 npm run check:plan         25 checks
-npm run check:review       16 checks   # the Pro daily review   # backwards planning, rollovers, briefs
+npm run check:review       29 checks   # the tier line, the Pro day, work ahead   # backwards planning, rollovers, briefs
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -508,7 +508,45 @@ only on Pro; asked the other way round that screen would either hide the switch
 or show a control whose availability was undecided. It is also the earliest
 point where the question means anything.
 
-### 8a. The Pro day, built 2026-08-05
+### 8a. What Pro is, rebuilt 2026-08-05
+
+**Free plans your work. Pro does it.** The line is drawn around *work* rather
+than around *sending*, and that is the whole point: sending cannot be delivered
+for most channels, because no mobile OS lets an app send a text or a WhatsApp as
+the user. Work has no such limit, takes real time, and costs real money in model
+tokens, so it is something that can honestly be charged for.
+
+`lib/entitlements.ts` is the single source: capabilities (`workAhead`,
+`planUpkeep`, `dailyReview`, `autonomousEmail`, `assemble`) and the copy for
+both tiers, together, so a pitch cannot drift from what the app gates. Every
+screen that sells Pro now reads from it, including onboarding. Nothing is listed
+there that is not actually enforced.
+
+**Work ahead** (`lib/work-ahead.ts` decides, `lib/work-runner.ts` does it).
+Drafts and breakdowns for anything due within three days that is missing them,
+capped at four per pass because each one is a model call somebody pays for, and
+it never overwrites words that already exist.
+
+**Plan upkeep** (`catchUp` in `lib/plan.ts`). Steps left in the past are spread
+across the days that are actually left, in order, with the submission buffer
+still reserved. Finished steps are never re-dated. Only steps that were
+genuinely late get their rollover counter bumped, because that counter is what
+triggers the Guide offer and the drop question.
+
+**Where the work runs, and what the copy may therefore claim.** On the device,
+when the app becomes active. Pro says the work is done *before you get there*,
+which is true; it does not say *while you sleep*, which would not be. Moving it
+server-side is a queue table and an Edge Function with a sibling already in
+`run-automations`, and nothing in the rules would change: they are pure, and the
+writes go through the same store actions.
+
+**Not built:** `assemble` is declared as a capability and gated, but the
+compiler that produces the document a day before the deadline is still §7's
+open item. Volume limits on Free (a weekly allowance of model actions) are
+deliberately absent rather than faked: the rate limiter is per-account and
+server-side, and a client-side counter would be a limit in name only.
+
+### 8b. The Pro day, built 2026-08-05
 
 **This is what the two tiers actually differ on.** Free is a planner that
 reminds you: every task hands you its own buttons and you press them. Pro is an
@@ -550,7 +588,7 @@ Blocked items (no recipient, nothing written) are shown with the one missing
 thing rather than dropped, because dropping them silently is what turns "I
 approved my day" into an afternoon discovering nothing went.
 
-### 8b. Pro is open, 2026-08-05
+### 8c. Pro is open, 2026-08-05
 
 Aria Pro is available, and choosing it turns it on. `lib/pro.ts` was built
 entirely around a waiting list; it now has `turnOnPro`, and every gate, the
@@ -574,7 +612,7 @@ call as the moment entitlement begins.
 rather than removed: it is in the per-person reset list, and dropping a
 persisted key is a migration rather than a deletion.
 
-### 8c. What Free and Pro actually say
+### 8d. What Free and Pro actually say
 
 A sixth question: *when something's ready to go, who sends it?* Free means Aria
 prepares it and you tap send; Pro means Aria sends on the schedule using the

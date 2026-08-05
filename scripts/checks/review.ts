@@ -22,6 +22,9 @@ import {
   reviewSummary,
   runAtFor,
 } from '@/lib/daily-review';
+import { TIERS, can, tierOf } from '@/lib/entitlements';
+import { WORK_AHEAD_DAYS, WORK_AHEAD_LIMIT, workAhead, workAheadReport } from '@/lib/work-ahead';
+import { catchUp, catchUpReport } from '@/lib/plan';
 import type { Task } from '@/store/aria-store';
 
 let passed = 0;
@@ -233,6 +236,156 @@ test('the notification carries the same sentence as the screen', () => {
   const review = buildReview([task()], TODAY, NOW);
   assert.equal(reviewNotification(review).body, reviewSummary(review));
   assert.match(reviewNotification(review).title, /review/i);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Where the tier line falls');
+
+test('Free plans the work and Pro does it', () => {
+  /*
+   * The line is drawn around work rather than around sending, because sending
+   * is the one thing that cannot be delivered: no mobile OS lets an app send a
+   * text or a WhatsApp as the user. Everything Pro claims here is something the
+   * app actually gates.
+   */
+  for (const capability of ['workAhead', 'planUpkeep', 'dailyReview', 'autonomousEmail', 'assemble'] as const) {
+    assert.equal(can('pro', capability), true, `pro must have ${capability}`);
+    assert.equal(can('free', capability), false, `free must not have ${capability}`);
+  }
+  assert.equal(tierOf(true), 'pro');
+  assert.equal(tierOf(false), 'free');
+});
+
+test('neither tier is sold on something the platform forbids', () => {
+  // The one sentence somebody could otherwise buy Pro believing. It is in the
+  // pitch rather than a footnote.
+  assert.match(TIERS.pro.limit, /tap/i);
+  assert.match(TIERS.pro.limit, /texts|whatsapp/i);
+  assert.ok(
+    !TIERS.pro.points.some((p) => /text|whatsapp/i.test(p) && /send/i.test(p)),
+    'no Pro point may promise sending a text',
+  );
+  // And Free is described as a whole product, not as a list of absences.
+  assert.ok(TIERS.free.points.length >= 3);
+  assert.ok(!/upgrade|unlock/i.test(TIERS.free.points.join(' ')), 'Free is not an advert for Pro');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Work done before you get there');
+
+test('only what is missing, close, and possible', () => {
+  const items = workAhead(
+    [
+      task({ id: 'has-words', date: TODAY, method: 'card', description: 'Already written' }),
+      task({ id: 'no-recipient', date: TODAY, method: 'card', description: undefined, contactName: undefined }),
+      task({ id: 'needs-words', date: TODAY, method: 'card', description: undefined }),
+      task({ id: 'too-far', date: '2026-10-30', method: 'card', description: undefined }),
+      task({ id: 'done', date: TODAY, status: 'done', method: 'card', description: undefined }),
+    ],
+    TODAY,
+  );
+  assert.deepEqual(items.map((i) => i.taskId), ['needs-words']);
+});
+
+test('a draft is never regenerated over one that exists', () => {
+  /*
+   * The rule that keeps this safe to run unattended. Somebody may have edited
+   * those words by hand, and replacing them would be Aria overwriting work
+   * while its owner was not looking.
+   */
+  const items = workAhead([task({ description: 'Mine, edited' })], TODAY);
+  assert.equal(items.length, 0);
+});
+
+test('work with no steps gets broken down, work with steps is left alone', () => {
+  const withoutSteps = workAhead([task({ kind: 'assignment', method: 'steps', subtasks: [] })], TODAY);
+  assert.equal(withoutSteps[0]?.kind, 'breakdown');
+  const withSteps = workAhead(
+    [task({ kind: 'assignment', method: 'steps', subtasks: [{ id: 's', title: 'Read', done: false }] })],
+    TODAY,
+  );
+  assert.equal(withSteps.length, 0);
+});
+
+test('the queue is bounded and takes the soonest first', () => {
+  // Every item is a model call somebody pays for, so a Sunday-night dump of
+  // twenty tasks cannot become twenty calls.
+  const many = Array.from({ length: 10 }, (_, i) =>
+    task({ id: `t${i}`, date: i === 9 ? TODAY : '2026-09-17', method: 'card', description: undefined }),
+  );
+  const items = workAhead(many, TODAY);
+  assert.equal(items.length, WORK_AHEAD_LIMIT);
+  assert.equal(items[0].taskId, 't9', 'the one due today comes first');
+});
+
+test('the horizon is days, not weeks', () => {
+  const edge = workAhead([task({ date: '2026-09-18', method: 'card', description: undefined })], TODAY);
+  assert.equal(edge.length, 1, `${WORK_AHEAD_DAYS} days out is still worth preparing`);
+  const beyond = workAhead([task({ date: '2026-09-19', method: 'card', description: undefined })], TODAY);
+  assert.equal(beyond.length, 0, 'past the horizon it would be rewritten before it was read');
+});
+
+test('a pass that did nothing says nothing', () => {
+  assert.equal(workAheadReport([]), null);
+  assert.match(
+    workAheadReport([{ taskId: 'a', title: 'x', kind: 'draft', date: TODAY }]) ?? '',
+    /1 message written/,
+  );
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A plan that keeps itself true');
+
+const STEP = (id: string, due: string, done = false) => ({ id, title: `Step ${id}`, done, due });
+
+test('steps left in the past are spread across the days that are left', () => {
+  const result = catchUp(
+    [STEP('a', '2026-09-10'), STEP('b', '2026-09-12'), STEP('c', '2026-09-20')],
+    TODAY,
+    '2026-09-30',
+  );
+  assert.equal(result.moved, 2, 'both overdue steps counted');
+  for (const s of result.steps) {
+    assert.ok(s.due! >= TODAY, `${s.title} must not stay in the past`);
+    assert.ok(s.due! <= '2026-09-30', `${s.title} must land before the deadline`);
+  }
+});
+
+test('finished steps are never re-dated', () => {
+  // They happened. Their date is a record, not an intention.
+  const result = catchUp([STEP('a', '2026-09-01', true), STEP('b', '2026-09-02')], TODAY, '2026-09-30');
+  assert.equal(result.steps[0].due, '2026-09-01');
+});
+
+test('only the steps that were actually late count as rolled over', () => {
+  /*
+   * The counter feeds the Guide offer at two and the drop question at three. A
+   * step nudged along because an earlier one moved has not been avoided, and
+   * counting it would have the app asking somebody to justify a step they were
+   * never given the chance to do.
+   */
+  const result = catchUp([STEP('a', '2026-09-10'), STEP('b', '2026-09-25')], TODAY, '2026-09-30');
+  const [late, notLate] = result.steps;
+  assert.equal(late.rollovers, 1);
+  assert.equal(notLate.rollovers, undefined);
+});
+
+test('a plan already on track is left exactly as it is', () => {
+  const steps = [STEP('a', '2026-09-20'), STEP('b', '2026-09-25')];
+  const result = catchUp(steps, TODAY, '2026-09-30');
+  assert.equal(result.moved, 0);
+  assert.deepEqual(result.steps, steps, 'no dates may shift for the sake of it');
+});
+
+test('when it no longer fits, it says so rather than pretending', () => {
+  const result = catchUp(
+    [STEP('a', '2026-09-01'), STEP('b', '2026-09-02'), STEP('c', '2026-09-03'), STEP('d', '2026-09-04')],
+    TODAY,
+    '2026-09-16',
+  );
+  assert.equal(result.tight, true);
+  assert.match(catchUpReport(result, 'Essay'), /no longer fits/i);
+  assert.match(catchUpReport({ steps: [], moved: 0, tight: false }, 'Essay'), /on track/i);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

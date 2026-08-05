@@ -35,6 +35,7 @@ import { ensureAlarmPermission } from '@/lib/alarms';
 import { useColors, useTheme } from '@/lib/colors';
 import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
+import { TIERS, TIER_QUESTION } from '@/lib/entitlements';
 import { useAriaStore, type WorkRole } from '@/store/aria-store';
 
 /**
@@ -164,30 +165,20 @@ const ESSENTIALS = [
 ] as const;
 
 /**
- * How a send actually happens, which is the one thing Free and Pro differ on.
+ * How much of the work Aria should do, which is the whole difference.
  *
- * Asked during onboarding rather than discovered at the moment something needs
- * to go out. The difference is not a feature list, it is who presses send , 
- * and someone who thinks Aria will handle it and then finds an unsent draft on
- * the morning of a deadline has been misled by the setup, not by the tier.
+ * Asked during onboarding rather than discovered later, and read from
+ * `lib/entitlements.ts` rather than written again here: a pitch kept apart from
+ * the capabilities drifts from them, which is how this screen came to promise
+ * scheduled *messages* when only email can ever be scheduled.
  *
- * Free is first and is a complete answer, not a crippled one: Aria does the
- * work and the last tap is yours. That ordering is deliberate. A paywall placed
- * before anyone has seen the app work is asking for money on trust.
+ * Free is first and is a complete answer, not a crippled one. That ordering is
+ * deliberate: a paywall placed before anyone has seen the app work is asking
+ * for money on trust.
  */
 const PLANS = [
-  {
-    value: 'free' as const,
-    label: 'Free',
-    line: 'I write it, attach the document, and you tap send.',
-    note: 'Nothing leaves without you.',
-  },
-  {
-    value: 'pro' as const,
-    label: 'Pro',
-    line: 'I send it for you, on the schedule we agreed, and tell you when it has gone.',
-    note: 'You approve once, at the review. Ten minutes to stop it.',
-  },
+  { value: 'free' as const, ...TIERS.free },
+  { value: 'pro' as const, ...TIERS.pro },
 ];
 
 /**
@@ -586,8 +577,8 @@ export default function WelcomeScreen() {
 
         {step === 3 ? (
           <Step
-            title="When something's ready to go, who sends it?"
-            blurb="Either way I do the work. This is only about the last step.">
+            title={TIER_QUESTION}
+            blurb="Both plan your week. One of them also does the work.">
             <View className="gap-2">
               {PLANS.map((p) => {
                 const on = plan === p.value;
@@ -620,9 +611,18 @@ export default function WelcomeScreen() {
                     <Text variant="small" tone="muted">
                       {p.line}
                     </Text>
-                    <Text variant="caption" tone="faint">
-                      {p.note}
-                    </Text>
+                    {/* The two or three that decide it, then the limit. Showing
+                        every point turns a decision into a spec sheet. */}
+                    {p.points.slice(0, on ? p.points.length : 2).map((point) => (
+                      <Text key={point} variant="caption" tone="faint" className="leading-5">
+                        · {point}
+                      </Text>
+                    ))}
+                    {on ? (
+                      <Text variant="caption" tone="muted" className="pt-1 leading-5">
+                        {p.limit}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -637,8 +637,8 @@ export default function WelcomeScreen() {
                * wrong thing here.
                */
               <Text variant="caption" tone="accent">
-                Pro goes on when you finish here. I&apos;ll still ask before anything leaves until
-                you say otherwise on the next screen.
+                Pro goes on when you finish here, and I&apos;ll ask you to review each morning
+                before I act on anything.
               </Text>
             ) : null}
           </Step>

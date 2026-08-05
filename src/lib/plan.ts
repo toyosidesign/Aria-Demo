@@ -188,6 +188,85 @@ export function liveSteps(steps: PlanStep[]): PlanStep[] {
   return steps.filter((s) => !s.struck && !s.buffer);
 }
 
+// ── Catching up ──────────────────────────────────────────────────────────────
+
+/** A step of a saved plan, as the task actually holds it. */
+export interface DatedStep {
+  id: string;
+  title: string;
+  done: boolean;
+  due?: string;
+  rollovers?: number;
+}
+
+export interface CatchUp {
+  steps: DatedStep[];
+  /** How many were behind and have been moved. */
+  moved: number;
+  /** True when the remaining work no longer fits before the deadline. */
+  tight: boolean;
+}
+
+/**
+ * Re-date a plan that has fallen behind.
+ *
+ * The second half of Pro, and the one people feel every week. A plan is correct
+ * on the day it is made and wrong by Thursday, because life happened on
+ * Tuesday: three steps sit in the past, the deadline has not moved, and the
+ * dates on screen are now fiction. Left alone it stops being a plan and becomes
+ * a list of reproaches.
+ *
+ * So the steps still to do are spread across the days that are actually left,
+ * in the same order, with the submission buffer reserved exactly as it was when
+ * the plan was built. Finished steps are never touched: they happened, and
+ * their dates are a record rather than an intention.
+ *
+ * Every step that moves has its rollover counter incremented, which is what
+ * feeds the Guide offer after two and the "is this still part of it?" question
+ * after three. A plan that quietly re-dated itself forever would hide exactly
+ * the signal those rules exist to catch.
+ */
+export function catchUp(steps: DatedStep[], today: string, deadline: string): CatchUp {
+  const remaining = steps.filter((s) => !s.done);
+  const behind = remaining.filter((s) => s.due && s.due < today);
+  if (!behind.length) return { steps, moved: 0, tight: false };
+
+  const plan = planBackwards({
+    deadline,
+    today,
+    steps: remaining.map((s) => ({ title: s.title })),
+  });
+  // The buffer is reserved time, not a step, so it never lands on one.
+  const dates = plan.steps.filter((s) => !s.buffer).map((s) => s.due);
+
+  let i = 0;
+  const next = steps.map((step) => {
+    if (step.done) return step;
+    const due = dates[i] ?? deadline;
+    i += 1;
+    if (step.due === due) return step;
+    return {
+      ...step,
+      due,
+      // Only the ones that were actually late count as rolled over. A step
+      // shifted a day because an earlier one moved has not been avoided.
+      rollovers: step.due && step.due < today ? (step.rollovers ?? 0) + 1 : step.rollovers,
+    };
+  });
+
+  return { steps: next, moved: behind.length, tight: plan.tight || plan.late };
+}
+
+/** What Aria says after re-dating a plan. Counts, and the honest bad news. */
+export function catchUpReport(result: CatchUp, title: string): string {
+  if (!result.moved) return `"${title}" is on track.`;
+  const n = result.moved;
+  const moved = `${n} ${n === 1 ? 'step' : 'steps'} moved`;
+  return result.tight
+    ? `${moved} on "${title}", and it no longer fits before the deadline. Worth cutting something.`
+    : `${moved} on "${title}" so it still lands before the deadline.`;
+}
+
 // ── Rollovers ────────────────────────────────────────────────────────────────
 
 /**

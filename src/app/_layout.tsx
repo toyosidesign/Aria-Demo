@@ -23,6 +23,8 @@ import { ToastHost } from '@/components/toast-host';
 import { setupNotificationHandler } from '@/lib/alarms';
 import { addAutomationTapListener } from '@/lib/automation-notices';
 import { addDailyReviewTapListener } from '@/lib/daily-brief';
+import { runWorkAhead, workPassReport } from '@/lib/work-runner';
+import { showToast } from '@/lib/toast';
 import { THEMES, resolveTheme, themeVars, type Palette } from '@/lib/colors';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { flushOutbox, setSyncUser } from '@/lib/sync';
@@ -160,6 +162,38 @@ export default function RootLayout() {
     });
     return () => sub.remove();
   }, []);
+
+  /*
+   * The Pro work pass: prepare what is due soon, re-date what has slipped.
+   *
+   * On foreground rather than on a timer, and once the store has hydrated so it
+   * is working from the real task list rather than an empty one. `runWorkAhead`
+   * is a no-op for Free and refuses to overlap with itself, so this can fire as
+   * often as the OS decides to wake the app.
+   *
+   * What it did is said out loud. Work that appears with no explanation reads
+   * as the app having changed something behind your back, which is the opposite
+   * of what Pro is supposed to feel like.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+    const pass = () => {
+      void runWorkAhead().then((result) => {
+        if (cancelled) return;
+        const line = workPassReport(result);
+        if (line) showToast(line, 'check');
+      });
+    };
+    pass();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') pass();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, [hydrated]);
 
   // Apply the user's theme preference (System / Light / Dark).
   /**

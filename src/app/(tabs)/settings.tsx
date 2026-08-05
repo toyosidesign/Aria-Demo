@@ -139,14 +139,14 @@ export default function SettingsScreen() {
             to be changed when availability changes. */}
         <SettingsGroup
           title="Automation"
-          footnote="Schedule a message and Aria sends it at the time you pick, then reports back. It's part of Aria Pro.">
+          footnote="Aria Pro: drafts and breakdowns ready before you open the task, plans that re-date themselves when you fall behind, and emails sent at the time you picked. Texts still need your tap.">
           <SettingsRow
             first
             label="Let Aria send things for you"
             description={
               pro
-                ? 'Active, including every app connection.'
-                : 'Part of Aria Pro. Tap to turn it on.'
+                ? 'On. I work ahead and send what I am allowed to send.'
+                : 'Aria Pro does the work before you get there. Tap to turn it on.'
             }
             onPress={pro ? undefined : () => promptProUpgrade(PRO_PITCH)}
             showChevron={!pro}

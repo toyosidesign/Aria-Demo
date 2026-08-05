@@ -1,15 +1,23 @@
 import { Alert, Platform } from 'react-native';
 
+import { TIERS } from '@/lib/entitlements';
 import { showToast } from '@/lib/toast';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
- * Aria Pro, open, and the tier where Aria acts on its own.
+ * Aria Pro, open, and the tier where Aria does the work rather than waiting to
+ * be asked for it.
  *
- * Free covers everything you do yourself: Aria drafts it, addresses it, has it
- * ready, and you press send. Pro is where it goes out without you at the moment
- * you agreed, which is the part that costs money to run, because it happens on
- * a server with nobody watching.
+ * Free plans your work: it captures what you say, reads the brief, breaks the
+ * job down when you ask and reminds you at the right moment. Pro does the work
+ * itself, drafts and breakdowns ready before you open the task, plans that
+ * re-date themselves when you fall behind, a day you approve in one go, and
+ * emails sent at the moment you agreed.
+ *
+ * The line falls around *work* rather than around *sending*, and `lib/entitlements.ts`
+ * explains why at length: sending is the one thing that cannot be delivered for
+ * most channels, because no mobile OS lets an app send a text or a WhatsApp as
+ * the user.
  *
  * ── What turning it on actually does ────────────────────────────────────────
  *
@@ -28,17 +36,19 @@ import { useAriaStore } from '@/store/aria-store';
  * that one call as the moment entitlement begins.
  */
 
-export const PRO_FEATURES = [
-  'Schedule Aria to send messages for you',
-  'Emails that go out on their own, with a report back',
-  'Every app connection: Teams, Outlook, Slack, Maps and the rest',
-];
+/*
+ * One source for the pitch, and it is the tier model itself.
+ *
+ * These were three hand-written lines that opened with "Schedule Aria to send
+ * messages for you", which is true of email and impossible for a text or a
+ * WhatsApp. Copy kept apart from the capabilities drifts from them, and this
+ * kind of drift is discovered by the person whose message never arrived.
+ */
+export const PRO_FEATURES = TIERS.pro.points;
 
-export const PRO_PITCH =
-  'Scheduling work for Aria to handle at a set time is part of Aria Pro, along with every app connection.';
+export const PRO_PITCH = `${TIERS.pro.line} ${TIERS.pro.points[0]}, plans that keep themselves true, and a day you approve once in the morning.`;
 
-export const PRO_CONFIRMATION =
-  'Aria Pro is on. Schedule something and Aria will send it at the time you pick, then tell you it has gone. It still asks before anything leaves unless you turn that off in Settings.';
+export const PRO_CONFIRMATION = `Aria Pro is on. ${TIERS.pro.points[0]}, and I will ask you to review the day each morning before I act on any of it. ${TIERS.pro.limit}`;
 
 /**
  * Turn Pro on, and say what changed.

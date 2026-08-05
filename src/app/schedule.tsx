@@ -143,8 +143,8 @@ export default function ScheduleScreen() {
               </View>
             </View>
             <Text className="leading-6">
-              Right now you tell me what to write and you send it. With Pro I take it from there,
-              at a time you pick.
+              Right now you tell me what to write, and you send it. With Pro I do the work before
+              you get there and take the sending I am allowed to take.
             </Text>
           </View>
 
