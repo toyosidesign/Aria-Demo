@@ -16,18 +16,36 @@ import path from 'node:path';
 import {
   ackFor,
   applyTypedAnswer,
+  contactSatisfied,
   flowDocument,
   isTypedStep,
+  closeGuide,
   flowMethod,
+  flowSteps,
   flowTitle,
+  guideAvailableAt,
+  isEventKind,
   isPersonKind,
+  isWorkKind,
+  openGuide,
+  pinnedStep,
+  reflectConfidence,
+  titleFromText,
+  workDeadline,
+  needsContact,
   nextStep,
   promptFor,
+  reopen,
   startFlow,
   toTaskInput,
+  EVENT_HANDLING,
+  METHOD_NEEDS,
+  WORK_ACCEPTS_AT,
+  type EventMethod,
   type FlowDraft,
   type FlowStep,
 } from '@/lib/task-flow';
+import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
 import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
 import type { TaskKind } from '@/store/aria-store';
@@ -67,64 +85,59 @@ function walk(kind: TaskKind, answers: Partial<FlowDraft> = {}): FlowStep[] {
 // ───────────────────────────────────────────────────────────────────────────────
 section('The order Aria asks in');
 
-test('a birthday asks who first, then whether we have their contact', () => {
+test('a birthday asks who first, and everything else hangs off the answer', () => {
   const seen = walk('birthday');
   assert.equal(seen[0], 'who', 'a birthday with no name is just a date');
-  assert.equal(seen[1], 'contact');
-  assert.equal(seen[2], 'date');
+  assert.equal(seen[1], 'date');
 });
 
 test('an assignment never asks whose birthday it is', () => {
   const seen = walk('assignment');
   assert.ok(!seen.includes('who'), 'a person-shaped question on a piece of work reads as a bug');
   assert.ok(!seen.includes('contact'));
-  assert.ok(!seen.includes('card'), 'and there is no card for an essay');
-  // It opens by asking what the work is, then when it's due.
-  assert.equal(seen[0], 'what');
-  assert.ok(seen.indexOf('what') < seen.indexOf('date'));
+  assert.ok(!seen.includes('method'), 'and there is nothing to send for an essay');
+  // It opens on the brief, because the brief already says most of this.
+  assert.equal(seen[0], 'brief');
+  assert.ok(seen.indexOf('brief') < seen.indexOf('planPreview'));
 });
 
-test('every kind opens by asking what it is, one way or the other', () => {
+test('every kind opens by establishing what it is, one way or the other', () => {
   /*
-   * Non-person kinds used to fall out of the flow entirely: one prompt, then a
-   * text box and the sentence parser. Now each is walked, and each starts by
-   * establishing the subject — a title for work, a person for an occasion.
+   * Three openings, one job: know what this is before asking anything about it.
+   * A title for a task, a person for an occasion, and the brief for work —
+   * which is the one case where the answer already exists as a document, so
+   * asking for a title first would be asking someone to summarise a file they
+   * are about to hand over.
    */
-  const kinds: TaskKind[] = ['general', 'reminder', 'event', 'assignment', 'project'];
-  for (const kind of kinds) {
+  for (const kind of ['general', 'reminder', 'event'] as TaskKind[]) {
     const seen = walk(kind);
     assert.equal(seen[0], 'what', `${kind} must ask what it is first`);
     assert.ok(seen.includes('date'), `${kind} still needs a date`);
     assert.ok(seen.includes('priority'), `${kind} still gets a priority`);
+  }
+  for (const kind of ['assignment', 'project'] as TaskKind[]) {
+    assert.equal(walk(kind)[0], 'brief', `${kind} starts from the brief`);
+    assert.equal(isWorkKind(kind), true);
   }
   for (const kind of ['birthday', 'anniversary'] as TaskKind[]) {
     assert.equal(walk(kind)[0], 'who', `${kind} asks who instead`);
   }
 });
 
-test('only work is offered an explanation, and only before scheduling', () => {
+test('being stuck is answered by the Guide, from every place it is offered', () => {
   /*
-   * The learner profile onboarding collects (explainStyle, interests) was read
-   * by exactly one route until now. This is the surface that uses it.
-   *
-   * Offered before the date questions on purpose: a student stuck on an
-   * assignment is usually stuck on the topic, not the deadline.
+   * This replaced a standalone "shall I explain the topic first?" step, which
+   * asked before the work had been described and rendered no control at all in
+   * the panel. The Guide asks after there is something to be stuck *on*, and
+   * appears in the same four places wearing the same word — that consistency is
+   * the feature, so it is listed here rather than left to each screen.
    */
-  const essay = walk('assignment');
-  assert.ok(essay.includes('explain'), 'an assignment must be offered one');
-  assert.ok(essay.indexOf('explain') < essay.indexOf('date'), 'before scheduling, not after');
-  assert.ok(walk('project').includes('explain'));
-  // An occasion has no topic to teach.
-  for (const kind of ['birthday', 'reminder', 'event', 'general'] as TaskKind[]) {
-    assert.ok(!walk(kind).includes('explain'), `${kind} has nothing to explain`);
+  for (const step of ['planPreview', 'definition', 'milestones', 'scope'] as FlowStep[]) {
+    assert.equal(guideAvailableAt(step), true, `${step} must offer the Guide`);
   }
-});
-
-test('declining an explanation does not ask twice', () => {
-  let d: FlowDraft = { ...startFlow('assignment'), answered: { what: true } };
-  assert.equal(nextStep(d), 'explain');
-  d = { ...d, answered: { ...d.answered, explain: true } };
-  assert.notEqual(nextStep(d), 'explain');
+  for (const step of ['date', 'time', 'preview', 'extraction'] as FlowStep[]) {
+    assert.equal(guideAvailableAt(step), false, `${step} is not somewhere people are stuck`);
+  }
 });
 
 test('an assignment saves as steps, so the breakdown is actually offered', () => {
@@ -158,34 +171,37 @@ test('a title is never left as the literal word undefined', () => {
   assert.equal(flowTitle({ ...startFlow('assignment'), title: 'Essay on Hobbes' }), 'Essay on Hobbes');
 });
 
-test('every kind reaches the preview and stops', () => {
-  const kinds: TaskKind[] = [
-    'birthday',
-    'anniversary',
-    'event',
-    'reminder',
-    'assignment',
-    'project',
-    'general',
-  ];
-  for (const kind of kinds) {
+test('every kind is read back before it is saved, and every kind terminates', () => {
+  /*
+   * Two surfaces, one rule: nothing is saved that was not shown first. An
+   * occasion gets the preview card; work gets the plan preview, which is the
+   * same promise made by a screen that has more to show — a preview *of* the
+   * preview would be a tap that teaches nothing.
+   */
+  for (const kind of ['birthday', 'anniversary', 'event', 'reminder', 'general'] as TaskKind[]) {
     const seen = walk(kind);
     assert.ok(seen.includes('preview'), `${kind} must be previewed before saving`);
     assert.equal(seen[seen.length - 1], 'done', `${kind} must terminate`);
+  }
+  for (const kind of ['assignment', 'project'] as TaskKind[]) {
+    const seen = walk(kind, { title: 'Work', facts: { deadline: { value: '2026-09-01', confidence: 'high' } } });
+    assert.ok(seen.includes(WORK_ACCEPTS_AT), `${kind} must show the plan before saving`);
+    assert.equal(seen[seen.length - 1], 'done', `${kind} must terminate`);
+    assert.ok(!seen.includes('preview'), 'the plan preview is the preview');
   }
 });
 
 test('the card message is only asked for once a card is wanted', () => {
   // Said no: never asked what it should say.
-  const withoutCard = walk('birthday', { delivery: 'remind' });
+  const withoutCard = walk('birthday', { handling: 'remind' });
   assert.ok(!withoutCard.includes('cardMessage'));
   // Said yes: asked.
-  const withCard = walk('birthday', { delivery: 'card' });
+  const withCard = walk('birthday', { handling: 'card' });
   assert.ok(withCard.includes('cardMessage'));
 });
 
 test('choosing a card leads to picking which card', () => {
-  const seen = walk('birthday', { delivery: 'card' });
+  const seen = walk('birthday', { handling: 'card' });
   assert.ok(seen.includes('cardStyle'), 'a card must be chosen, not assigned');
   assert.ok(
     seen.indexOf('cardStyle') < seen.indexOf('cardMessage'),
@@ -193,15 +209,15 @@ test('choosing a card leads to picking which card', () => {
   );
 });
 
-test('a plain message still asks for words, but never for a card design', () => {
+test('a text still asks for words, but never for a card design', () => {
   /*
-   * The bug the three-way choice exists to fix. It used to be a yes/no about a
+   * The bug the handling question exists to fix. It used to be a yes/no about a
    * card, so "no" was read as "nothing to send" and someone who wanted to text
    * happy birthday reached the preview with no message at all.
    */
-  const seen = walk('birthday', { delivery: 'message' });
-  assert.ok(seen.includes('cardMessage'), 'a message needs writing');
-  assert.ok(!seen.includes('cardStyle'), 'a message has no card design');
+  const seen = walk('birthday', { handling: 'sms' });
+  assert.ok(seen.includes('cardMessage'), 'a text needs writing');
+  assert.ok(!seen.includes('cardStyle'), 'a text has no card design');
 });
 
 test('priority is asked, not assumed', () => {
@@ -224,29 +240,620 @@ test('priority is asked, not assumed', () => {
 });
 
 test('a bare reminder asks for neither', () => {
-  const seen = walk('birthday', { delivery: 'remind' });
+  const seen = walk('birthday', { handling: 'remind' });
   assert.ok(!seen.includes('cardStyle'));
   assert.ok(!seen.includes('cardMessage'));
+  assert.ok(!seen.includes('contact'), 'and there is nobody to collect');
 });
 
-test('the method follows the channel we actually have', () => {
-  const base = { ...startFlow('birthday'), who: 'Sam', delivery: 'message' as const };
-  assert.equal(flowMethod({ ...base, contactPhone: '+15551234' }), 'sms');
-  assert.equal(flowMethod({ ...base, contactEmail: 'sam@example.com' }), 'email');
-  // Nothing to send to: promising a text we cannot address would be a lie.
-  assert.equal(flowMethod(base), 'remind');
+test('the method is what was chosen, unless it cannot be addressed', () => {
+  /*
+   * Taken at its word now: the flow asked "How should Aria handle it?" and got
+   * an answer, where it used to ask for "a message" and guess the channel from
+   * whichever detail the contact happened to carry.
+   *
+   * The exception is the old rule kept: promising a text we have no number for
+   * would be a lie, and the offer card on Today would carry that promise all
+   * the way to the student.
+   */
+  const sam = { ...startFlow('birthday'), who: 'Sam' };
+  assert.equal(flowMethod({ ...sam, handling: 'sms', contactPhone: '+15551234' }), 'sms');
+  assert.equal(flowMethod({ ...sam, handling: 'email', contactEmail: 'sam@example.com' }), 'email');
+  assert.equal(flowMethod({ ...sam, handling: 'call', contactPhone: '+15551234' }), 'call');
+  // An email address is no use to a text message.
+  assert.equal(flowMethod({ ...sam, handling: 'sms', contactEmail: 'sam@example.com' }), 'remind');
+  assert.equal(flowMethod({ ...sam, handling: 'email', contactPhone: '+15551234' }), 'remind');
+  assert.equal(flowMethod({ ...sam, handling: 'call' }), 'remind');
+  // A card and a picture need the person, not a channel to reach them on.
+  assert.equal(flowMethod({ ...sam, handling: 'card' }), 'card');
+  assert.equal(flowMethod({ ...sam, handling: 'photo' }), 'photo');
 });
 
-test('a card template is only carried when a card was chosen', () => {
-  const withCard = toTaskInput({
-    ...startFlow('birthday'), date: '2026-08-10', delivery: 'card', cardTemplateId: 'birthday-cake',
-  });
+test('a card template and a picture only travel with the method that uses them', () => {
+  const base = { ...startFlow('birthday'), who: 'Sam', date: '2026-08-10' };
+  const withCard = toTaskInput({ ...base, handling: 'card', cardTemplateId: 'birthday-cake' });
   assert.equal(withCard.cardTemplateId, 'birthday-cake');
-  // Picked a card, changed their mind: the stale id must not travel.
+  const withPhoto = toTaskInput({ ...base, handling: 'photo', photoUri: 'file://pic.jpg' });
+  assert.equal(withPhoto.photoUri, 'file://pic.jpg');
+  // Picked a card, changed their mind to a text: the stale id must not travel,
+  // or Today draws a card for a task that is not one.
   const changed = toTaskInput({
-    ...startFlow('birthday'), date: '2026-08-10', delivery: 'message', cardTemplateId: 'birthday-cake',
+    ...base, handling: 'sms', contactPhone: '+15551234', cardTemplateId: 'birthday-cake',
+    photoUri: 'file://pic.jpg',
   });
   assert.equal(changed.cardTemplateId, undefined);
+  assert.equal(changed.photoUri, undefined);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The Assignment flow');
+
+test('it opens on the brief, because the brief already exists', () => {
+  /*
+   * Everything on the extraction card was read out of a document the student
+   * already has. Opening on anything else — a title box, a date — is asking
+   * them to transcribe what Aria is about to read anyway.
+   */
+  const seen = walk('assignment', { title: 'History essay' });
+  assert.equal(seen[0], 'brief');
+  assert.ok(seen.indexOf('brief') < seen.indexOf('extraction'));
+  assert.ok(seen.indexOf('extraction') < seen.indexOf('commitments'), 'read it, then plan around it');
+  assert.ok(seen.indexOf('commitments') < seen.indexOf('planPreview'));
+  assert.equal(seen[seen.length - 1], 'done');
+});
+
+test('a brief that named the work is not asked to name it again', () => {
+  // Upload, extraction fills the title: `what` never appears.
+  assert.ok(!walk('assignment', { title: 'Cold War essay' }).includes('what'));
+  // Nothing extracted a title, so it has to be asked for.
+  assert.ok(walk('assignment').includes('what'));
+});
+
+test('the deadline is only asked for when the brief did not give one', () => {
+  /*
+   * The single question an assignment gets asked about dates, and only when
+   * there is nothing to plan backwards from. Asking anyway would be asking the
+   * student to repeat what they just uploaded.
+   */
+  const withDeadline = walk('assignment', {
+    title: 'Essay',
+    facts: { deadline: { value: '2026-09-01', confidence: 'high' } },
+  });
+  assert.ok(!withDeadline.includes('date'), 'the brief said when it is due');
+  assert.ok(walk('assignment', { title: 'Essay' }).includes('date'), 'it did not, so ask');
+  // A relative deadline is worth showing and useless to plan from, so it does
+  // not count as one: "end of week 9" cannot be counted backwards from.
+  const vague = walk('assignment', {
+    title: 'Essay',
+    facts: { deadline: { value: 'end of week 9', confidence: 'low' } },
+  });
+  assert.ok(vague.includes('date'), 'a date Aria cannot resolve is still a gap');
+});
+
+test('an assignment is never asked how much it matters', () => {
+  /*
+   * The brief already said, in the one number the student cares about. 40% is
+   * high, 5% is not, and asking would be asking them to repeat themselves.
+   */
+  assert.ok(!walk('assignment', { title: 'Essay' }).includes('priority'));
+  const heavy = toTaskInput({
+    ...startFlow('assignment'),
+    title: 'Essay',
+    date: '2026-09-01',
+    facts: { weighting: { value: '40% of the module', confidence: 'high' } },
+  });
+  assert.equal(heavy.priority, 'high');
+  const light = toTaskInput({
+    ...startFlow('assignment'),
+    title: 'Problem sheet',
+    date: '2026-09-01',
+    facts: { weighting: { value: '5%', confidence: 'high' } },
+  });
+  assert.equal(light.priority, 'low');
+  // Nothing said: the neutral answer, not a guess.
+  assert.equal(
+    toTaskInput({ ...startFlow('assignment'), title: 'Essay', date: '2026-09-01' }).priority,
+    'medium',
+  );
+});
+
+test('the deadline from the brief is what the task is saved on', () => {
+  const fromBrief = toTaskInput({
+    ...startFlow('assignment'),
+    title: 'Essay',
+    facts: { deadline: { value: '2026-09-01', confidence: 'high' } },
+  });
+  assert.equal(fromBrief.date, '2026-09-01', 'read, not asked for');
+  assert.equal(fromBrief.method, 'steps', 'so the task screen offers the breakdown');
+  /*
+   * A date they typed wins over the brief.
+   *
+   * The two only coexist when the student answered the deadline question and
+   * then uploaded something, or corrected the extraction afterwards — and in
+   * both cases the answer they gave by hand is the more deliberate one.
+   */
+  const typed = toTaskInput({
+    ...startFlow('assignment'),
+    title: 'Essay',
+    date: '2026-08-20',
+    facts: { deadline: { value: '2026-09-01', confidence: 'low' } },
+  });
+  assert.equal(typed.date, '2026-08-20');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The Project flow, and its gate');
+
+test('nothing is scoped or scheduled before done is defined', () => {
+  const seen = walk('project', { title: 'Design system' });
+  assert.equal(seen[0], 'brief');
+  assert.ok(seen.indexOf('definition') < seen.indexOf('scope'), 'the gate comes before scope');
+  assert.ok(seen.indexOf('definition') < seen.indexOf('milestones'));
+  assert.ok(seen.indexOf('definition') < seen.indexOf('planPreview'));
+  assert.ok(seen.indexOf('reflect') > seen.indexOf('definition'), 'read it back after it is stated');
+  assert.ok(seen.indexOf('scope') < seen.indexOf('milestones'));
+});
+
+test('"I can\'t say yet" is an answer, and becomes the first job', () => {
+  /*
+   * The gate is not a required field. Being unable to say what done looks like
+   * is the most honest thing a project can start with — and working it out is
+   * the actual first piece of work, so that is what it becomes.
+   */
+  const deferred: FlowDraft = {
+    ...startFlow('project'),
+    title: 'Design system',
+    definitionDeferred: true,
+    milestones: [{ title: 'Audit the components', due: '2026-09-10' }],
+    answered: {},
+  };
+  assert.equal(flowSteps(deferred)[0].title, 'Work out what done looks like');
+  assert.equal(pinnedStep(deferred), 'Work out what done looks like');
+  // Stated instead: the milestones stand on their own.
+  const stated: FlowDraft = { ...deferred, definitionDeferred: false, definition: 'Three pages live' };
+  assert.equal(pinnedStep(stated), 'Audit the components');
+});
+
+test('a milestone carries what forces it all the way to the task', () => {
+  /*
+   * A milestone with nothing forcing it is the one that moves. The date is
+   * useless for saying so afterwards; the forcing function is the thing worth
+   * naming in a nudge, so it travels with the step rather than staying in the
+   * setup screen.
+   */
+  const steps = flowSteps({
+    ...startFlow('project'),
+    title: 'Design system',
+    milestones: [
+      { title: 'Share the draft', due: '2026-09-10', forcing: 'Sam is expecting it' },
+      { title: 'Tidy the tokens', due: '2026-09-14' },
+    ],
+    answered: {},
+  });
+  assert.equal(steps[0].forcing, 'Sam is expecting it');
+  assert.equal(steps[1].forcing, undefined, 'a null stays a null rather than being invented');
+  assert.equal(steps[0].due, '2026-09-10');
+});
+
+test('the project deadline is its last milestone', () => {
+  const d: FlowDraft = {
+    ...startFlow('project'),
+    title: 'Design system',
+    milestones: [
+      { title: 'Audit', due: '2026-09-10' },
+      { title: 'Ship', due: '2026-09-30' },
+      { title: 'Draft', due: '2026-09-20' },
+    ],
+    answered: {},
+  };
+  assert.equal(workDeadline(d), '2026-09-30');
+  assert.equal(toTaskInput(d).date, '2026-09-30');
+  // No milestone carries a date, so the flow has to ask for one.
+  assert.ok(walk('project', { title: 'Design system' }).includes('date'));
+});
+
+test('a project described in a sentence is not then asked for a title', () => {
+  assert.equal(
+    titleFromText('Build the marketing site. Three pages, live by term time.'),
+    'Build the marketing site.',
+  );
+  // Long single sentences are cut rather than becoming a title nobody can read.
+  const long = titleFromText('a'.repeat(200));
+  assert.ok(long.length <= 61, 'cut to something a row can show');
+});
+
+test('the reflect-back says how sure it is, from what it actually had', () => {
+  /*
+   * Computed here rather than claimed by the model about itself. A reading
+   * built from one line and a title is a guess, and the chip has to say so or
+   * the card gets agreed with instead of corrected.
+   */
+  const thin: FlowDraft = { ...startFlow('project'), title: 'Thing', answered: {} };
+  assert.equal(reflectConfidence(thin), 'low');
+  const rich: FlowDraft = {
+    ...startFlow('project'),
+    title: 'Design system for the marketing site',
+    definition: 'Done when the three pages are live and someone outside the team can use them.',
+    scopeIn: ['Type scale', 'Colour'],
+    scopeOut: ['Motion'],
+    answered: {},
+  };
+  assert.equal(reflectConfidence(rich), 'high');
+});
+
+test('the out-list survives the conversation', () => {
+  // The list people come back to, three weeks later. Useless if it only ever
+  // existed on a setup screen.
+  const doc = flowDocument({
+    ...startFlow('project'),
+    title: 'Design system',
+    definition: 'Three pages live',
+    scopeIn: ['Type scale'],
+    scopeOut: ['Motion', 'Dark mode'],
+    answered: {},
+  });
+  assert.match(doc, /Deliberately not doing/);
+  assert.match(doc, /- Motion/);
+  assert.match(doc, /Done means/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The Guide');
+
+test('it is a detour, and it comes back where it started', () => {
+  /*
+   * Four doors, one room. Modelling it as a step in the sequence would need
+   * four sequences; modelling it as a flag with a return address needs one, and
+   * this is what proves the address is honoured.
+   */
+  const planning: FlowDraft = {
+    ...startFlow('assignment'),
+    title: 'Essay',
+    facts: { deadline: { value: '2026-09-01', confidence: 'high' } },
+    answered: { brief: true, extraction: true, commitments: true },
+  };
+  assert.equal(nextStep(planning), 'planPreview');
+  const opened = openGuide(planning, 'planPreview');
+  assert.equal(nextStep(opened), 'guideAsk', 'the narrowing question comes first');
+  const answered: FlowDraft = {
+    ...opened,
+    guide: { ...opened.guide!, focus: 'angle', directions: [{ title: 'A', needs: 'b', costs: 'c' }] },
+  };
+  assert.equal(nextStep(answered), 'guideDirections');
+  assert.equal(nextStep(closeGuide(answered)), 'planPreview', 'back where it was opened from');
+});
+
+test('the narrowing question is asked before anything is generated', () => {
+  // "I'm stuck" covers two problems whose answers look nothing alike, and one
+  // tap splits them. Both modes ask, and both offer exactly two ways in.
+  for (const mode of ['assignment', 'project'] as const) {
+    assert.ok(NARROWING[mode].question.length > 20, `${mode} must ask something real`);
+    assert.equal(NARROWING[mode].options.length, 2);
+  }
+  assert.match(NARROWING.assignment.question, /angle/i);
+});
+
+test('with nothing to go on it says so, and asks for the one thing that helps', () => {
+  /*
+   * The failure this exists to prevent: four directions that would fit any
+   * essay ever written, presented as though they were about this one.
+   */
+  const bare = needsMore({ mode: 'assignment', title: 'Essay on the Cold War', focus: 'angle' });
+  assert.ok(bare, 'a title alone is not enough to be specific about');
+  assert.match(bare!, /paste/i);
+  // A brief with criteria is plenty.
+  assert.equal(
+    needsMore({
+      mode: 'assignment',
+      title: 'Essay',
+      focus: 'angle',
+      facts: { criteria: { items: [{ label: 'Argument', weight: 40 }], confidence: 'high' } },
+    }),
+    null,
+  );
+  // So is a stated definition of done, for a project.
+  assert.equal(
+    needsMore({ mode: 'project', title: 'Site', focus: 'scope', definition: 'Three pages live' }),
+    null,
+  );
+});
+
+test('every direction carries what it needs and what it costs', () => {
+  // A direction without them is a suggestion. With them it is a decision
+  // someone can actually make — so the offline set holds to the same rule.
+  for (const mode of ['assignment', 'project'] as const) {
+    const directions = localGuide({ mode, title: 'Essay', focus: 'angle' });
+    assert.ok(directions.length >= 3 && directions.length <= 4);
+    for (const d of directions) {
+      assert.ok(d.title.trim() && d.needs.trim() && d.costs.trim(), `${mode}: incomplete direction`);
+    }
+  }
+  // The assignment set says where the marks are; the project set does not,
+  // because nobody is marking it.
+  assert.ok(localGuide({ mode: 'assignment', title: 'E', focus: 'angle' }).every((d) => d.rewardedBy));
+  assert.ok(localGuide({ mode: 'project', title: 'P', focus: 'scope' }).every((d) => !d.rewardedBy));
+});
+
+test('the direction taken reaches the saved work', () => {
+  const doc = flowDocument({
+    ...startFlow('assignment'),
+    title: 'Essay',
+    guide: {
+      open: false,
+      from: 'planPreview',
+      chosen: {
+        title: 'Take a position and defend it',
+        needs: 'Two sources that disagree',
+        costs: 'You have to commit early',
+        rewardedBy: 'Argument',
+        questions: ['What is the strongest case against you?'],
+      },
+    },
+    answered: {},
+  });
+  assert.match(doc, /Take a position and defend it/);
+  assert.match(doc, /Needs: Two sources that disagree/);
+  assert.match(doc, /Marks under: Argument/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The Event flow, as HANDOFF §4 specifies it');
+
+/** The three occasions, and the question each one opens with. */
+const OCCASIONS: { kind: TaskKind; opens: FlowStep; asks: RegExp }[] = [
+  { kind: 'event', opens: 'what', asks: /event/i },
+  { kind: 'birthday', opens: 'who', asks: /birthday/i },
+  { kind: 'anniversary', opens: 'who', asks: /anniversary/i },
+];
+
+test('each occasion opens with its own question', () => {
+  /*
+   * "What's this event?", "Whose birthday is it?", "Whose anniversary is it?"
+   * — one flow, three doors into it. A general event is described rather than
+   * named, which is why it opens on `what` and the other two on `who`.
+   */
+  for (const o of OCCASIONS) {
+    const seen = walk(o.kind);
+    assert.equal(seen[0], o.opens, `${o.kind} must open on ${o.opens}`);
+    assert.match(promptFor(o.opens, startFlow(o.kind)), o.asks, `${o.kind} must name the occasion`);
+  }
+});
+
+test('then all three ask date, time, repeat, priority, handling — in that order', () => {
+  /*
+   * The order is the product. Handling comes last of the five because it is
+   * what decides everything asked afterwards, and the recipient is collected
+   * after it rather than before: which of their details matter depends on
+   * whether this is a text, an email or a call.
+   */
+  for (const o of OCCASIONS) {
+    const seen = walk(o.kind, { handling: 'remind' });
+    const order = ['date', 'time', 'repeat', 'priority', 'method'] as FlowStep[];
+    const at = order.map((s) => seen.indexOf(s));
+    for (const [i, s] of order.entries()) {
+      assert.ok(at[i] > -1, `${o.kind} must ask ${s}`);
+      if (i > 0) assert.ok(at[i - 1] < at[i], `${o.kind}: ${order[i - 1]} must come before ${s}`);
+    }
+  }
+});
+
+test('an event is never asked about an alarm, and everything else still is', () => {
+  /*
+   * Deliberate, and the one place this flow drops a question it used to ask.
+   * The spec lists five for an occasion and an alarm is not among them; "does
+   * it repeat" is the one people actually answer for a birthday.
+   *
+   * Work keeps its alarm — an essay does not repeat, and a deadline creeping up
+   * is the thing it needs protecting from.
+   */
+  for (const o of OCCASIONS) {
+    assert.ok(!walk(o.kind).includes('alarm'), `${o.kind} must not ask about an alarm`);
+  }
+  for (const kind of ['reminder', 'general'] as TaskKind[]) {
+    assert.ok(walk(kind).includes('alarm'), `${kind} keeps its alarm question`);
+    assert.ok(!walk(kind).includes('repeat'), `${kind} is not asked about repeating yet`);
+  }
+  /*
+   * Work has neither, and that is not an oversight.
+   *
+   * An assignment's dates come from the plan, one per step, so a single alarm
+   * on the task would fire for the wrong thing — and coursework does not
+   * repeat. Both questions moved out when the plan moved in.
+   */
+  for (const kind of ['assignment', 'project'] as TaskKind[]) {
+    assert.ok(!walk(kind).includes('alarm'), `${kind} plans per step instead`);
+    assert.ok(!walk(kind).includes('repeat'), `${kind} does not come round again`);
+  }
+});
+
+test('the six ways to handle it are offered, in the order stated', () => {
+  assert.deepEqual(
+    EVENT_HANDLING.map((m) => m.label),
+    ['Text', 'Email', 'Call', 'Picture', 'Card', 'Just remind me'],
+  );
+});
+
+test('what each method needs is what the table says', () => {
+  /*
+   * Text needs a number, Email needs an address, a Call needs neither a name
+   * nor an address — just the number. This is the table in HANDOFF §4, and it
+   * is what the contact step renders from, so it is asserted rather than
+   * re-read off a phone.
+   */
+  const table: Record<EventMethod, [name: string, email: string, phone: string]> = {
+    sms: ['required', 'optional', 'required'],
+    email: ['required', 'required', 'optional'],
+    call: ['none', 'none', 'required'],
+    photo: ['required', 'optional', 'optional'],
+    card: ['required', 'optional', 'optional'],
+    remind: ['none', 'none', 'none'],
+  };
+  for (const [method, [name, email, phone]] of Object.entries(table) as [
+    EventMethod,
+    [string, string, string],
+  ][]) {
+    const needs = METHOD_NEEDS[method];
+    assert.equal(needs.name, name, `${method}: name`);
+    assert.equal(needs.email, email, `${method}: email`);
+    assert.equal(needs.phone, phone, `${method}: phone`);
+  }
+  // And what else each one collects: words for anything that carries a message,
+  // a design for a card, an image for a picture.
+  assert.deepEqual(
+    EVENT_HANDLING.filter((m) => METHOD_NEEDS[m.value].message).map((m) => m.value),
+    ['sms', 'email', 'photo', 'card'],
+  );
+  assert.ok(METHOD_NEEDS.card.card && !METHOD_NEEDS.card.picture);
+  assert.ok(METHOD_NEEDS.photo.picture && !METHOD_NEEDS.photo.card);
+  assert.ok(!METHOD_NEEDS.call.message, 'a call is made in person; there is nothing to write');
+});
+
+test('each method asks for exactly what it needs, and nothing else', () => {
+  const expected: Record<EventMethod, FlowStep[]> = {
+    sms: ['contact', 'cardMessage'],
+    email: ['contact', 'cardMessage'],
+    call: ['contact'],
+    photo: ['contact', 'photo', 'cardMessage'],
+    card: ['contact', 'cardStyle', 'cardMessage'],
+    remind: [],
+  };
+  const optional: FlowStep[] = ['contact', 'cardStyle', 'photo', 'cardMessage'];
+  for (const [method, wanted] of Object.entries(expected) as [EventMethod, FlowStep[]][]) {
+    const seen = walk('event', { handling: method });
+    for (const step of optional) {
+      const should = wanted.includes(step);
+      assert.equal(seen.includes(step), should, `${method}: ${step} ${should ? 'missing' : 'asked for no reason'}`);
+    }
+    // Whatever it collects, it is collected after the method was chosen.
+    for (const step of wanted) {
+      assert.ok(seen.indexOf('method') < seen.indexOf(step), `${method}: ${step} came before the choice`);
+    }
+    assert.equal(seen[seen.length - 1], 'done', `${method} must terminate`);
+  }
+});
+
+test('a card is picked before it is written in, and a picture chosen before its caption', () => {
+  const card = walk('event', { handling: 'card' });
+  assert.ok(card.indexOf('cardStyle') < card.indexOf('cardMessage'));
+  const photo = walk('event', { handling: 'photo' });
+  assert.ok(photo.indexOf('photo') < photo.indexOf('cardMessage'));
+});
+
+test('a method that cannot be addressed does not get past the contact question', () => {
+  /*
+   * Required means required: there is no texting someone with no number. The
+   * panel keeps the button disabled on exactly this, so what it asks for and
+   * what actually blocks are the same rule rather than two of them.
+   */
+  const sam = { ...startFlow('event'), who: 'Sam' };
+  assert.equal(contactSatisfied({ ...sam, handling: 'sms' }), false);
+  assert.equal(contactSatisfied({ ...sam, handling: 'sms', contactPhone: '+15551234' }), true);
+  assert.equal(contactSatisfied({ ...sam, handling: 'email' }), false);
+  assert.equal(contactSatisfied({ ...sam, handling: 'email', contactEmail: 's@e.com' }), true);
+  // A call wants a number and nothing else — not even the name.
+  assert.equal(contactSatisfied({ ...startFlow('event'), handling: 'call', contactPhone: '+1' }), true);
+  // A card and a picture want the person; how to reach them is Aria's problem
+  // at send time, not a blocker at setup.
+  assert.equal(contactSatisfied({ ...sam, handling: 'card' }), true);
+  assert.equal(contactSatisfied({ ...sam, handling: 'photo' }), true);
+  // And a bare reminder involves nobody at all.
+  assert.equal(needsContact('remind'), false);
+  for (const m of EVENT_HANDLING.filter((h) => h.value !== 'remind')) {
+    assert.equal(needsContact(m.value), true, `${m.value} involves someone`);
+  }
+});
+
+test('one contact, picked once, satisfies whatever the method turns out to need', () => {
+  /*
+   * The rule the whole step exists for: choosing someone from the contact list
+   * fills the fields and hides them. A picked contact carrying both details is
+   * enough for every method, so nothing is asked again.
+   */
+  const picked = {
+    ...startFlow('birthday'),
+    who: 'Sam',
+    contactPhone: '+15551234',
+    contactEmail: 'sam@example.com',
+  };
+  for (const m of EVENT_HANDLING) {
+    assert.equal(contactSatisfied({ ...picked, handling: m.value }), true, `${m.value} still asking`);
+  }
+});
+
+test('changing the method at the preview re-asks what hung off it', () => {
+  /*
+   * "Change how" on the preview used to clear one mark. So a text with a number
+   * changed to an email kept `contact` answered, skipped the question, and
+   * saved with no address — which `flowMethod` then honestly downgraded to a
+   * reminder. The email nobody was told about simply never existed.
+   */
+  const texted: FlowDraft = {
+    ...startFlow('event'),
+    title: 'Dinner',
+    handling: 'sms',
+    who: 'Sam',
+    contactPhone: '+15551234',
+    message: 'See you at 8',
+    answered: {
+      what: true, date: true, time: true, repeat: true, priority: true,
+      method: true, contact: true, cardMessage: true, preview: true,
+    },
+  };
+  const again = reopen(texted, 'method');
+  assert.equal(nextStep(again), 'method');
+  const asEmail: FlowDraft = { ...again, handling: 'email', answered: { ...again.answered, method: true } };
+  assert.equal(nextStep(asEmail), 'contact', 'the address must be asked for');
+  // What was written survives the change — it is a fair start for the email.
+  assert.equal(asEmail.message, 'See you at 8');
+  // A step with nothing hanging off it reopens alone.
+  const dateOnly = reopen(texted, 'date');
+  assert.equal(nextStep(dateOnly), 'date');
+  assert.equal(dateOnly.answered.contact, true, 'the recipient did not depend on the date');
+});
+
+test('an event repeat reaches the saved task', () => {
+  const input = toTaskInput({ ...startFlow('birthday'), who: 'Sam', date: '2026-08-10', repeat: 'yearly' });
+  assert.equal(input.repeat, 'yearly');
+  // "Just the once" is undefined, not a repeat of some default interval.
+  assert.equal(
+    toTaskInput({ ...startFlow('birthday'), who: 'Sam', date: '2026-08-10' }).repeat,
+    undefined,
+  );
+});
+
+test('task-flow and aria-actions agree on what an event is', () => {
+  /*
+   * `lib/task-flow.ts` restates the event kinds and methods rather than
+   * importing them, because `lib/aria-actions.ts` reaches the store and this
+   * module has to stay runnable without a React Native runtime — that is the
+   * only reason this check can walk the flow at all.
+   *
+   * Restating is a copy, and a copy drifts. This is what stops it: the create
+   * form and the chat flow must offer the same six methods for the same three
+   * kinds, or the same task gets a different set of options depending on where
+   * it was made.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  const listNamed = (name: string) => {
+    const match = actions.match(new RegExp(`${name}: TaskKind\\[\\] = \\[([^\\]]*)\\]|${name}: TaskMethod\\[\\] = \\[([^\\]]*)\\]`));
+    assert.ok(match, `${name} must still exist in aria-actions`);
+    return [...(match[1] ?? match[2]).matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  };
+  assert.deepEqual(
+    listNamed('EVENT_METHODS'),
+    EVENT_HANDLING.map((m) => m.value),
+    'the create form and the chat flow must offer the same handling options',
+  );
+  for (const kind of listNamed('EVENT_KINDS')) {
+    assert.equal(isEventKind(kind as TaskKind), true, `${kind} is an event to the form, not to the flow`);
+  }
+  for (const o of OCCASIONS) assert.equal(isEventKind(o.kind), true);
+  for (const kind of ['assignment', 'project', 'reminder', 'general'] as TaskKind[]) {
+    assert.equal(isEventKind(kind), false, `${kind} is not an occasion`);
+  }
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -257,23 +864,35 @@ test('saying no to an alarm does not ask again', () => {
    * The bug this exists to prevent. `alarm: false` and "not yet asked" both
    * look falsy, so a check on the value rather than on `answered` would loop
    * on the question forever for anyone who declined.
+   *
+   * An assignment, because an event asks about a repeat where this asks about
+   * an alarm. Same trap either way: `repeat: undefined` is a real answer too.
    */
-  let d: FlowDraft = startFlow('birthday');
-  d = { ...d, answered: { who: true, contact: true, date: true, time: true, priority: true } };
+  let d: FlowDraft = startFlow('general');
+  d = {
+    ...d,
+    answered: { what: true, approach: true, plan: true, date: true, time: true, priority: true },
+  };
   assert.equal(nextStep(d), 'alarm');
   d = { ...d, alarm: false, answered: { ...d.answered, alarm: true } };
   assert.notEqual(nextStep(d), 'alarm', 'a declined alarm must not be asked twice');
 });
 
-test('declining a card is remembered the same way', () => {
+test('"just the once" is remembered the same way', () => {
+  // `repeat: undefined` is the answer "no", and identical to never having been
+  // asked if anything checks the value rather than `answered`.
+  let d: FlowDraft = { ...startFlow('birthday'), answered: { who: true, date: true, time: true } };
+  assert.equal(nextStep(d), 'repeat');
+  d = { ...d, repeat: undefined, answered: { ...d.answered, repeat: true } };
+  assert.notEqual(nextStep(d), 'repeat', 'a declined repeat must not be asked twice');
+});
+
+test('declining to send anything is remembered the same way', () => {
   let d: FlowDraft = startFlow('birthday');
-  d = {
-    ...d,
-    answered: { who: true, contact: true, date: true, time: true, priority: true, alarm: true },
-  };
-  assert.equal(nextStep(d), 'card');
-  d = { ...d, delivery: 'remind', answered: { ...d.answered, card: true } };
-  assert.notEqual(nextStep(d), 'card');
+  d = { ...d, answered: { who: true, date: true, time: true, repeat: true, priority: true } };
+  assert.equal(nextStep(d), 'method');
+  d = { ...d, handling: 'remind', answered: { ...d.answered, method: true } };
+  assert.notEqual(nextStep(d), 'method');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -292,9 +911,9 @@ test('a declined card does not come back as the method anyway', () => {
    * nobody was asked and wrong here — the flow just asked and was told no.
    * Overriding a stated answer with a default is worse than never asking.
    */
-  const d: FlowDraft = { ...startFlow('birthday'), who: 'Sam', delivery: 'remind' };
+  const d: FlowDraft = { ...startFlow('birthday'), who: 'Sam', handling: 'remind' };
   assert.notEqual(flowMethod(d), 'card');
-  assert.equal(flowMethod({ ...d, delivery: 'card' }), 'card');
+  assert.equal(flowMethod({ ...d, handling: 'card' }), 'card');
 });
 
 test('a contact picked in chat reaches the saved task', () => {
@@ -305,7 +924,7 @@ test('a contact picked in chat reaches the saved task', () => {
     date: '2026-08-10',
     time: '09:00',
     alarm: true,
-    delivery: 'card',
+    handling: 'card',
     cardTemplateId: 'birthday-balloons',
     message: 'Happy birthday!',
     answered: {},
@@ -336,8 +955,12 @@ test('no step leaves Aria silent', () => {
     'contact',
     'date',
     'time',
+    'repeat',
+    'priority',
     'alarm',
-    'card',
+    'method',
+    'cardStyle',
+    'photo',
     'cardMessage',
     'preview',
     'done',
@@ -351,9 +974,14 @@ test('no step leaves Aria silent', () => {
 });
 
 test('a prompt never says "undefined" before a name is known', () => {
-  const blank = startFlow('birthday');
-  for (const step of ['contact', 'date', 'card'] as FlowStep[]) {
+  const blank = startFlow('event');
+  // The contact question is reached with no name at all on a general event,
+  // which is exactly where a `${who}` in the wrong sentence would show.
+  for (const step of ['contact', 'date', 'method', 'repeat'] as FlowStep[]) {
     assert.doesNotMatch(promptFor(step, blank), /undefined/);
+    for (const handling of EVENT_HANDLING) {
+      assert.doesNotMatch(promptFor(step, { ...blank, handling: handling.value }), /undefined/);
+    }
   }
 });
 
@@ -374,22 +1002,24 @@ test('isPersonKind agrees with the walk', () => {
 // ───────────────────────────────────────────────────────────────────────────────
 section('Planning a piece of work');
 
-test('work is asked how to handle it, then broken down', () => {
+test('a plain task is asked how to handle it, then broken down', () => {
   /*
    * A title alone produces a generic checklist. "Work with me on creating a
    * design system" is the sentence that makes the breakdown worth reading, and
    * the flow never asked for it — it went from a name straight to a date.
+   *
+   * Only 'general' now. An assignment has a brief and a project has a
+   * definition of done; asking either of them to describe an approach in prose
+   * would be asking for the same information a third time.
    */
-  for (const kind of ['general', 'assignment', 'project'] as TaskKind[]) {
-    const seen = walk(kind);
-    assert.ok(seen.includes('approach'), `${kind} must be asked how to handle it`);
-    assert.ok(seen.includes('plan'), `${kind} must be broken down`);
-    assert.ok(seen.indexOf('approach') < seen.indexOf('plan'), 'the approach shapes the plan');
-    assert.ok(seen.indexOf('plan') < seen.indexOf('date'), 'plan before scheduling');
-  }
-  // An occasion has nothing to break down.
-  for (const kind of ['birthday', 'reminder', 'event'] as TaskKind[]) {
-    assert.ok(!walk(kind).includes('plan'), `${kind} has nothing to plan`);
+  const seen = walk('general');
+  assert.ok(seen.includes('approach'), 'a task must be asked how to handle it');
+  assert.ok(seen.includes('plan'), 'a task must be broken down');
+  assert.ok(seen.indexOf('approach') < seen.indexOf('plan'), 'the approach shapes the plan');
+  assert.ok(seen.indexOf('plan') < seen.indexOf('date'), 'plan before scheduling');
+  // An occasion has nothing to break down, and work has its own planning.
+  for (const kind of ['birthday', 'reminder', 'event', 'assignment', 'project'] as TaskKind[]) {
+    assert.ok(!walk(kind).includes('approach'), `${kind} is not asked for an approach`);
   }
 });
 
@@ -425,7 +1055,7 @@ test('the steps that need typing have no input of their own', () => {
   for (const step of ['what', 'approach', 'who'] as const) {
     assert.equal(isTypedStep(step), true, `${step} is answered by typing`);
   }
-  for (const step of ['date', 'time', 'priority', 'alarm', 'card', 'preview'] as const) {
+  for (const step of ['date', 'time', 'repeat', 'priority', 'alarm', 'method', 'photo', 'preview'] as const) {
     assert.equal(isTypedStep(step), false, `${step} is answered by tapping`);
   }
 });

@@ -78,6 +78,30 @@ export interface Subtask {
   id: string;
   title: string;
   done: boolean;
+  /**
+   * The day this step was meant to be finished by. Work only.
+   *
+   * A checklist item has no date and never needed one. A plan step does: it is
+   * what makes "behind schedule" a fact rather than a feeling, and without it
+   * nothing can notice that a step has slipped.
+   */
+  due?: string;
+  /**
+   * What makes a milestone actually happen — a review, a demo, someone waiting.
+   *
+   * Collected because a milestone with nothing forcing it is the one that
+   * moves. Kept on the step so the follow-up can say *what* was supposed to
+   * force it, which is a more useful nudge than the date.
+   */
+  forcing?: string;
+  /**
+   * How many times this step has been pushed.
+   *
+   * Two is where the Guide gets offered, three is where Aria asks one question
+   * and lets it go — see `rolloverVerdict` in lib/plan.ts. Undefined on
+   * everything that is not a work step.
+   */
+  rollovers?: number;
 }
 
 export interface Task {
@@ -249,6 +273,19 @@ export interface Settings {
    * true on an account whose Pro has lapsed.
    */
   autoSend: boolean;
+  /**
+   * Weekdays that are always spoken for. 0 = Sunday.
+   *
+   * Lectures, a shift, a standing commitment — the part of someone's week the
+   * app cannot read off its own calendar. Asked once, on the first assignment
+   * that needs a plan, and reused by every one after it: "I have labs on
+   * Wednesdays" is not a per-assignment fact.
+   *
+   * Local, like `theme`, and for a related reason — there is no column for it
+   * and no server-side reader that needs it. It is in `settings` so it resets
+   * with the account rather than being inherited by whoever signs in next.
+   */
+  fixedDays?: number[];
 }
 
 /** Effective "today" for the whole app — the real current date, overridable so

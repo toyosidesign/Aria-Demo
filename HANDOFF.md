@@ -66,10 +66,11 @@ merging at some point, since a clone that needs a branch checkout to be useful
 is easy to get wrong.
 
 ```
-npm run security-check     57 checks
+npm run security-check     59 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
-npm run check:flow         38 checks   # the conversational task setup
+npm run check:flow         67 checks   # the conversational task setup
+npm run check:plan         21 checks   # backwards planning, rollovers, briefs
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -248,30 +249,64 @@ failure worth watching for, and the thing that prevents it — the conditional
 `update … where status = 'scheduled'`, made by both the cron and the phone — is
 argued through at the foot of `003_automations.sql`.
 
-### 3. Chat sets tasks up itself — done for birthdays and anniversaries
+### 3. Chat sets tasks up itself
 
-Aria now walks the whole setup in the conversation instead of handing the
-student to `/task/new`: who it's for → their contact (saved contacts, or the
-phone picker) → date → time → alarm → card → what it says, with Aria drafting
-and re-toning it → a preview you accept, then "saved and in your queue".
+Aria walks the whole setup in the conversation instead of handing the student to
+`/task/new`: what it is, or who it's for → when → how Aria should handle it →
+whatever that needs, with Aria drafting and re-toning the words → a preview you
+accept, then "saved and in your queue". Picking the card *template* happens in
+chat too, drawn as cards rather than named in a list.
 
 `lib/task-flow.ts` holds it as a pure state machine — no React, no store — so
 `npm run check:flow` can walk every kind end to end. The order of questions is
 the product, and it is asserted there rather than rediscovered on a phone.
 
-Only `birthday` and `anniversary` start the guided flow (`isPersonKind`). An
-assignment is a title and a due date; marching someone through four panels for
-that would be worse than the sentence they were about to type. Other kinds still
-get the opening question from `KIND_PROMPT`.
+**Every kind is walked now**, not just the two about people; the steps differ by
+kind and `nextStep` is the single place that knows which. An occasion follows
+§4; an assignment or a project follows §7. "Task" (`general`) is what is left
+with no brief and no marker, and it keeps the approach-then-breakdown pair.
 
-**Not done:** the same flow for event/reminder/general, and picking a card
-*template* in chat — `cardTemplateId` is collected but nothing sets it yet, so a
-card task falls back to `defaultTemplateFor`.
+### 4. The Event flow — built 2026-08-04
 
-### 4. The Event flow — intended behaviour, written 2026-08-04
+Stated by the product owner, and now the shape of the conversation. The spec is
+kept below as written; what follows immediately is what was built from it.
 
-Stated by the product owner, and the thing to build against. Recorded here
-because it lived only in a chat message otherwise.
+**Where it lives.** `lib/task-flow.ts` holds the order as a pure state machine,
+so `npm run check:flow` walks all three occasions and all six methods end to end
+— 12 of its checks are this section, including the requirements table verbatim.
+`components/task-flow-panel.tsx` renders each step, and the contact step is now
+the same `ContactField` the create form uses, which is what makes the hide-the-
+fields rule one implementation rather than two.
+
+Four things worth knowing before changing it:
+
+  · **The recipient is asked for after the method, not before.** Which of their
+    details matter depends on whether this is a text, an email or a call, and
+    asking first meant collecting a number for something that turned out to be
+    an email.
+  · **The alarm question is gone from Event, deliberately.** The spec lists five
+    scheduling questions and an alarm is not among them; "does it repeat" is the
+    one people actually answer for a birthday. Reminder, Assignment and Project
+    keep theirs — a check asserts both halves. Say so if that was not the intent
+    and it is a two-line change.
+  · **`delivery` is now `handling`**, holding the six real methods rather than
+    card / message / neither. The old three-way made Aria guess the channel from
+    whichever detail the contact happened to carry, so a text to someone whose
+    card only held an address silently became an email.
+  · **Changing the method at the preview re-asks what hung off it** (`reopen` in
+    `lib/task-flow.ts`). Without that, a text changed to an email kept `contact`
+    answered, skipped the address, and saved as a plain reminder.
+
+The picker now tells a cancel apart from a refused permission
+(`pickPhoneContactResult`), and asks for `READ_CONTACTS` on Android, which it
+never did — `presentContactPickerAsync` needs it there, so on Android the button
+had never worked at all.
+
+**Not done:** the same treatment for Reminder, Assignment and Project, which is
+the next thing. And the `explain` step still renders no control in the panel —
+pre-existing, on the assignment path, not touched here.
+
+The spec as stated, which the checks assert:
 
 **Three occasions**, each opening with its own question:
 
@@ -306,20 +341,109 @@ Two ways a field still appears afterwards, both correct but easily mistaken for
 the rule not working:
 
   · the contact has no phone and the method is Text, so Aria cannot send;
-  · the pick silently failed. `pickPhoneContact()` returns null for a cancel
-    **and** for a denied permission, and the form is left untouched either way.
-    A denied Contacts permission makes the button look dead. Worth telling the
-    user which happened.
+  · the pick silently failed. `pickPhoneContact()` returned null for a cancel
+    **and** for a denied permission, and the form was left untouched either way.
+    Fixed: `pickPhoneContactResult()` reports which, and `ContactField` prints
+    the reason under the button. A cancel still says nothing — you closed it.
 
-Reminder, Assignment and Project are to be gone through after Event is right.
+Reminder is still to be gone through. Assignment and Project are §7.
+
+### 7. Assignment and Project — built 2026-08-05
+
+Two flows, one shape: establish what the work actually is, plan it, accept.
+What differs is where the truth comes from — an assignment has a brief somebody
+else wrote, and a project has nobody's, so the equivalent step is stating what
+done looks like.
+
+```
+assignment  brief → extraction → commitments → [date] → plan preview
+project     brief → definition → reflect → scope → milestones → plan preview
+```
+
+`[date]` is asked only when the brief gave no resolvable deadline. Both end at
+the plan preview, which is where Accept lives — the plan *is* the confirmation,
+so there is no second preview screen.
+
+**Upload is the primary button, and it required a dependency.**
+`expo-document-picker` (~14.0.8) was added — nothing else could open a PDF.
+`lib/documents.ts` reads the file to base64 on the device and posts it to
+`/api/brief`, which hands it to the model as a document or image block. Nothing
+is stored server-side; the bytes exist for one request.
+
+**That route is the only one allowed a body over 256KB.** `MAX_UPLOAD_BYTES`
+(12MB) is passed explicitly by `/api/brief` and by nothing else, and two checks
+in `scripts/security-check/offline.ts` assert exactly that. Read the note at the
+constant before using it anywhere else — it is a real loosening of the
+allocation bound every other route keeps.
+
+**Confidence travels with every extracted fact**, and a *missing* fact is not a
+low-confidence one: it is a gap, and gaps render as `Ask tutor · Upload handbook
+· I know this`. "Ask tutor" writes the question and opens Mail; "Upload
+handbook" re-extracts with what is already known so a second document fills gaps
+without overwriting them; "I know this" makes the next thing typed answer that
+one field, at high confidence, because the student is the source.
+
+**The plan is built backwards** (`lib/plan.ts`). The submission buffer is
+reserved before any step is placed and is drawn as its own row; days are shared
+out by the marking criteria, so the same steps against a different rubric give a
+different plan; days already spoken for are stepped over. `check:plan` covers the
+cases nobody wants to reproduce on a phone — deadline tomorrow, deadline already
+gone, more steps than days, every day busy.
+
+**The Guide is one door in four places** — plan preview, definition gate,
+milestones/scope, and a pinned step on the task screen, plus an automatic offer
+once a step has rolled over twice. Always one narrowing question before
+generating; always directions with what each needs and costs; never prose for an
+assignment (the argument is the thing being marked) and a straight recommendation
+for a project (`student` decides, sent by the app). With only a title it says so
+and asks for the one thing that would help, rather than producing four
+directions that fit any essay ever written.
+
+**Rollover rules exist and are tested** (`rolloverVerdict`): two offers the
+Guide, three asks one question then drops the step. **Nothing increments the
+counter yet** — that belongs to the follow-up loop below.
+
+**Not built — the whole post-creation lifecycle.** Check-ins on a cadence,
+reworking a plan that has fallen behind, assembling the document ~24h out, the
+review card, the ten-minute hold, the receipt, and ending at a Turnitin/Canvas
+submission link. All of it needs the automations subsystem to be reachable from
+the app (§2 is the same blocker) and the LMS work in §6. The pieces that were
+buildable without it — the rules, the step metadata (`due`, `forcing`,
+`rollovers` on every subtask), the pinned step, progress on the task row — are
+in, so that work is wiring rather than design.
+
+**Also:** `explain` is gone as a flow step. It rendered no control in the panel,
+so an assignment stalled on it; the Guide is the surface for being stuck now.
+The category tiles carry one line each (`CATEGORY_BLURB`) because "Assignment"
+and "Project" are indistinguishable without it, and the task row shows a
+progress bar and the next step for work, because a title and a date is exactly
+what a finished assignment looks like too.
+
+### 8. Free and Pro, in onboarding — added 2026-08-05
+
+A sixth question: *when something's ready to go, who sends it?* Free means Aria
+prepares it and you tap send; Pro means Aria sends on the schedule using the
+approval given at the review. It is asked during onboarding rather than
+discovered at the moment something needs to go out, and the closing "here's what
+I'll do" screen now says whichever of the two promises is true — the old line
+("nothing gets sent without your OK") is false on Pro.
+
+Choosing Pro records a waitlist entry. It deliberately does **not** call
+`setPro`: that writes `profiles.pro`, which is what the cron reads before
+sending on someone's behalf, and an onboarding tap is not an entitlement.
 
 ### 5. "Explain this to me"
 
-Onboarding collects interests and `lib/learner.ts` turns them into prompt text,
-but only `/api/subtasks` consumes it. There is no surface where a student says
-"I don't get this" and Aria teaches them through something they already know —
-the basketball-explains-projectile-motion idea in the Phase 1 scope. The plumbing
-exists; the screen does not.
+Onboarding collects interests and `lib/learner.ts` turns them into prompt text.
+`/api/subtasks`, `/api/guide` and the research path all read it now, so a
+student's plan and their directions are shaped by what they are into — but there
+is still no surface where someone says "I don't get this" and Aria teaches them
+through something they already know, the basketball-explains-projectile-motion
+idea in the Phase 1 scope. The Guide answers *where do I start*, which is a
+different question from *what is this*.
+
+`requestDraft({ explain: true })` still exists and now has no caller — it is the
+back half of that screen, waiting for a front.
 
 ### 6. Assignment submission
 

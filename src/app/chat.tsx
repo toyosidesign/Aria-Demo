@@ -28,16 +28,30 @@ import { openEmailDraft } from '@/lib/send';
 import {
   ackFor,
   applyTypedAnswer,
+  closeGuide,
   flowDocument,
+  flowSteps,
+  guideModeFor,
   isTypedStep,
+  isWorkKind,
   flowTitle,
   nextStep,
+  openGuide,
   promptFor,
+  reflectConfidence,
+  reopen,
   startFlow,
+  titleFromText,
   toTaskInput,
+  workDeadline,
   type FlowDraft,
   type FlowStep,
 } from '@/lib/task-flow';
+import { briefSummary, tutorQuestion, type BriefFacts, type BriefSlot } from '@/lib/brief';
+import { pickBriefDocument, readImageAsDocument } from '@/lib/documents';
+import { pickPhoto } from '@/lib/avatar';
+import { requestBrief, requestGuide } from '@/lib/work-client';
+import { planBackwards } from '@/lib/plan';
 import {
   TESTING_NOTICE,
   requestAssistant,
@@ -48,7 +62,8 @@ import {
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 import { uuidv4 } from '@/lib/id';
-import { formatFull, formatTime } from '@/lib/dates';
+import { formatFull, formatTime, toISODate } from '@/lib/dates';
+import { addDays, parseISO } from 'date-fns';
 import { hapticSelect, hapticSuccess, hapticTap } from '@/lib/haptics';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useAriaStore, type TaskKind } from '@/store/aria-store';
@@ -114,6 +129,93 @@ const mk = (
 
 /** A question the setup flow asked. Marked so a stranded thread is detectable. */
 const mkPrompt = (text: string): Msg => ({ ...mk('aria', text), flowPrompt: true });
+
+/**
+ * A stable empty array for the "no fixed days yet" case.
+ *
+ * `useAriaStore(s => s.settings.fixedDays ?? [])` would return a new array on
+ * every render and re-render this screen forever — zustand compares by
+ * identity. The selector returns the stored value or undefined, and the
+ * fallback happens outside it.
+ */
+const EMPTY_DAYS: number[] = [];
+
+/** What Aria asks when the student says they know a fact the brief didn't give. */
+const GAP_QUESTION: Record<BriefSlot, string> = {
+  deliverable: 'What do you have to hand in?',
+  deadline: "When's it due?",
+  weighting: 'What percentage is it worth?',
+  criteria: "What's it marked on?",
+  format: 'What are the formatting rules?',
+};
+
+/** Fold a typed answer into one gap on the extraction card. */
+function applyGapAnswer(slot: BriefSlot, text: string): Partial<FlowDraft> {
+  const value = text.trim();
+  if (slot === 'criteria') {
+    // "Argument 40%, structure 30%" is how a student would answer, and it is
+    // worth keeping the weights: the plan shares out days by them.
+    const items = value
+      .split(/[,;]/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const weight = Number(part.match(/(\d{1,3})\s*%/)?.[1]);
+        return {
+          label: part.replace(/\s*\(?\d{1,3}\s*%\)?/, '').trim(),
+          weight: Number.isFinite(weight) ? weight : undefined,
+        };
+      });
+    // Their own answer, so it is high confidence — they are the source now,
+    // not a model reading a PDF.
+    return { facts: { criteria: { items, confidence: 'high' } } };
+  }
+  return { facts: { [slot]: { value, confidence: 'high' } } };
+}
+
+/**
+ * How much of the calendar a step earns.
+ *
+ * Matched by word overlap against the criteria the brief listed, which is
+ * crude and honest: a step called "Build the argument" lines up with a
+ * criterion called "Argument (40%)" often enough to be worth doing, and when
+ * nothing matches every step simply shares equally.
+ */
+function weightFor(title: string, facts?: BriefFacts): number | undefined {
+  const items = facts?.criteria?.items ?? [];
+  if (!items.length) return undefined;
+  const words = new Set(
+    title
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((w) => w.length > 3),
+  );
+  const hit = items.find((i) =>
+    i.label
+      .toLowerCase()
+      .split(/\W+/)
+      .some((w) => w.length > 3 && words.has(w)),
+  );
+  return hit?.weight;
+}
+
+/**
+ * Every date between two days that falls on one of the given weekdays.
+ *
+ * The fixed-hours answer is "Mondays and Wednesdays", and the planner wants
+ * dates. Bounded at a year so a corrupt deadline cannot spin.
+ */
+function weekdayDatesBetween(from: string, to: string | undefined, days: number[]): string[] {
+  if (!to || to <= from) return [];
+  const out: string[] = [];
+  const end = parseISO(to);
+  let cursor = parseISO(from);
+  for (let guard = 0; guard < 366 && cursor <= end; guard += 1) {
+    if (days.includes(cursor.getDay())) out.push(toISODate(cursor));
+    cursor = addDays(cursor, 1);
+  }
+  return out;
+}
 
 /** A seam between one task's setup and the next. */
 const mkDivider = (label: string): Msg => ({ ...mk('aria', label), divider: label });
@@ -201,6 +303,27 @@ export default function ChatScreen() {
   const addSubtasks = useAriaStore((s) => s.addSubtasks);
   const addDraftSection = useAriaStore((s) => s.addDraftSection);
   const profile = useAriaStore((s) => s.profile);
+  const tasks = useAriaStore((s) => s.tasks);
+  const fixedDays = useAriaStore((s) => s.settings.fixedDays) ?? EMPTY_DAYS;
+  const setSetting = useAriaStore((s) => s.setSetting);
+
+  /**
+   * The days between now and the deadline that already have something on them.
+   *
+   * Read rather than asked for: everything in here is already in the app, and a
+   * planner that makes you tell it what it can see is a form with extra steps.
+   * The weekly commitments — lectures, a shift — are the part it cannot know,
+   * which is why those are the only thing the commitments step actually asks.
+   */
+  const busyDates = (() => {
+    if (!flow || !isWorkKind(flow.kind)) return [];
+    const until = workDeadline(flow);
+    const dated = tasks
+      .filter((t) => t.status === 'todo' && t.date >= demoDate && (!until || t.date <= until))
+      .map((t) => t.date);
+    const weekly = fixedDays.length ? weekdayDatesBetween(demoDate, until, fixedDays) : [];
+    return Array.from(new Set([...dated, ...weekly])).sort();
+  })();
 
   /** Move the flow on: record the answer, echo it, ask the next thing. */
   function advanceFlow(patch: Partial<FlowDraft>, answered: FlowStep) {
@@ -237,7 +360,11 @@ export default function ChatScreen() {
       const res = await requestDraft({
       title: flowTitle(flow),
       kind: flow.kind,
-      method: flow.delivery === 'card' ? 'card' : undefined,
+      // The method is the answer to "How should Aria handle it?", so it goes to
+      // the model as-is: a card and a text want different words, and passing
+      // only 'card' had every other channel drafted as though it were nothing
+      // in particular.
+      method: flow.handling,
       contactName: flow.who,
       senderName: profile.name,
       senderContext: profile.context,
@@ -333,6 +460,291 @@ export default function ChatScreen() {
     }
   }
 
+  /*
+   * ── Work: the brief, the plan and the Guide ───────────────────────────────
+   *
+   * These are the handlers behind the assignment and project cards. They live
+   * here for the same reason every other flow call does: the panel renders what
+   * it is told and owns no network, so the one place that spends money is the
+   * screen that can also say something about it in the transcript.
+   */
+
+  /** Read a brief — uploaded, photographed or pasted — and fill the card in. */
+  async function extractBrief(input: {
+    text?: string;
+    file?: { data: string; mediaType: string; name?: string };
+    /** A second document, filling gaps in what is already known. */
+    merge?: boolean;
+  }) {
+    if (!flow || drafting) return;
+    setDrafting(true);
+    try {
+      const res = await requestBrief({
+        text: input.text,
+        file: input.file,
+        today: demoDate,
+        known: input.merge ? flow.facts : undefined,
+      });
+      setFlow((f) =>
+        f
+          ? {
+              ...f,
+              facts: { ...(input.merge ? f.facts : {}), ...res.facts },
+              // The brief usually names the work better than a student would in
+              // a hurry, so it fills an empty title and never overwrites one.
+              title: f.title?.trim() || res.title?.trim() || f.title,
+              extracted: true,
+            }
+          : f,
+      );
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /**
+   * Upload, and say which of the three things went wrong when one does.
+   *
+   * A cancelled picker says nothing — you closed it. Everything else gets a
+   * line in the conversation, because a silent failure here looks exactly like
+   * a button that does not work, and this is the primary button of the whole
+   * flow.
+   */
+  async function uploadBrief(source: 'file' | 'photo', merge = false) {
+    if (!flow) return;
+    if (source === 'photo') {
+      const uri = await pickPhoto('library');
+      if (!uri) return;
+      const doc = await readImageAsDocument(uri);
+      if (!doc) return;
+      if (!merge) advanceFlow({ brief: { source: 'upload', name: doc.name } }, 'brief');
+      await extractBrief({ file: { data: doc.data, mediaType: doc.mediaType, name: doc.name }, merge });
+      return;
+    }
+    const picked = await pickBriefDocument();
+    if (picked.status === 'cancelled') return;
+    if (picked.status !== 'picked') {
+      addChatMessage(
+        mk(
+          'aria',
+          picked.status === 'unavailable'
+            ? "I can't open files on this device — paste the brief in and I'll read that instead."
+            : `${picked.message}. Paste it in and I'll read that instead.`,
+        ),
+      );
+      return;
+    }
+    const doc = picked.document;
+    if (!merge) advanceFlow({ brief: { source: 'upload', name: doc.name } }, 'brief');
+    // A text file needs no model to read it, so it goes as text.
+    await extractBrief(
+      doc.text
+        ? { text: doc.text, merge }
+        : { file: { data: doc.data, mediaType: doc.mediaType, name: doc.name }, merge },
+    );
+  }
+
+  /** What to do about a fact the brief never contained. */
+  async function handleGap(slot: BriefSlot, action: 'ask-tutor' | 'upload-handbook' | 'i-know-this') {
+    if (!flow) return;
+    if (action === 'ask-tutor') {
+      // Written, addressed and opened in Mail. The thing students stall on is
+      // the wording, not the sending.
+      void openEmailDraft({
+        subject: `Question about ${flowTitle(flow)}`,
+        body: tutorQuestion([slot], flowTitle(flow)),
+      });
+      addChatMessage(mk('aria', "I've written the question — it's in your mail app, ready to send."));
+      return;
+    }
+    if (action === 'upload-handbook') {
+      await uploadBrief('file', true);
+      return;
+    }
+    // "I know this": the composer answers this one slot next.
+    setFlow((f) => (f ? { ...f, pendingGap: slot } : f));
+    addChatMessage(mkPrompt(GAP_QUESTION[slot]));
+  }
+
+  /**
+   * The plan, built backwards from the deadline.
+   *
+   * Two different jobs behind one button. An assignment has no steps until the
+   * model breaks the brief down, and then they are dated backwards from the
+   * deadline. A project already has its milestones and its dates — they were
+   * the last question — so there is nothing to generate and the plan is what
+   * was already decided, in order.
+   */
+  async function buildWorkPlan() {
+    if (!flow || drafting) return;
+    const deadline = workDeadline(flow);
+
+    if (flow.kind === 'project') {
+      const rows = flowSteps(flow).map((s) => ({
+        title: s.title,
+        due: s.due ?? deadline ?? demoDate,
+      }));
+      setFlow((f) => (f ? { ...f, plan: rows.sort((a, b) => a.due.localeCompare(b.due)) } : f));
+      return;
+    }
+
+    setDrafting(true);
+    try {
+      const items = await requestChecklist({
+        title: flowTitle(flow),
+        /*
+         * Everything Aria knows goes in as the description.
+         *
+         * A breakdown built from a title alone is the generic essay scaffolding
+         * this app already had. The brief's own words, plus the direction they
+         * took in the Guide, are what make the steps belong to this assignment.
+         */
+        description:
+          [
+            briefSummary(flow.facts),
+            flow.guide?.chosen ? `Angle: ${flow.guide.chosen.title}` : '',
+            flow.approach,
+          ]
+            .filter(Boolean)
+            .join('\n\n') || undefined,
+        learner: {
+          studying: profile.studying,
+          level: profile.level,
+          interests: profile.interests,
+          explainStyle: profile.explainStyle,
+        },
+      });
+      const plan = planBackwards({
+        deadline: deadline ?? demoDate,
+        today: demoDate,
+        // Weighted to the criteria: a step matching a 40% criterion earns more
+        // of the calendar than one matching 10%.
+        steps: items.map((title) => ({ title, weight: weightFor(title, flow.facts) })),
+        busy: busyDates,
+      });
+      setFlow((f) => (f ? { ...f, plan: plan.steps, checklist: items } : f));
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /** Say the project's intent back, with how sure Aria is that it understood. */
+  async function reflectBack() {
+    if (!flow || drafting) return;
+    setDrafting(true);
+    try {
+      const res = await requestDraft({
+        title: flowTitle(flow),
+        kind: flow.kind,
+        reflect: true,
+        description: [
+          flow.definition ? `Done means: ${flow.definition}` : '',
+          flow.brief?.text ?? '',
+          flow.scopeIn?.length ? `In scope: ${flow.scopeIn.join('; ')}` : '',
+          flow.scopeOut?.length ? `Not doing: ${flow.scopeOut.join('; ')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        senderName: profile.name,
+        senderContext: profile.context,
+      });
+      setFlow((f) =>
+        f
+          ? {
+              ...f,
+              // The confidence is computed from what Aria actually had, not
+              // claimed by the model about its own reading — see the note at
+              // `reflectConfidence`.
+              reflect: { text: res.message, confidence: reflectConfidence(f) },
+            }
+          : f,
+      );
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  // ── The Guide ──────────────────────────────────────────────────────────────
+
+  function guideOpen(from: FlowStep) {
+    if (!flow) return;
+    const next = openGuide(flow, from);
+    setFlow(next);
+    const step = nextStep(next);
+    setFlowStep(step);
+    addChatMessage(mkPrompt(promptFor(step, next)));
+  }
+
+  /** The one narrowing question is answered; now it is worth generating. */
+  async function guideFocus(focus: string) {
+    if (!flow || drafting) return;
+    const asked: FlowDraft = { ...flow, guide: { ...flow.guide!, focus } };
+    setFlow(asked);
+    setFlowStep('guideDirections');
+    setDrafting(true);
+    try {
+      const res = await requestGuide({
+        mode: guideModeFor(flow.kind),
+        title: flowTitle(flow),
+        focus,
+        facts: flow.facts,
+        definition: flow.definition,
+        scopeIn: flow.scopeIn,
+        scopeOut: flow.scopeOut,
+        note: flow.brief?.text,
+        learner: {
+          studying: profile.studying,
+          level: profile.level,
+          interests: profile.interests,
+          explainStyle: profile.explainStyle,
+        },
+        // A student is being marked; a project is their own. The integrity rule
+        // follows who is asking, not which screen they asked from.
+        student: flow.kind === 'assignment',
+      });
+      const guided: FlowDraft = {
+        ...asked,
+        guide:
+          res.kind === 'needs'
+            ? { ...asked.guide!, needs: res.ask, directions: undefined }
+            : { ...asked.guide!, directions: res.directions, needs: undefined, fallback: res.fallback },
+      };
+      setFlow(guided);
+      addChatMessage(mkPrompt(promptFor('guideDirections', guided)));
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  /**
+   * Take one, and let it change the plan.
+   *
+   * "The choice flows back into the plan" is the whole reason the Guide is part
+   * of the flow rather than a chat aside: the plan is rebuilt from the direction
+   * they picked, so the steps are for the thing they decided to do.
+   */
+  function guideChoose(index: number) {
+    if (!flow?.guide?.directions) return;
+    const chosen = flow.guide.directions[index];
+    const taken: FlowDraft = closeGuide({ ...flow, guide: { ...flow.guide, chosen } });
+    // An angle changes the breakdown, so the old one is dropped rather than
+    // left sitting under a heading it no longer matches.
+    const cleared: FlowDraft = { ...taken, plan: undefined, checklist: undefined };
+    setFlow(cleared);
+    const back = flow.guide.from;
+    setFlowStep(back);
+    addChatMessage(mk('aria', `"${chosen.title}" it is. I'll build the plan around that.`));
+    addChatMessage(mkPrompt(promptFor(back, cleared)));
+  }
+
+  function guideClose() {
+    if (!flow?.guide) return;
+    const closed = closeGuide(flow);
+    setFlow(closed);
+    setFlowStep(closed.guide!.from);
+    addChatMessage(mkPrompt(promptFor(closed.guide!.from, closed)));
+  }
+
   /** Dig into one item of the plan and keep the answer with the task. */
   async function askAbout(item: string) {
     if (!flow || drafting) return;
@@ -375,10 +787,35 @@ export default function ChatScreen() {
     // The explanation goes onto the task, not just into the transcript: it is
     // the thing the student will want again when they sit down to do the work.
     const input = toTaskInput(flow);
-    const id = addTask(input);
+    /*
+     * A piece of work arrives with its plan already on it.
+     *
+     * `addSubtasks` takes titles, which loses the two things that make a work
+     * step different from a checklist item: the day it was meant to happen, and
+     * what forces it. Both are needed later — a step with no date can never be
+     * seen to have slipped, and a milestone with nothing forcing it is the one
+     * that will. So work goes in through `addTask`'s own subtask argument with
+     * the metadata attached, and everything else keeps the simple path.
+     */
+    const steps = isWorkKind(flow.kind) ? flowSteps(flow) : [];
+    const id = addTask({
+      ...input,
+      subtasks: steps.length
+        ? steps.map((s) => ({
+            id: uuidv4(),
+            title: s.title,
+            done: false,
+            due: s.due,
+            forcing: s.forcing,
+            // Counted from zero rather than left undefined, so "never moved"
+            // and "not a work step" stay distinguishable.
+            rollovers: 0,
+          }))
+        : undefined,
+    });
     // The plan becomes the task's checklist, and everything Aria worked out
     // becomes sections on it — so the work survives the conversation.
-    if (flow.checklist?.length) addSubtasks(id, flow.checklist);
+    if (!steps.length && flow.checklist?.length) addSubtasks(id, flow.checklist);
     const doc = flowDocument(flow);
     if (doc) addDraftSection(id, { title: 'Worked out with Aria', content: doc });
     const title = flowTitle(flow);
@@ -463,8 +900,48 @@ export default function ChatScreen() {
      * model to reply to. Sending it on would have Aria answer "History essay"
      * as though it were a question.
      */
+    /*
+     * "I know this" made the composer answer one field of the brief.
+     *
+     * Checked before the step router below, because the step is still
+     * `extraction` — the difference is that a gap is waiting for this line, and
+     * it is the most recent thing Aria asked. Recorded at high confidence: the
+     * student is the source now, not a model reading a PDF.
+     */
+    if (flow?.pendingGap) {
+      const slot = flow.pendingGap;
+      const patch = applyGapAnswer(slot, trimmed);
+      setFlow((f) =>
+        f ? { ...f, facts: { ...f.facts, ...patch.facts }, pendingGap: undefined } : f,
+      );
+      addChatMessage(mk('aria', 'Got it, that one is filled in.'));
+      return;
+    }
+
     if (flow && isTypedStep(flowStep)) {
-      advanceFlow(applyTypedAnswer(flowStep, trimmed), flowStep);
+      const patch = applyTypedAnswer(flowStep, trimmed);
+      /*
+       * A pasted brief is read straight away.
+       *
+       * The alternative was a "Read it" button on the next card, which is a tap
+       * between someone pasting a brief and Aria doing the one thing they
+       * pasted it for.
+       */
+      if (flowStep === 'brief') {
+        const project = flow.kind === 'project';
+        advanceFlow(
+          {
+            ...patch,
+            // A project describes itself in the same box, so the first line
+            // becomes the title rather than being asked for twice.
+            ...(project && !flow.title?.trim() ? { title: titleFromText(trimmed) } : {}),
+          },
+          'brief',
+        );
+        if (!project) void extractBrief({ text: trimmed });
+        return;
+      }
+      advanceFlow(patch, flowStep);
       return;
     }
 
@@ -711,6 +1188,22 @@ export default function ChatScreen() {
                 onMessageChange={(text) => setFlow((f) => (f ? { ...f, message: text } : f))}
                 onTone={(instruction) => void draftCardMessage(instruction)}
                 onAccept={saveFlow}
+                busyDates={busyDates}
+                fixedDays={fixedDays}
+                onFixedDays={(days) => setSetting('fixedDays', days)}
+                work={{
+                  onUpload: (source) => void uploadBrief(source),
+                  onGap: (slot, action) => void handleGap(slot, action),
+                  onBuildPlan: () => void buildWorkPlan(),
+                  onReflect: () => void reflectBack(),
+                  onGuide: guideOpen,
+                }}
+                guide={{
+                  onFocus: (value) => void guideFocus(value),
+                  onChoose: guideChoose,
+                  onAgain: () => void guideFocus(flow.guide?.focus ?? 'angle'),
+                  onClose: guideClose,
+                }}
                 /*
                  * Changing an answer happens here, not on the task form.
                  *
@@ -722,16 +1215,16 @@ export default function ChatScreen() {
                  * whole point of doing it here.
                  */
                 onEdit={(stepToRedo: FlowStep) => {
-                  setFlow((f) => {
-                    if (!f) return f;
-                    const answered: FlowDraft['answered'] = { ...f.answered };
-                    delete answered[stepToRedo];
-                    delete answered.preview;
-                    return { ...f, answered };
-                  });
-                  const reopened: FlowDraft = { ...flow, answered: { ...flow.answered } };
-                  delete reopened.answered[stepToRedo];
-                  delete reopened.answered.preview;
+                  /*
+                   * `reopen` rather than deleting the one mark here.
+                   *
+                   * Changing the handling method changes which questions exist
+                   * at all, so its dependents have to be reopened with it —
+                   * that rule lives in lib/task-flow.ts, where `check:flow` can
+                   * see it, and not in two hand-rolled copies on this screen.
+                   */
+                  const reopened = reopen(flow, stepToRedo);
+                  setFlow(reopened);
                   const step = nextStep(reopened);
                   setFlowStep(step);
                   addChatMessage(mkPrompt(promptFor(step, reopened)));

@@ -43,6 +43,7 @@ import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ensureAlarmPermission, runPreview } from '@/lib/alarms';
 import {
+  CATEGORY_BLURB,
   CATEGORY_KINDS,
   TITLE_FIELD,
   EVENT_OCCASIONS,
@@ -433,9 +434,18 @@ export default function NewTaskScreen() {
             <Text variant="label" tone="muted">
               Category
             </Text>
+            {/*
+              Tiles with a line each, not a row of pills.
+
+              Assignment and Project were two words of equal length and equal
+              weight, and nothing on the screen said which one a piece of work
+              belonged in — so the choice was a coin toss that changes the whole
+              flow behind it. A tile has room for the sentence that decides it;
+              a pill does not. `CATEGORY_BLURB` holds the wording.
+            */}
             <View className="flex-row flex-wrap gap-2">
               {CATEGORY_KINDS.map((k) => {
-                // The Event chip stands in for the whole family, so it stays lit
+                // The Event tile stands in for the whole family, so it stays lit
                 // — and wears the occasion's icon — while a birthday is selected.
                 const active = k.value === 'event' ? isEventKind(kind) : kind === k.value;
                 const Icon = KIND_ICON[k.value === 'event' && active ? kind : k.value];
@@ -444,15 +454,21 @@ export default function NewTaskScreen() {
                     key={k.value}
                     onPress={() => selectKind(k.value === 'event' && active ? kind : k.value)}
                     className={cn(
-                      'flex-row items-center gap-2 rounded-full border px-3.5 py-2.5',
+                      'w-[48%] flex-1 gap-1 rounded-2xl border p-3',
                       active ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
-                    )}>
-                    <Icon size={16} color={active ? c.accent : c.muted} />
-                    <Text
-                      variant="small"
-                      tone={active ? 'accent' : 'muted'}
-                      className="font-strong">
-                      {k.label}
+                    )}
+                    style={{ minWidth: '46%' }}>
+                    <View className="flex-row items-center gap-2">
+                      <Icon size={16} color={active ? c.accent : c.muted} />
+                      <Text
+                        variant="small"
+                        tone={active ? 'accent' : 'muted'}
+                        className="font-strong">
+                        {k.label}
+                      </Text>
+                    </View>
+                    <Text variant="caption" tone="faint">
+                      {CATEGORY_BLURB[k.value]}
                     </Text>
                   </Pressable>
                 );

@@ -101,6 +101,29 @@ export const CATEGORY_KINDS: { value: TaskKind; label: string }[] = [
   { value: 'project', label: 'Project' },
 ];
 
+/**
+ * One line under each category, because two of them are indistinguishable
+ * without it.
+ *
+ * "Assignment" and "Project" are the same word to anyone who has not used the
+ * app: both are big, both take weeks, and the tile gives no way to tell which
+ * one you want. The distinction that actually decides it is where the
+ * requirements come from — somebody else wrote them down, or you are writing
+ * them yourself — so that is what the line says.
+ *
+ * The other two are here for symmetry: a row where only half the tiles are
+ * explained reads as though the explained ones are the complicated ones.
+ */
+export const CATEGORY_BLURB: Record<TaskKind, string> = {
+  event: 'A date with someone at the other end',
+  reminder: 'A nudge at the right moment',
+  assignment: 'Coursework with a brief and a deadline',
+  project: "Work you're scoping yourself",
+  birthday: 'Someone’s birthday, with a card or a message',
+  anniversary: 'An anniversary worth marking',
+  general: 'Anything else you want handled',
+};
+
 /*
  * 'general' is deliberately absent from the list above, and deliberately still
  * a `TaskKind`.
@@ -406,6 +429,18 @@ export interface DraftRequest {
   research?: boolean;
   /** Explain the topic, using how this student said they learn best. */
   explain?: boolean;
+  /**
+   * Say the intent back rather than write anything new.
+   *
+   * The project flow's reflect-back card. Mechanically it is a draft — short
+   * text from the model about this piece of work — so it reuses this route
+   * rather than adding a third one, and prompts, fallbacks and the key check
+   * stay in one place. What it must never do is add: a reflection that quietly
+   * invents a goal is worse than none, because the card exists to be agreed
+   * with, and agreeing with an invention is how a project ends up scoped
+   * around something nobody asked for.
+   */
+  reflect?: boolean;
   learner?: Learner;
   senderName?: string;
   /** One line on who the sender is, so drafts match how they'd write. */
@@ -502,6 +537,23 @@ export function localFallbackDraft(req: DraftRequest): string {
   const messaging = isMessageMethod(req.method);
 
   if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
+    if (req.reflect) {
+      /*
+       * Offline, the honest reflection is their own words back.
+       *
+       * Every other fallback in this file writes something plausible. This one
+       * must not: the card asks "have I understood you", and a scripted
+       * paraphrase would be Aria agreeing with itself. Quoting what was given
+       * and naming what is missing is the same job done truthfully — and the
+       * confidence chip beside it is computed from exactly this poverty of
+       * input, so the two agree.
+       */
+      const stated = req.description?.trim();
+      if (!stated) {
+        return `Here's what I've got: "${req.title}". That's all I know so far, so tell me what done looks like and I'll say it back properly.`;
+      }
+      return [`Here's what I've got, in your words:`, '', stated].join('\n');
+    }
     if (req.subtaskTitle && req.research) {
       // A follow-up gets guidance shaped to what was asked. Deliberately about
       // how to find the answer rather than the answer itself: without a model

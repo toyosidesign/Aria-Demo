@@ -17,8 +17,10 @@ import path from 'node:path';
 import { isConfirmedUser, protectedRoute } from '@/lib/api-auth';
 import {
   AssistantSchema,
+  BriefSchema,
   ChecklistSchema,
   MAX_BODY_BYTES,
+  MAX_UPLOAD_BYTES,
   SendEmailSchema,
   parseBody,
 } from '@/lib/api-schemas';
@@ -505,6 +507,48 @@ await test('every API route on disk is declared through protectedRoute', () => {
       `${rel} must be declared with protectedRoute — a bare handler is unauthenticated`,
     );
   }
+});
+
+await test('only the upload route may raise the body ceiling', () => {
+  /*
+   * `MAX_UPLOAD_BYTES` is a real loosening of the allocation bound every other
+   * route keeps: a brief arrives as a PDF or a photo of a handout, and the
+   * bytes have to reach the model because nothing on the device can read one.
+   *
+   * It is passed explicitly, by one route, so this is checkable — and it has to
+   * be, because the cheap version of this attack is one large request. A second
+   * route picking it up "because uploads are useful there too" is exactly the
+   * drift worth failing the build over.
+   */
+  const allowed = 'src/app/api/brief+api.ts';
+  for (const file of ROUTE_FILES) {
+    const rel = path.relative(ROOT, file);
+    const src = readFileSync(file, 'utf8');
+    if (rel === allowed) {
+      assert.match(src, /MAX_UPLOAD_BYTES/, `${rel} is the upload route and must pass the ceiling`);
+      // Authenticated and quota'd like everything else: the account paying for
+      // a large body is one that can be cut off.
+      assert.match(src, /limitAi/, `${rel} must stay on the AI quota`);
+      continue;
+    }
+    assert.doesNotMatch(
+      src,
+      /MAX_UPLOAD_BYTES/,
+      `${rel} must keep the default body cap — only ${allowed} carries a file`,
+    );
+  }
+});
+
+await test('an over-sized upload is still refused at the higher ceiling', async () => {
+  // The ceiling is larger, not absent. A body past it is rejected before the
+  // schema sees it, which is what bounds the allocation rather than the bill.
+  const huge = JSON.stringify({ today: '2026-09-01', text: 'x'.repeat(MAX_UPLOAD_BYTES + 1000) });
+  const request = new Request('https://aria.test/api/brief', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: huge,
+  });
+  assert.equal(await parseBody(request, BriefSchema, MAX_UPLOAD_BYTES), null);
 });
 
 await test('no API route exports a bare handler function', () => {

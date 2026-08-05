@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { isValidEmails, isValidPhone } from '@/lib/contacts';
 import { useColors } from '@/lib/colors';
 import { hapticSelect } from '@/lib/haptics';
-import { phoneContactsAvailable, pickPhoneContact } from '@/lib/phone-contacts';
+import { phoneContactsAvailable, pickPhoneContactResult } from '@/lib/phone-contacts';
 
 /**
  * Who a task is going to.
@@ -28,6 +28,7 @@ export function ContactField({
   requireEmail,
   needsPhone,
   phoneOnly = false,
+  startPicked = false,
   nameError,
   emailError,
   phoneError,
@@ -46,6 +47,13 @@ export function ContactField({
   /** A call only ever needs a number: no name to type, no address to collect. */
   phoneOnly?: boolean;
   /**
+   * Someone was already chosen elsewhere, so open on the summary rather than on
+   * the form. Without it, a contact picked one question earlier in chat came
+   * back as three filled-in text boxes — the exact fields choosing them was
+   * supposed to replace.
+   */
+  startPicked?: boolean;
+  /**
    * Set by the form once Save has been pressed on an incomplete task, so the
    * field that blocked it says so. Undefined is the normal state — these are
    * derived from the values, so they clear as soon as the field is filled.
@@ -56,15 +64,41 @@ export function ContactField({
 }) {
   const c = useColors();
   const canPickFromPhone = phoneContactsAvailable();
-  const [fromPhone, setFromPhone] = useState(false);
+  const [fromPhone, setFromPhone] = useState(startPicked);
+  /**
+   * Why the last pick came back with nobody, when it did.
+   *
+   * A cancelled picker needs no explanation — you closed it. A refused
+   * permission does: on Android the picker cannot open at all without
+   * `READ_CONTACTS`, and with nothing said, the button reads as broken. Cleared
+   * on the next attempt so a stale reason never sits under a working one.
+   */
+  const [pickNote, setPickNote] = useState<string | null>(null);
 
   async function importFromPhone() {
-    const contact = await pickPhoneContact();
-    if (!contact) return;
+    setPickNote(null);
+    const result = await pickPhoneContactResult();
+    if (result.status === 'denied') {
+      setPickNote(
+        result.canAskAgain
+          ? 'Aria needs permission to open your contacts. Allow it, or fill them in below.'
+          : 'Contacts are turned off for Aria. Turn them on in Settings, or fill them in below.',
+      );
+      return;
+    }
+    if (result.status === 'unavailable') {
+      setPickNote('This device has no contacts to pick from. Fill them in below.');
+      return;
+    }
+    if (result.status === 'error') {
+      setPickNote(`${result.message}. Fill them in below.`);
+      return;
+    }
+    if (result.status === 'cancelled') return; // you closed it; you know
     hapticSelect();
-    onName(contact.name);
-    onEmail(contact.email ?? '');
-    onPhone(contact.phone ?? '');
+    onName(result.contact.name);
+    onEmail(result.contact.email ?? '');
+    onPhone(result.contact.phone ?? '');
     setFromPhone(true);
   }
 
@@ -187,9 +221,15 @@ export function ContactField({
                   Choose from your contacts
                 </Text>
               </Pressable>
-              <Text variant="caption" tone="faint">
-                Or fill it in yourself below.
-              </Text>
+              {pickNote ? (
+                <Text variant="caption" tone="danger">
+                  {pickNote}
+                </Text>
+              ) : (
+                <Text variant="caption" tone="faint">
+                  Or fill it in yourself below.
+                </Text>
+              )}
             </>
           ) : null}
 

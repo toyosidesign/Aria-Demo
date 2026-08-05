@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Check,
   MessageCircleQuestion,
+  Repeat2,
   Sparkles,
   UserPlus,
   X,
@@ -9,16 +10,41 @@ import {
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 
+import { ContactField } from '@/components/contact-field';
+import { Choice, PANEL_SHELL, Pill } from '@/components/flow-controls';
 import { MonthCalendar } from '@/components/month-calendar';
+import { PhotoField } from '@/components/photo-field';
 import { TimeField } from '@/components/time-field';
+import {
+  BriefStep,
+  CommitmentsStep,
+  DefinitionGate,
+  ExtractionCard,
+  GuideAsk,
+  GuideDirections,
+  MilestonesStep,
+  PlanPreview,
+  ReflectCard,
+  ScopeStep,
+  type WorkHandlers,
+} from '@/components/work-panels';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
-import { formatFull, formatTime } from '@/lib/dates';
+import { REPEAT_LABEL, REPEAT_OPTIONS, formatFull, formatTime } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { pickPhoneContact, phoneContactsAvailable } from '@/lib/phone-contacts';
 import { templatesFor } from '@/lib/cards';
-import { TONES, flowTitle, type FlowDraft, type FlowStep } from '@/lib/task-flow';
+import {
+  EVENT_HANDLING,
+  METHOD_NEEDS,
+  TONES,
+  contactSatisfied,
+  needsContact,
+  flowTitle,
+  type FlowDraft,
+  type FlowStep,
+} from '@/lib/task-flow';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -34,74 +60,6 @@ import { useAriaStore } from '@/store/aria-store';
  * conversation rather than a wizard with a progress bar.
  */
 
-/** A tappable pill. 44pt minimum, like every other tap target in the app. */
-function Pill({
-  label,
-  onPress,
-  active,
-  icon,
-}: {
-  label: string;
-  onPress: () => void;
-  active?: boolean;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={() => {
-        hapticSelect();
-        onPress();
-      }}
-      className={`min-h-[44px] min-w-[44px] flex-row items-center justify-center gap-1.5 rounded-full border px-4 py-2.5 active:opacity-70 ${
-        active ? 'border-accent bg-accent' : 'border-border bg-surface'
-      }`}>
-      {icon}
-      <Text variant="small" tone={active ? 'onAccent' : 'muted'} className="font-strong">
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-/**
- * One of a small set of answers, sized to be read rather than hunted for.
- *
- * Yes/no was two small pills floating in a box, which looked like tags rather
- * than a decision. These split the width, so the choice is the widest thing on
- * screen at the moment it is being asked.
- */
-function Choice({
-  label,
-  onPress,
-  primary,
-  busy,
-}: {
-  label: string;
-  onPress: () => void;
-  primary?: boolean;
-  /** Work is in flight. Shows a spinner and refuses further taps. */
-  busy?: boolean;
-}) {
-  const c = useColors();
-  return (
-    <Pressable
-      disabled={busy}
-      onPress={() => {
-        if (busy) return;
-        hapticSelect();
-        onPress();
-      }}
-      className={`min-h-[46px] flex-1 flex-row items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 ${
-        busy ? 'opacity-60' : 'active:opacity-70'
-      } ${primary ? 'border-accent bg-accent' : 'border-border bg-surface'}`}>
-      {busy ? <ActivityIndicator size="small" color={primary ? c.accentInk : c.muted} /> : null}
-      <Text variant="small" tone={primary ? 'onAccent' : 'muted'} className="font-strong">
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 export function TaskFlowPanel({
   step,
   draft,
@@ -116,6 +74,11 @@ export function TaskFlowPanel({
   onAccept,
   onEdit,
   onCancel,
+  work,
+  guide,
+  busyDates,
+  fixedDays,
+  onFixedDays,
 }: {
   step: FlowStep;
   draft: FlowDraft;
@@ -149,25 +112,83 @@ export function TaskFlowPanel({
   /** Re-open one answered step, so a change never leaves the chat. */
   onEdit: (step: FlowStep) => void;
   onCancel: () => void;
+  /**
+   * Everything the work steps need.
+   *
+   * Grouped rather than spread across a dozen more props: an assignment's steps
+   * upload files, call the model twice and rebuild a plan, and threading each
+   * of those through this signature individually would make the occasion steps
+   * — which need none of it — harder to read for no benefit.
+   */
+  work?: Omit<WorkHandlers, 'onAnswer' | 'onEdit' | 'onAccept' | 'onCancel' | 'busy'>;
+  /** Guide plumbing: pick a focus, choose a direction, ask again, close. */
+  guide?: {
+    onFocus: (value: string) => void;
+    onChoose: (index: number) => void;
+    onAgain: () => void;
+    onClose: () => void;
+  };
+  /** Dates already spoken for between now and the deadline. */
+  busyDates?: string[];
+  fixedDays?: number[];
+  onFixedDays?: (days: number[]) => void;
 }) {
   const c = useColors();
   const demoDate = useAriaStore((s) => s.demoDate);
-  const contacts = useAriaStore((s) => s.contacts);
   const [date, setDate] = useState(draft.date ?? demoDate);
   const [time, setTime] = useState<string | null>(draft.time ?? null);
 
+  const shell = PANEL_SHELL;
+
   /*
-   * Attached to the question, not floating below it.
+   * ── The work steps ────────────────────────────────────────────────────────
    *
-   * The controls used to sit in their own bordered card docked above the
-   * composer, while Aria's question stayed up in the transcript — so the two
-   * halves of a single exchange were separated by the whole conversation and
-   * read as unrelated furniture. This tucks in directly under the bubble it
-   * belongs to: same left inset, square top-left corner continuing the bubble's
-   * tail, and the accent tint carried through so the pair reads as one turn.
+   * Routed out to `work-panels.tsx` and handed one object of callbacks. This
+   * panel decides *which* card, and nothing about what any of them contain —
+   * the same division that keeps the occasion steps readable.
    */
-  const shell =
-    'ml-10 -mt-1 gap-3 rounded-2xl rounded-tl-sm border border-accent/25 bg-accent-soft/60 p-3.5';
+  if (work && guide) {
+    const handlers: WorkHandlers = {
+      ...work,
+      onAnswer,
+      onEdit,
+      onAccept,
+      onCancel,
+      busy: drafting,
+    };
+    if (step === 'brief') return <BriefStep draft={draft} on={handlers} />;
+    if (step === 'extraction') return <ExtractionCard draft={draft} on={handlers} />;
+    if (step === 'commitments') {
+      return (
+        <CommitmentsStep
+          draft={draft}
+          on={handlers}
+          fromCalendar={busyDates ?? []}
+          fixedDays={fixedDays ?? []}
+          onFixedDays={onFixedDays ?? (() => {})}
+        />
+      );
+    }
+    if (step === 'definition') return <DefinitionGate draft={draft} on={handlers} />;
+    if (step === 'reflect') return <ReflectCard draft={draft} on={handlers} />;
+    if (step === 'scope') return <ScopeStep draft={draft} on={handlers} />;
+    if (step === 'milestones') return <MilestonesStep draft={draft} on={handlers} />;
+    if (step === 'planPreview') return <PlanPreview draft={draft} on={handlers} />;
+    if (step === 'guideAsk') {
+      return <GuideAsk draft={draft} onFocus={guide.onFocus} onClose={guide.onClose} />;
+    }
+    if (step === 'guideDirections') {
+      return (
+        <GuideDirections
+          draft={draft}
+          busy={drafting}
+          onChoose={guide.onChoose}
+          onAgain={guide.onAgain}
+          onClose={guide.onClose}
+        />
+      );
+    }
+  }
 
   if (step === 'approach') {
     return (
@@ -267,14 +288,17 @@ export function TaskFlowPanel({
               const picked = await pickPhoneContact();
               // A cancelled picker is not an answer. Leave the step open.
               if (!picked) return;
-              // Name and contact in one move, so `contact` never has to ask.
+              /*
+               * Their details come too, but this does not answer `contact`.
+               *
+               * It used to mark that step done, which was right when a contact
+               * was a nice-to-have. Now the method decides what is actually
+               * needed — a text with no number is not a text — so the contact
+               * step still runs and confirms what was picked, collapsed to a
+               * summary because the fields it would show are already filled.
+               */
               onAnswer(
-                {
-                  who: picked.name,
-                  contactPhone: picked.phone,
-                  contactEmail: picked.email,
-                  answered: { ...draft.answered, contact: true },
-                },
+                { who: picked.name, contactPhone: picked.phone, contactEmail: picked.email },
                 'who',
               );
             }}
@@ -286,43 +310,7 @@ export function TaskFlowPanel({
   }
 
   if (step === 'contact') {
-    const saved = contacts.find((ct) => ct.name === draft.who);
-    return (
-      <View className={shell}>
-        <View className="flex-row flex-wrap gap-2">
-          {saved?.phone || saved?.email ? (
-            <Pill
-              label={`Use ${saved.phone ?? saved.email}`}
-              icon={<Check size={14} color={c.muted} />}
-              onPress={() =>
-                onAnswer({ contactPhone: saved.phone, contactEmail: saved.email }, 'contact')
-              }
-            />
-          ) : null}
-          {phoneContactsAvailable() ? (
-            <Pill
-              label="Pick from contacts"
-              icon={<UserPlus size={14} color={c.muted} />}
-              onPress={async () => {
-                const picked = await pickPhoneContact();
-                // A cancelled picker is not an answer — leave the step open
-                // rather than recording "no contact" on their behalf.
-                if (!picked) return;
-                onAnswer(
-                  {
-                    who: picked.name || draft.who,
-                    contactPhone: picked.phone,
-                    contactEmail: picked.email,
-                  },
-                  'contact',
-                );
-              }}
-            />
-          ) : null}
-          <Pill label="Skip" onPress={() => onAnswer({}, 'contact')} />
-        </View>
-      </View>
-    );
+    return <ContactStep shell={shell} draft={draft} onAnswer={onAnswer} />;
   }
 
   if (step === 'date') {
@@ -384,26 +372,77 @@ export function TaskFlowPanel({
     );
   }
 
+  if (step === 'repeat') {
+    /*
+     * The two answers people actually give, and the rest behind them.
+     *
+     * "Every year" is the whole question for a birthday and the common answer
+     * for an event, so it is a button rather than the fifth row of a list. The
+     * other intervals are the same set the create form offers — one vocabulary
+     * for repeats across the app, from `REPEAT_OPTIONS`.
+     */
+    const others = REPEAT_OPTIONS.filter((o) => o.value !== 'yearly');
+    return (
+      <View className={shell}>
+        <View className="flex-row gap-2">
+          <Choice
+            label="Every year"
+            primary
+            onPress={() => onAnswer({ repeat: 'yearly' }, 'repeat')}
+          />
+          <Choice label="Just the once" onPress={() => onAnswer({ repeat: undefined }, 'repeat')} />
+        </View>
+        <View className="flex-row flex-wrap gap-2">
+          {others.map((o) => (
+            <Pill
+              key={o.value}
+              label={o.label}
+              icon={<Repeat2 size={14} color={c.muted} />}
+              active={draft.repeat === o.value}
+              onPress={() => onAnswer({ repeat: o.value }, 'repeat')}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  if (step === 'method') {
+    /*
+     * The six answers to "How should Aria handle it?", in HANDOFF §4's order.
+     *
+     * This replaced a three-way card / message / reminder question that made
+     * Aria guess the channel from whichever detail the contact happened to
+     * carry. Each of these decides what gets asked next — which is why they are
+     * whole rows rather than pills: it is the most consequential tap in the
+     * flow.
+     */
+    return (
+      <View className={shell}>
+        <View className="gap-2">
+          {EVENT_HANDLING.map((m) => (
+            <Choice
+              key={m.value}
+              label={m.label}
+              primary={draft.handling === m.value}
+              onPress={() => onAnswer({ handling: m.value }, 'method')}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  if (step === 'photo') {
+    return <PhotoStep shell={shell} draft={draft} onAnswer={onAnswer} />;
+  }
+
   if (step === 'alarm') {
     return (
       <View className={shell}>
         <View className="flex-row gap-2">
           <Choice label="Yes" primary onPress={() => onAnswer({ alarm: true }, 'alarm')} />
           <Choice label="No" onPress={() => onAnswer({ alarm: false }, 'alarm')} />
-        </View>
-      </View>
-    );
-  }
-
-  if (step === 'card') {
-    // Three answers, not a yes/no. "No card" used to swallow "but I do want to
-    // text them", and the flow went to preview with nothing to send.
-    return (
-      <View className={shell}>
-        <View className="gap-2">
-          <Choice label="Send a card" primary onPress={() => onAnswer({ delivery: 'card' }, 'card')} />
-          <Choice label="Send a message" onPress={() => onAnswer({ delivery: 'message' }, 'card')} />
-          <Choice label="Just remind me" onPress={() => onAnswer({ delivery: 'remind' }, 'card')} />
         </View>
       </View>
     );
@@ -497,18 +536,29 @@ export function TaskFlowPanel({
         <View className="gap-1">
           <Row icon={<CalendarDays size={14} color={c.muted} />} label={draft.date ? formatFull(draft.date) : 'Not set'} />
           {draft.time ? <Row label={formatTime(draft.time)} /> : null}
+          {draft.repeat ? <Row label={REPEAT_LABEL[draft.repeat]} /> : null}
           {draft.who ? <Row label={`For ${draft.who}`} /> : null}
-          {draft.contactPhone || draft.contactEmail ? (
-            <Row label={draft.contactPhone ?? draft.contactEmail ?? ''} />
-          ) : null}
-          <Row label={draft.alarm ? 'Alarm on' : 'No alarm'} />
-          {draft.delivery === 'card' ? (
-            <Row label={`Card: ${templatesFor(draft.kind).find((t) => t.id === draft.cardTemplateId)?.name ?? 'default'}`} />
-          ) : draft.delivery === 'message' ? (
-            <Row label="Message" />
+          {/* Whichever detail the chosen method will actually use: a text goes
+              to the number, an email to the address. Showing both would leave
+              you guessing which one Aria picked. */}
+          {contactDetailShown(draft) ? <Row label={contactDetailShown(draft)!} /> : null}
+          {draft.handling ? (
+            <Row
+              label={
+                draft.handling === 'card'
+                  ? `Card: ${templatesFor(draft.kind).find((t) => t.id === draft.cardTemplateId)?.name ?? 'default'}`
+                  : (EVENT_HANDLING.find((m) => m.value === draft.handling)?.label ?? '')
+              }
+            />
           ) : (
-            <Row label="Reminder only" />
+            <Row label={draft.alarm ? 'Alarm on' : 'No alarm'} />
           )}
+          {/* Not sending, and not able to: the flow asked for a text and the
+              number never arrived, so the task saves as a reminder. Better said
+              here than discovered on Today. */}
+          {draft.handling && !contactSatisfied(draft) ? (
+            <Row label="No contact for that — saving it as a reminder" />
+          ) : null}
         </View>
         {draft.message ? (
           <View className="rounded-xl border border-border bg-bg p-3">
@@ -522,11 +572,15 @@ export function TaskFlowPanel({
         <View className="flex-row flex-wrap gap-2">
           <Pill label="Change date" onPress={() => onEdit('date')} />
           <Pill label="Change time" onPress={() => onEdit('time')} />
-          {draft.delivery && draft.delivery !== 'remind' ? (
+          {draft.handling ? <Pill label="Change how" onPress={() => onEdit('method')} /> : null}
+          {draft.handling && METHOD_NEEDS[draft.handling].message ? (
             <Pill label="Change message" onPress={() => onEdit('cardMessage')} />
           ) : null}
-          {draft.delivery === 'card' ? (
+          {draft.handling === 'card' ? (
             <Pill label="Change card" onPress={() => onEdit('cardStyle')} />
+          ) : null}
+          {draft.handling && needsContact(draft.handling) ? (
+            <Pill label="Change who" onPress={() => onEdit('contact')} />
           ) : null}
         </View>
         <View className="flex-row gap-2">
@@ -538,6 +592,121 @@ export function TaskFlowPanel({
   }
 
   return null;
+}
+
+/**
+ * Who it's going to, asking only for what this method cannot do without.
+ *
+ * The same `ContactField` the create form uses, for the rule in HANDOFF §4:
+ * choose someone from your contacts and the fields it filled disappear, leaving
+ * the person and a way to clear them. A field reappearing after that means the
+ * contact genuinely lacks a detail this method needs — a text to someone with
+ * no number — and the field says which.
+ *
+ * Local state, committed on the button. Editing straight into the draft would
+ * put a half-typed number through `nextStep` on every keystroke.
+ */
+function ContactStep({
+  shell,
+  draft,
+  onAnswer,
+}: {
+  shell: string;
+  draft: FlowDraft;
+  onAnswer: (patch: Partial<FlowDraft>, step: FlowStep) => void;
+}) {
+  const saved = useAriaStore((s) => s.contacts).find((ct) => ct.name === draft.who);
+  const [name, setName] = useState(draft.who ?? '');
+  // Anything Aria already knows about them, whether it came from the picker a
+  // question ago or from a contact saved in the app.
+  const [email, setEmail] = useState(draft.contactEmail ?? saved?.email ?? '');
+  const [phone, setPhone] = useState(draft.contactPhone ?? saved?.phone ?? '');
+
+  const needs = draft.handling ? METHOD_NEEDS[draft.handling] : METHOD_NEEDS.remind;
+  const filled: FlowDraft = {
+    ...draft,
+    who: name,
+    contactEmail: email,
+    contactPhone: phone,
+  };
+  const ready = contactSatisfied(filled);
+
+  return (
+    <View className={shell}>
+      <ContactField
+        label={needs.phone === 'required' && needs.name === 'none' ? 'Their number' : "Who's it for?"}
+        name={name}
+        onName={setName}
+        email={email}
+        onEmail={setEmail}
+        phone={phone}
+        onPhone={setPhone}
+        requireEmail={needs.email === 'required'}
+        needsPhone={needs.phone === 'required'}
+        phoneOnly={needs.name === 'none'}
+        // Someone was picked at the "who" question, so open on their summary
+        // rather than on the boxes that picking them already filled in.
+        startPicked={Boolean(draft.who && (draft.contactPhone || draft.contactEmail))}
+      />
+      <Button
+        title={ready ? 'Use these details' : 'Still need one more detail'}
+        block
+        disabled={!ready}
+        onPress={() =>
+          onAnswer({ who: name.trim(), contactEmail: email.trim(), contactPhone: phone.trim() }, 'contact')
+        }
+      />
+      {/*
+        A way out that isn't a dead end.
+
+        Required means required — there is no texting someone with no number —
+        so without this, a student who doesn't have the detail is stuck on a
+        question they cannot answer, in a flow with no back button. This is the
+        sixth answer to "How should Aria handle it?", offered where it is needed.
+      */}
+      <Choice
+        label="Just remind me instead"
+        onPress={() => onAnswer({ handling: 'remind' }, 'contact')}
+      />
+    </View>
+  );
+}
+
+/** The picture that goes out with it, chosen before anything is written. */
+function PhotoStep({
+  shell,
+  draft,
+  onAnswer,
+}: {
+  shell: string;
+  draft: FlowDraft;
+  onAnswer: (patch: Partial<FlowDraft>, step: FlowStep) => void;
+}) {
+  const [uri, setUri] = useState(draft.photoUri);
+  return (
+    <View className={shell}>
+      <PhotoField value={uri} onChange={setUri} />
+      <Button
+        title="Use this picture"
+        block
+        disabled={!uri}
+        onPress={() => onAnswer({ photoUri: uri }, 'photo')}
+      />
+    </View>
+  );
+}
+
+/**
+ * The one contact detail the preview should show.
+ *
+ * Whichever the chosen method will actually use, because that is the thing
+ * worth checking before saving. Showing both an address and a number leaves you
+ * working out which of them Aria is about to send to.
+ */
+function contactDetailShown(d: FlowDraft): string | null {
+  if (d.handling === 'email') return d.contactEmail?.trim() || null;
+  if (d.handling === 'sms' || d.handling === 'call') return d.contactPhone?.trim() || null;
+  return d.contactPhone?.trim() || d.contactEmail?.trim() || null;
 }
 
 function Row({ icon, label }: { icon?: React.ReactNode; label: string }) {

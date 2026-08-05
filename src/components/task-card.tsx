@@ -6,6 +6,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { PriorityBadge, StatusBadge } from '@/components/ui/badge';
 import { Text } from '@/components/ui/text';
 import { ariaActionFor } from '@/lib/aria-actions';
+import { isWorkKind } from '@/lib/task-flow';
 import { useColors } from '@/lib/colors';
 import { formatFull, formatRelative, formatTime } from '@/lib/dates';
 import { isDueToday, isLate, useAriaStore, type Task } from '@/store/aria-store';
@@ -29,6 +30,17 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
    */
   const ariaAction = task.status === 'todo' ? ariaActionFor(task) : null;
   const canAria = ariaAction !== null && !ariaAction.readyToSend;
+
+  /*
+   * Only work gets a progress bar, and only while it is still work.
+   *
+   * A birthday with two subtasks is not "40% complete" in any sense a person
+   * would recognise; an assignment with two of five steps done is exactly that.
+   * Keyed off the kind rather than off having subtasks, for that reason.
+   */
+  const inProgress =
+    task.status === 'todo' && isWorkKind(task.kind) && task.subtasks.length > 0;
+  const nextStep = inProgress ? task.subtasks.find((s) => !s.done) : undefined;
 
   return (
     <Pressable
@@ -91,6 +103,34 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
           </View>
         ) : null}
       </View>
+
+      {/*
+        Work in progress looks different from a task that has not started.
+
+        An assignment runs for days and ends in a document, so the row that
+        serves an event serves it badly: a title and a date is exactly what a
+        finished piece of work looks like too. The bar says how far along it is
+        and the line under it names the one step that is next — which is the
+        difference between a list entry and something being worked on.
+      */}
+      {inProgress ? (
+        <View className="mt-3 gap-1.5">
+          <View className="h-1.5 overflow-hidden rounded-full bg-border">
+            <View
+              className="h-full rounded-full bg-accent"
+              // Never zero-width: a bar with nothing in it reads as a rendering
+              // fault rather than as "nothing done yet".
+              style={{ width: `${Math.max(4, Math.round((doneCount / task.subtasks.length) * 100))}%` }}
+            />
+          </View>
+          {nextStep ? (
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              Next: {nextStep.title}
+              {nextStep.due ? ` · ${formatRelative(nextStep.due, demoDate)}` : ''}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </Pressable>
   );
 }

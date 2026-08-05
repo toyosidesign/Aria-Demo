@@ -42,6 +42,25 @@ function buildPrompt(req: DraftRequest): string {
   const messaging = isMessageMethod(req.method);
 
   if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
+    if (req.reflect) {
+      /*
+       * Say it back, add nothing.
+       *
+       * The reflect-back card is agreed with or corrected, so an invented goal
+       * would be agreed with too — and a project then gets scoped around
+       * something nobody asked for. The instruction to use only what was given
+       * is doing the real work here, not the tone.
+       */
+      lines.push(
+        `Say back, in your own words, what this project is: "${req.title}".`,
+        'Two or three sentences, second person ("You\'re building..."). Use only what you were given: do not add goals, audiences, deadlines or features that were not stated.',
+        'If something important is missing, say what is unclear rather than filling it in.',
+        'No preamble, no encouragement, no questions at the end.',
+      );
+      if (req.description) lines.push(`What they told me:\n${req.description}`);
+      return lines.join('\n');
+    }
+
     if (req.explain) {
       /*
        * The thing onboarding was collecting all along.

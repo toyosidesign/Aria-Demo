@@ -39,46 +39,89 @@ export function phoneContactsAvailable(): boolean {
 }
 
 /**
- * Open the system contact picker and return the chosen person.
+ * Why no contact came back, when none did.
+ *
+ * The picker used to answer `null` to every question — cancelled, denied,
+ * unavailable, nameless — and every caller treated all four as "they changed
+ * their mind" and left the form untouched. On Android, where the picker needs
+ * `READ_CONTACTS`, that made a refused permission look exactly like a dead
+ * button: tap, nothing, tap again, still nothing, no way to find out why.
+ *
+ * So the reason is part of the answer now, and the caller says the true thing.
+ */
+export type ContactPick =
+  | { status: 'picked'; contact: PickedContact }
+  | { status: 'cancelled' }
+  /** Refused. `canAskAgain` false means only Settings can undo it. */
+  | { status: 'denied'; canAskAgain: boolean }
+  | { status: 'unavailable' }
+  /** Something went wrong the caller can only report, in words it can show. */
+  | { status: 'error'; message: string };
+
+/**
+ * Open the system contact picker and say what came of it.
  *
  * The native picker is deliberately preferred over reading the whole address
  * book: on iOS it hands back just the one contact the user tapped, so Aria
  * never needs blanket access to everyone they know.
  */
-export async function pickPhoneContact(): Promise<PickedContact | null> {
+export async function pickPhoneContactResult(): Promise<ContactPick> {
   const C = getContacts();
-  if (!C) {
-    showToast('Contacts need a device');
-    return null;
-  }
+  if (!C) return { status: 'unavailable' };
 
   try {
-    if (!(await C.isAvailableAsync())) {
-      showToast('No contacts available on this device');
-      return null;
+    if (!(await C.isAvailableAsync())) return { status: 'unavailable' };
+
+    /*
+     * Android only, and asked for rather than assumed.
+     *
+     * `presentContactPickerAsync` needs `READ_CONTACTS` there and nothing in
+     * the app had ever requested it, so the picker failed before it opened. iOS
+     * needs no permission for this picker at all — the whole point of it — so
+     * prompting there would be asking for access Aria does not use.
+     */
+    if (Platform.OS === 'android') {
+      let perm = await C.getPermissionsAsync();
+      if (!perm.granted && perm.canAskAgain) perm = await C.requestPermissionsAsync();
+      if (!perm.granted) return { status: 'denied', canAskAgain: perm.canAskAgain };
     }
 
     const contact = await C.presentContactPickerAsync();
-    if (!contact) return null; // dismissed
+    if (!contact) return { status: 'cancelled' };
 
     const name =
       contact.name?.trim() ||
       [contact.firstName, contact.lastName].filter(Boolean).join(' ').trim();
-    if (!name) {
-      showToast('That contact has no name');
-      return null;
-    }
+    if (!name) return { status: 'error', message: 'That contact has no name' };
 
     return {
-      name,
-      email: pickPrimary(contact.emails)?.email?.trim() || undefined,
-      phone: pickPrimary(contact.phoneNumbers)?.number?.trim() || undefined,
-      imageUri: contact.image?.uri,
+      status: 'picked',
+      contact: {
+        name,
+        email: pickPrimary(contact.emails)?.email?.trim() || undefined,
+        phone: pickPrimary(contact.phoneNumbers)?.number?.trim() || undefined,
+        imageUri: contact.image?.uri,
+      },
     };
   } catch {
-    showToast("Couldn't open your contacts");
-    return null;
+    return { status: 'error', message: "Couldn't open your contacts" };
   }
+}
+
+/**
+ * The chosen person, or null.
+ *
+ * Kept for callers that have somewhere of their own to explain a failure —
+ * they use `pickPhoneContactResult` — and for those that do not, which is why
+ * this one still toasts. Silence was the bug.
+ */
+export async function pickPhoneContact(): Promise<PickedContact | null> {
+  const result = await pickPhoneContactResult();
+  if (result.status === 'picked') return result.contact;
+  if (result.status === 'unavailable') showToast('Contacts need a device');
+  if (result.status === 'denied') showToast('Aria needs permission to open your contacts');
+  if (result.status === 'error') showToast(result.message);
+  return null;
 }
 
 /** The entry marked primary, else the first one. */

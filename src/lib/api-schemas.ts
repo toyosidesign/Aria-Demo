@@ -53,6 +53,7 @@ export const DraftSchema = z.object({
   research: z.boolean().optional(),
   /** Explain the topic itself, pitched at how this student asked to be taught. */
   explain: z.boolean().optional(),
+  reflect: z.boolean().optional(),
   learner: LearnerSchema.optional(),
   senderName: z.string().max(120).optional(),
   senderContext: z.string().max(300).optional(),
@@ -92,6 +93,67 @@ export const ChecklistSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().max(4000).optional(),
   learner: LearnerSchema.optional(),
+});
+
+const ConfidenceSchema = z.enum(['high', 'medium', 'low']);
+const BriefFieldSchema = z.object({ value: z.string().max(600), confidence: ConfidenceSchema });
+
+/**
+ * What an extraction may contain, coming back in as well as going out.
+ *
+ * `known` carries the last extraction back to the server when a second document
+ * is uploaded to fill gaps, so it is parsed with the same shape it was produced
+ * with — a client is a client even when the data started here.
+ */
+export const BriefFactsSchema = z.object({
+  deliverable: BriefFieldSchema.optional(),
+  deadline: BriefFieldSchema.optional(),
+  weighting: BriefFieldSchema.optional(),
+  criteria: z
+    .object({
+      items: z
+        .array(z.object({ label: z.string().max(160), weight: z.number().min(0).max(100).optional() }))
+        .max(12),
+      confidence: ConfidenceSchema,
+    })
+    .optional(),
+  format: BriefFieldSchema.optional(),
+});
+
+/**
+ * POST /api/brief
+ *
+ * The only route that accepts a file, and the only one allowed
+ * `MAX_UPLOAD_BYTES`. The base64 cap here is the second net: 9MB of encoded
+ * data is comfortably above the 6MB file the picker permits and comfortably
+ * below the body ceiling, so a client that ignores the picker's limit is still
+ * bounded by the schema rather than by memory.
+ */
+export const BriefSchema = z.object({
+  text: z.string().max(60_000).optional(),
+  file: z
+    .object({
+      data: z.string().max(9 * 1024 * 1024),
+      mediaType: z.enum(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain']),
+      name: z.string().max(200).optional(),
+    })
+    .optional(),
+  today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  known: BriefFactsSchema.optional(),
+});
+
+/** POST /api/guide */
+export const GuideSchema = z.object({
+  mode: z.enum(['assignment', 'project']),
+  title: z.string().min(1).max(300),
+  focus: z.string().max(40),
+  facts: BriefFactsSchema.optional(),
+  definition: z.string().max(2000).optional(),
+  scopeIn: z.array(z.string().max(200)).max(20).optional(),
+  scopeOut: z.array(z.string().max(200)).max(20).optional(),
+  note: z.string().max(2000).optional(),
+  learner: LearnerSchema.optional(),
+  student: z.boolean().optional(),
 });
 
 /**
@@ -151,6 +213,24 @@ export const SendEmailSchema = z.object({
 export const MAX_BODY_BYTES = 256 * 1024;
 
 /**
+ * The one exception, and it is named so it stays one.
+ *
+ * A brief arrives as a PDF or a photo of a handout, and there is no way to read
+ * one on the device — so the bytes themselves have to reach the model. Base64
+ * inflates a file by a third, so the 6MB the picker accepts
+ * (`MAX_BRIEF_BYTES` in lib/documents.ts) lands here at about 8MB.
+ *
+ * This is a real loosening of the allocation bound above, so it is deliberately
+ * not a raise of that constant: every other route keeps 256KB, and this ceiling
+ * is passed explicitly by the single route entitled to it. That route is
+ * authenticated and on the AI quota, so the cost of a large body is paid by an
+ * account that can be cut off, not by anyone with the URL.
+ *
+ * `scripts/security-check/offline.ts` asserts that only /api/brief uses it.
+ */
+export const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+
+/**
  * Parse a request body against a schema.
  *
  * Returns the data, or null. The reason is deliberately not returned: the shape
@@ -160,10 +240,11 @@ export const MAX_BODY_BYTES = 256 * 1024;
 export async function parseBody<T extends z.ZodTypeAny>(
   request: Request,
   schema: T,
+  maxBytes: number = MAX_BODY_BYTES,
 ): Promise<z.infer<T> | null> {
   // Cheap rejection first, for a client that declares its size honestly.
   const declared = Number(request.headers.get('content-length') ?? '');
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return null;
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
 
   let raw: unknown;
   try {
@@ -171,7 +252,7 @@ export async function parseBody<T extends z.ZodTypeAny>(
     // content-length is the caller's claim; the bytes are the truth. A missing,
     // lying, or chunked-transfer body must not get a free pass, so the real
     // length is checked before anything parses it.
-    if (byteLength(text) > MAX_BODY_BYTES) return null;
+    if (byteLength(text) > maxBytes) return null;
     raw = JSON.parse(text);
   } catch {
     return null;

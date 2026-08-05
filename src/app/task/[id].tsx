@@ -33,6 +33,9 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 
 import { AriaAvatar } from '@/components/aria-avatar';
+import { GuideSheet } from '@/components/guide-sheet';
+import { GuideButton } from '@/components/work-panels';
+import { rolloverVerdict } from '@/lib/plan';
 import { SendCardSheet } from '@/components/send-card-sheet';
 import { ReminderActions } from '@/components/reminder-actions';
 import { SendPhotoSheet } from '@/components/send-photo-sheet';
@@ -53,7 +56,7 @@ import { showToast } from '@/lib/toast';
 import type { Learner } from '@/lib/learner';
 import { requestChecklist } from '@/lib/subtasks';
 import { useColors } from '@/lib/colors';
-import { REPEAT_LABEL, formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
+import { REPEAT_LABEL, formatFull, formatLong, formatRelative, formatTime, isPastMoment } from '@/lib/dates';
 import {
   isDueToday,
   isLate,
@@ -110,6 +113,7 @@ export default function TaskDetailScreen() {
   const [copied, setCopied] = useState(false);
   const [genLoading, setGenLoading] = useState(false);
   const [sendCardOpen, setSendCardOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   async function copyAll() {
     const sections = task?.draftSections ?? [];
@@ -170,6 +174,18 @@ export default function TaskDetailScreen() {
   const MethodIcon = task.method ? METHOD_ICON[task.method] : null;
   const isAssignmentKind = task.kind === 'assignment' || task.kind === 'project';
   const needsChecklist = isAssignmentKind && task.subtasks.length === 0 && task.status === 'todo';
+  /*
+   * The step the plan says is next, and how much it has been avoided.
+   *
+   * `pinned` is simply the first one not done — the plan is already in order,
+   * so the next live row is the next thing. `rolloverVerdict` turns the count
+   * of times it has been pushed into the two decisions that follow from it.
+   */
+  const pinned =
+    isAssignmentKind && task.status === 'todo'
+      ? task.subtasks.find((s) => !s.done)
+      : undefined;
+  const rollover = rolloverVerdict(pinned?.rollovers ?? 0);
   // The next thing that actually needs attention, for "carry on" after finishing
   // this one. Due or overdue only.
   const nextTask = selectNextDue(allTasks, demoDate, task.id);
@@ -453,6 +469,53 @@ export default function TaskDetailScreen() {
           </View>
         ) : null}
 
+        {/*
+          The pinned step: the one thing that is next.
+
+          A plan of eight steps with nothing pinned makes every one of them look
+          equally due, which is how a student ends up doing the easy one. This
+          is the step the plan says comes next, on its own, with the date it was
+          aimed at and the Guide beside it — the third of the four places the
+          Guide appears, because being stuck happens on a step rather than on a
+          setup screen.
+        */}
+        {pinned ? (
+          <View className="gap-2">
+            <Text variant="label" tone="muted">
+              Next up
+            </Text>
+            <Card className="gap-2">
+              <SubtaskRow task={task} st={pinned} />
+              {pinned.due ? (
+                <Text variant="caption" tone={pinned.due < demoDate ? 'danger' : 'muted'}>
+                  {pinned.due < demoDate ? 'Was due ' : 'Aimed at '}
+                  {formatFull(pinned.due)}
+                  {pinned.forcing ? ` · forced by: ${pinned.forcing}` : ''}
+                </Text>
+              ) : null}
+              {/*
+                Two rollovers is where the Guide stops waiting to be asked.
+
+                A step that has moved twice is not a scheduling problem, it is
+                somebody stuck — so the offer is made here rather than left to
+                be found. The third one is where Aria asks whether it should go
+                at all; that lives in `rolloverVerdict`, with the follow-up loop
+                that will call it.
+              */}
+              {rollover.offerGuide ? (
+                <View className="gap-2 rounded-xl border border-accent/30 bg-accent-soft p-3">
+                  <Text variant="caption" tone="accent">
+                    This one has moved {pinned.rollovers} times. Want a way in?
+                  </Text>
+                  <GuideButton onPress={() => setGuideOpen(true)} />
+                </View>
+              ) : (
+                <GuideButton onPress={() => setGuideOpen(true)} />
+              )}
+            </Card>
+          </View>
+        ) : null}
+
         {/* Checklist — tap an item for research help */}
         {task.subtasks.length > 0 ? (
           <View className="gap-2">
@@ -595,6 +658,10 @@ export default function TaskDetailScreen() {
           <SendCardSheet task={task} visible={sendCardOpen} onClose={() => setSendCardOpen(false)} />
         )
       ) : null}
+
+      {/* Outside the send branch: the Guide belongs to work, which is the one
+          kind of task that never has anything to send. */}
+      <GuideSheet task={task} open={guideOpen} onClose={() => setGuideOpen(false)} />
     </Screen>
   );
 }

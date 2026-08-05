@@ -120,6 +120,14 @@ export function protectedRoute<T extends z.ZodTypeAny>(
   schema: T,
   quota: (userId: string) => RateLimitResult,
   handler: (body: z.infer<T>, userId: string) => Promise<Response>,
+  /**
+   * A larger body ceiling, for the one route that carries an uploaded file.
+   *
+   * An argument rather than a property of the schema, so raising it is a visible
+   * decision at the route rather than a side effect of adding a base64 field —
+   * and so every other route keeps the default without having to say so.
+   */
+  maxBytes?: number,
 ): (request: Request) => Promise<Response> {
   // Runs when the route module is first imported — every route goes through
   // here, so a deploy missing its keys says so once at startup rather than
@@ -136,7 +144,7 @@ export function protectedRoute<T extends z.ZodTypeAny>(
     const limited = quota(userId);
     if (!limited.ok) return tooManyRequests(limited);
 
-    const body = await parseBody(request, schema);
+    const body = await parseBody(request, schema, maxBytes);
     if (!body) return badRequest();
 
     return handler(body, userId);
