@@ -85,16 +85,44 @@ const EXPLAIN: { value: ExplainStyle; label: string; hint: string }[] = [
   { value: 'stepwise', label: 'Step by step, slowly', hint: 'Small pieces, checking in as we go.' },
 ];
 
+/**
+ * How a send actually happens, which is the one thing Free and Pro differ on.
+ *
+ * Asked during onboarding rather than discovered at the moment something needs
+ * to go out. The difference is not a feature list — it is who presses send —
+ * and someone who thinks Aria will handle it and then finds an unsent draft on
+ * the morning of a deadline has been misled by the setup, not by the tier.
+ *
+ * Free is first and is a complete answer, not a crippled one: Aria does the
+ * work and the last tap is yours. That ordering is deliberate. A paywall placed
+ * before anyone has seen the app work is asking for money on trust.
+ */
+const PLANS = [
+  {
+    value: 'free' as const,
+    label: 'Free',
+    line: 'I prepare it — the email written, the document attached — and you tap send.',
+    note: 'Nothing leaves without you.',
+  },
+  {
+    value: 'pro' as const,
+    label: 'Pro',
+    line: 'I send it for you, on the schedule we agreed, and tell you when it has gone.',
+    note: 'You approve once, at the review. Ten minutes to stop it.',
+  },
+];
+
 /** Intro, then one question per screen. */
-const LAST_STEP = 4;
+const LAST_STEP = 5;
 /** The payoff after the last question — not a question, so not in the progress bar. */
-const CELEBRATE = 5;
+const CELEBRATE = 6;
 
 export default function WelcomeScreen() {
   const c = useColors();
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const completeOnboarding = useAriaStore((s) => s.completeOnboarding);
   const updateProfile = useAriaStore((s) => s.updateProfile);
+  const joinProWaitlist = useAriaStore((s) => s.joinProWaitlist);
 
   const [step, setStep] = useState(0);
 
@@ -112,6 +140,8 @@ export default function WelcomeScreen() {
   const [interests, setInterests] = useState<string[]>([]);
   const [otherInterest, setOtherInterest] = useState('');
   const [explain, setExplain] = useState<ExplainStyle[]>([]);
+  /** Free or Pro — who taps send. Defaults to the one that exists today. */
+  const [plan, setPlan] = useState<'free' | 'pro'>('free');
 
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
@@ -159,7 +189,20 @@ export default function WelcomeScreen() {
           text: `When something won’t click, I’ll explain it through ${allInterests[0].toLowerCase()}.`,
         }
       : { Icon: MessageCircle, text: 'Tell me what’s coming up and I’ll set it all up for you.' },
-    { Icon: ShieldCheck, text: 'Nothing gets sent without your OK. Always.' },
+    /*
+     * The promise now matches the answer they just gave.
+     *
+     * "Nothing gets sent without your OK" was the only line here, and on Pro it
+     * would be false the first time the scheduler sends something at 9am — the
+     * approval happens once, at the review, rather than at the send. Saying the
+     * wrong one of these is worse than saying neither.
+     */
+    plan === 'pro'
+      ? {
+          Icon: ShieldCheck,
+          text: 'You approve it at the review, then I send it. Ten minutes to stop it if you change your mind.',
+        }
+      : { Icon: ShieldCheck, text: 'I get it ready. You tap send. Nothing leaves without you.' },
   ];
 
   function saveAnswers() {
@@ -182,6 +225,16 @@ export default function WelcomeScreen() {
       // fifth question.
       context: [level, studying && `studying ${studying}`].filter(Boolean).join(' '),
     });
+    /*
+     * Wanting Pro is recorded; Pro itself is not granted here.
+     *
+     * `setPro` writes entitlement to `profiles.pro`, which is what the cron
+     * reads before it sends on someone's behalf — so switching it on from an
+     * onboarding tap would tell the server this account may send autonomously
+     * when nobody has paid for anything. The waitlist is the honest record of
+     * the same answer.
+     */
+    if (plan === 'pro') joinProWaitlist();
   }
 
   function enterApp() {
@@ -214,7 +267,7 @@ export default function WelcomeScreen() {
   };
 
   /** Whether this step has an answer. Changes the button's wording, never blocks. */
-  const answered = [true, !!studying, !!level, allInterests.length > 0, explain.length > 0][step];
+  const answered = [true, !!studying, !!level, allInterests.length > 0, explain.length > 0, true][step];
 
   return (
     <Screen padded edges={['top', 'bottom']}>
@@ -350,6 +403,66 @@ export default function WelcomeScreen() {
                 );
               })}
             </View>
+          </Step>
+        ) : null}
+
+        {step === 5 ? (
+          <Step
+            title="When something's ready to go, who sends it?"
+            blurb="Either way I do the work. This is only about the last step.">
+            <View className="gap-2">
+              {PLANS.map((p) => {
+                const on = plan === p.value;
+                return (
+                  <Pressable
+                    key={p.value}
+                    onPress={() => {
+                      hapticSelect();
+                      setPlan(p.value);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    className={`gap-1 rounded-2xl border p-4 active:opacity-70 ${
+                      on ? 'border-accent bg-accent-soft' : 'border-border bg-surface'
+                    }`}>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="font-strong" tone={on ? 'accent' : 'default'}>
+                        {p.label}
+                      </Text>
+                      {p.value === 'pro' ? (
+                        /* `rounded-md`, because it is a label rather than a
+                           control. Shape is the affordance — see badge.tsx. */
+                        <View className="rounded-md bg-border/60 px-2 py-0.5">
+                          <Text variant="caption" tone="muted" className="font-strong">
+                            Coming soon
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text variant="small" tone="muted">
+                      {p.line}
+                    </Text>
+                    <Text variant="caption" tone="faint">
+                      {p.note}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {plan === 'pro' ? (
+              /*
+               * Chosen, not granted.
+               *
+               * Pro is not open yet, and switching it on here would promise
+               * autonomous sending the app cannot yet do — the failure would
+               * appear as a deadline that quietly passed. So this records the
+               * ask, and `setPro` stays where entitlement is actually decided.
+               */
+              <Text variant="caption" tone="accent">
+                I&apos;ll tell you the moment Pro opens up. Until then I&apos;ll prepare everything
+                and leave the send to you.
+              </Text>
+            ) : null}
           </Step>
         ) : null}
 
