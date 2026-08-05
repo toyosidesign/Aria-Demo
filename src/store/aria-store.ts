@@ -271,8 +271,6 @@ export interface Profile {
 
 export interface Settings {
   theme: ThemePref;
-  /** Require Face ID / Touch ID before revealing the app. Off by default. */
-  biometricLock: boolean;
   proactiveAria: boolean;
   haptics: boolean;
   notifications: boolean;
@@ -334,7 +332,6 @@ export const DEFAULT_SETTINGS: Settings = {
    * the opt-in, and turning it on is the consent.
    */
   theme: SYSTEM_LIGHT,
-  biometricLock: false,
   proactiveAria: true,
   haptics: true,
   notifications: true,

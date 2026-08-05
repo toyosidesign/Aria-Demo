@@ -28,9 +28,11 @@ import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
+import { ThemePicker } from '@/components/theme-picker';
+import { ariaActionFor } from '@/lib/aria-actions';
 import { ensureAlarmPermission } from '@/lib/alarms';
-import { biometricSupport } from '@/lib/biometrics';
-import { useColors } from '@/lib/colors';
+import { useColors, useTheme } from '@/lib/colors';
+import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { useAriaStore, type WorkRole } from '@/store/aria-store';
 
@@ -220,18 +222,29 @@ export default function WelcomeScreen() {
 
   const settings = useAriaStore((s) => s.settings);
   const setSetting = useAriaStore((s) => s.setSetting);
+  const demoDate = useAriaStore((s) => s.demoDate);
+  const setDemoDate = useAriaStore((s) => s.setDemoDate);
+  // The theme actually on screen, whether that came from a pick or from the
+  // device — the same distinction the Settings screen draws.
+  const activeTheme = useTheme();
+  const matchingDevice = settings.theme === 'system';
+  const simulating = demoDate !== realToday();
   /*
-   * Whether this device can do Face ID at all.
+   * The soonest day something is actually waiting on.
    *
-   * Asked before the switch is drawn, exactly as the Settings screen does it: a
-   * lock offered on hardware that cannot open it is a way to lock someone out
-   * of their own account on the first screen they ever see.
+   * Not a hardcoded date: the seeded tasks move with whenever the account was
+   * made, and a constant would eventually point at an empty day and demo
+   * nothing. Same rule the demo bar uses — a task Aria can offer to help with,
+   * today or later, earliest first — so the two controls agree about which day
+   * is worth jumping to.
    */
-  const [bio, setBio] = useState<{ available: boolean; label: string } | null>(null);
-  useEffect(() => {
-    void biometricSupport().then(setBio);
-  }, []);
-
+  const tourDate = useAriaStore((s) => {
+    const today = realToday();
+    return s.tasks
+      .filter((t) => t.status === 'todo' && t.date >= today && ariaActionFor(t))
+      .map((t) => t.date)
+      .sort()[0];
+  });
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
 
@@ -660,22 +673,79 @@ export default function WelcomeScreen() {
                 </View>
               ))}
 
-              {bio?.available ? (
-                <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+              {/*
+                Appearance, on the screen where the rest of the switches are.
+
+                It is the setting people look for first and the one they change
+                on day one, and it is the only one here whose effect is visible
+                the instant it is tapped — the screen you are standing on
+                changes colour. "Match my device" is a rule about when to
+                switch rather than a colour, so it stays a switch above the
+                swatches, exactly as Settings has it.
+              */}
+              <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
+                <View className="flex-row items-center gap-3">
                   <View className="flex-1 gap-1">
-                    <Text className="font-strong">Unlock with {bio.label}</Text>
+                    <Text className="font-strong">Match my device</Text>
                     <Text variant="small" tone="muted">
-                      Ask for it each time Aria opens.
+                      {matchingDevice
+                        ? 'Aria switches between light and dark on its own.'
+                        : `Staying on ${activeTheme.label}.`}
                     </Text>
                   </View>
                   <Switch
-                    value={settings.biometricLock}
-                    onValueChange={(v) => {
+                    value={matchingDevice}
+                    onValueChange={(on) => {
                       hapticSelect();
-                      setSetting('biometricLock', v);
+                      // Turning it off keeps whatever is on screen right now, so
+                      // the app doesn't jump at the moment you take control.
+                      setSetting('theme', on ? 'system' : activeTheme.name);
                     }}
                   />
                 </View>
+                {matchingDevice ? null : (
+                  <ThemePicker value={settings.theme} onChange={(v) => setSetting('theme', v)} />
+                )}
+              </View>
+
+              {/*
+                The demo, offered rather than assumed.
+
+                Everything Aria does that is worth seeing happens *on the day* a
+                task is due, and a brand-new account has no such day. Without
+                this, the first run is an empty list and a promise. Jumping the
+                date is the one control that makes the app demonstrate itself,
+                so it belongs where someone is already deciding how the app
+                should behave — and it is a switch, not a surprise.
+              */}
+              {tourDate ? (
+              <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
+                <View className="flex-row items-center gap-3">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-strong">Show me around with sample tasks</Text>
+                    <Text variant="small" tone="muted">
+                      {simulating
+                        ? `Pretending it's ${formatLong(demoDate)}, where something is waiting.`
+                        : 'Jump to a day where a task is due, so you can see Aria offer to help.'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={simulating}
+                    onValueChange={(on) => {
+                      hapticSelect();
+                      /*
+                       * Reversible in one tap, both ways.
+                       *
+                       * `setDemoDate` moves the simulated day; turning it off
+                       * puts the real one back rather than leaving someone in a
+                       * pretend week they cannot find the exit from. The banner
+                       * on Today and Calendar says which day they are on.
+                       */
+                      setDemoDate(on && tourDate ? tourDate : realToday());
+                    }}
+                  />
+                </View>
+              </View>
               ) : null}
 
               {/*

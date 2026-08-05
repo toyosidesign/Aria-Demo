@@ -18,7 +18,6 @@ import type {
 
 const SETTINGS_DEFAULTS: Settings = {
   theme: 'system',
-  biometricLock: false,
   proactiveAria: true,
   haptics: true,
   notifications: true,
@@ -251,7 +250,15 @@ export function profileToRow(
     explain_style: p.explainStyle ?? null,
     // Written so the column is not left stale, never read back — see rowToProfile.
     theme: settings.theme,
-    biometric_lock: settings.biometricLock,
+    /*
+     * Written as false, never read.
+     *
+     * The app has no biometric lock any more. The column still exists on
+     * `profiles` — dropping it is a migration against a live database for no
+     * benefit — so it is pinned rather than left carrying whatever the last
+     * build wrote, which would otherwise sit there looking like a live setting.
+     */
+    biometric_lock: false,
     proactive_aria: settings.proactiveAria,
     haptics: settings.haptics,
     notifications: settings.notifications,
@@ -294,7 +301,6 @@ function rowToProfile(r: ProfileRow): {
   onboarded: boolean;
 } {
   const settings: Partial<Settings> = {};
-  if (r.biometric_lock != null) settings.biometricLock = r.biometric_lock;
   if (r.proactive_aria != null) settings.proactiveAria = r.proactive_aria;
   if (r.haptics != null) settings.haptics = r.haptics;
   if (r.notifications != null) settings.notifications = r.notifications;

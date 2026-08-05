@@ -458,6 +458,22 @@ switch was showing. Notifications asks the OS at the moment it is switched on �
 a toggle reading "on" while iOS has never been asked is a promise the app cannot
 keep.
 
+It carries five things: let Aria offer to help, notifications, appearance
+(including the theme swatches), the demo tour, and — for anyone who chose Pro —
+send at the scheduled time. Appearance is there because it is the first setting
+anyone looks for and the only one whose effect is visible the instant it is
+tapped. The demo tour is there because everything worth seeing happens on the
+day a task is due, and a new account has no such day; the switch jumps to the
+soonest task Aria can actually offer help on, computed rather than hardcoded, and
+turning it off restores the real date.
+
+**The biometric lock is gone from the app entirely** — the setting, the lock
+screen, `lib/biometrics.ts`, the `expo-local-authentication` dependency and the
+`NSFaceIDUsageDescription` string. `profiles.biometric_lock` still exists on the
+live database and is now written as a pinned `false`: dropping a column is a
+migration against a live project for no benefit, and leaving it carrying
+whatever the last build wrote would make it look like a live setting.
+
 **Free/Pro sits second-to-last, and that ordering is load-bearing.** The last
 switch on the essentials screen is "send at the scheduled time", which exists
 only on Pro; asked the other way round that screen would either hide the switch

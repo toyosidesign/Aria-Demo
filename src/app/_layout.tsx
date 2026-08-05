@@ -19,11 +19,9 @@ import { useColorScheme } from 'nativewind';
 import { useColorScheme as useDeviceScheme } from 'react-native';
 
 import { AriaLoading } from '@/components/aria-loading';
-import { LockScreen } from '@/components/lock-screen';
 import { ToastHost } from '@/components/toast-host';
 import { setupNotificationHandler } from '@/lib/alarms';
 import { addAutomationTapListener } from '@/lib/automation-notices';
-import { biometricSupport } from '@/lib/biometrics';
 import { THEMES, resolveTheme, themeVars, type Palette } from '@/lib/colors';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { flushOutbox, setSyncUser } from '@/lib/sync';
@@ -88,13 +86,6 @@ export default function RootLayout() {
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [minElapsed, setMinElapsed] = useState(false);
 
-  // Biometric lock. `locked` starts null so nothing renders until we know
-  // whether this device can authenticate — flashing the app for a frame before
-  // locking it would defeat the point.
-  const biometricLock = useAriaStore((s) => s.settings.biometricLock);
-  const [locked, setLocked] = useState<boolean | null>(null);
-  const [bioLabel, setBioLabel] = useState('Face ID');
-
   useEffect(() => {
     // Not gated on `hydrated` — Aria's loading screen takes over from here and
     // matches the splash pixel for pixel, so there's nothing to wait for.
@@ -107,24 +98,6 @@ export default function RootLayout() {
     const t = setTimeout(() => setMinElapsed(true), MIN_LOADING_MS);
     return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!biometricLock || !signedIn) {
-        if (!cancelled) setLocked(false);
-        return;
-      }
-      const support = await biometricSupport();
-      if (cancelled) return;
-      setBioLabel(support.label);
-      // No usable biometrics — never lock someone out of their own account.
-      setLocked(support.available);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [biometricLock, signedIn]);
 
   // Register the notification handler once so alarm chimes show while the app is open.
   useEffect(() => {
@@ -219,10 +192,8 @@ export default function RootLayout() {
     }
   }, [hydrated, authReady, signedIn, onboarded, segments]);
 
-  if (!hydrated || !authReady || !minElapsed || locked === null || !fontsSettled)
+  if (!hydrated || !authReady || !minElapsed || !fontsSettled)
     return <AriaLoading durationMs={MIN_LOADING_MS} />;
-
-  if (locked) return <LockScreen label={bioLabel} onUnlock={() => setLocked(false)} />;
 
   return (
     /*

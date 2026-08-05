@@ -15,8 +15,7 @@
           "tel",
           "mailto",
           "whatsapp"
-        ],
-        "NSFaceIDUsageDescription": "Aria uses Face ID to unlock your tasks so only you can see them."
+        ]
       }
     },
     "android": {

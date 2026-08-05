@@ -13,7 +13,6 @@ import { Text } from '@/components/ui/text';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
 import { formatLong, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
-import { biometricSupport } from '@/lib/biometrics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
 import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
@@ -29,12 +28,6 @@ export default function SettingsScreen() {
   const simulating = demoDate !== realToday();
   const matchingDevice = settings.theme === 'system';
 
-  // Offer the lock only where it can work — a device with no enrolled
-  // biometrics would show a switch that locks you out of your own account.
-  const [bio, setBio] = useState<{ available: boolean; label: string } | null>(null);
-  useEffect(() => {
-    void biometricSupport().then(setBio);
-  }, []);
   const resetDemo = useAriaStore((s) => s.resetDemo);
   const clearAllData = useAriaStore((s) => s.clearAllData);
   const replayOnboarding = useAriaStore((s) => s.replayOnboarding);
@@ -247,21 +240,6 @@ export default function SettingsScreen() {
             }
           />
         </SettingsGroup>
-
-        {bio?.available ? (
-          <SettingsGroup footnote="Ask for it each time Aria opens.">
-            <SettingsRow
-              first
-              label={`Unlock with ${bio.label}`}
-              right={
-                <Switch
-                  value={settings.biometricLock}
-                  onValueChange={(v) => setSetting('biometricLock', v)}
-                />
-              }
-            />
-          </SettingsGroup>
-        ) : null}
 
         <SettingsGroup footnote="Vibrate on taps and confirmations.">
           <SettingsRow
