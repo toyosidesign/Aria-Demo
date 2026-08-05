@@ -419,7 +419,47 @@ and "Project" are indistinguishable without it, and the task row shows a
 progress bar and the next step for work, because a title and a date is exactly
 what a finished assignment looks like too.
 
-### 8. Free and Pro, in onboarding — added 2026-08-05
+### 8. Onboarding — rebuilt 2026-08-05
+
+Six screens: intro → **which fits you** → the follow-up that fits → what you're
+into → **who sends it** → **the essentials**, then the payoff.
+
+**"What are you studying?" is gone**, and it was the wrong first question:
+someone employed, or running their own thing, had to lie or skip — and every
+prompt afterwards opened "You are helping a student", because that was the only
+shape the profile had. `profile.role` is `student | employed | independent`, and
+`describeLearner` now writes a different sentence for each: a colleague who
+knows their field, someone whose time is the scarce resource, or a student at a
+year. The follow-up screen branches on it — year and subject, area, or what you
+run.
+
+The subject question survives inside the student branch. Losing it would have
+made assignment breakdowns generic again, which is the one thing that most
+distinguishes this app for a student.
+
+**The Guide's integrity rule now follows the person, not the screen.** It
+withholds prose because someone is being marked; a freelancer working through an
+assignment-shaped brief is not, and now gets a straight answer.
+
+**"How should I explain things?" is gone.** `explainStyle` stays on the profile
+and in `describeLearner` — accounts that answered it before still carry the
+value, and throwing away a stated preference to tidy a type is a bad trade — but
+nothing collects it any more.
+
+**The essentials screen is last**, and its switches write to the store as they
+are tapped rather than being saved at the end: they are the real settings, so a
+copy that had to be committed later is a copy that can disagree with what the
+switch was showing. Notifications asks the OS at the moment it is switched on —
+a toggle reading "on" while iOS has never been asked is a promise the app cannot
+keep.
+
+**Free/Pro sits second-to-last, and that ordering is load-bearing.** The last
+switch on the essentials screen is "send at the scheduled time", which exists
+only on Pro; asked the other way round that screen would either hide the switch
+or show a control whose availability was undecided. It is also the earliest
+point where the question means anything.
+
+### 8a. What Free and Pro actually say
 
 A sixth question: *when something's ready to go, who sends it?* Free means Aria
 prepares it and you tap send; Pro means Aria sends on the schedule using the

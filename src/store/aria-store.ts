@@ -217,6 +217,20 @@ export type { ThemePref } from '@/lib/themes';
  */
 export type ExplainStyle = 'direct' | 'examples' | 'stepwise';
 
+/**
+ * Which of the three kinds of work someone is here for.
+ *
+ * Onboarding used to open with "What are you studying?", which decided the
+ * answer inside the question: someone employed, or running their own thing, had
+ * to either lie or skip. It also quietly mis-set every prompt — `describeLearner`
+ * opened with "You are helping a student" for all of them.
+ *
+ * It matters beyond the greeting. The Guide withholds prose for an assignment
+ * because the student is being marked; nobody is marking a freelancer's own
+ * project, and hedging at them would be a worse product for no reason.
+ */
+export type WorkRole = 'student' | 'employed' | 'independent';
+
 export interface Profile {
   name: string;
   email: string;
@@ -229,14 +243,19 @@ export interface Profile {
   context: string;
   /** Local file URI or remote URL of the profile picture. Falls back to initials. */
   avatarUri?: string;
+  /** Studying, employed, or running their own thing. The first question asked. */
+  role?: WorkRole;
   /**
-   * What they're studying — "Law", "Mechanical Engineering".
+   * Their subject or their field — "Law", "Mechanical Engineering", "Product
+   * design", "A design studio".
    *
-   * Lets Aria break an assignment into topics that belong to the subject
-   * rather than generic essay scaffolding.
+   * One field for all three roles because it plays one part in every prompt:
+   * it is what lets Aria break work into steps that belong to the actual
+   * subject rather than generic scaffolding. `role` is what says how to read
+   * it.
    */
   studying?: string;
-  /** How far in — "2nd year", "Postgrad". Sets how deep an explanation goes. */
+  /** How far in — "2nd year", "Postgrad". Students only; sets the depth. */
   level?: string;
   /**
    * The things they're into.

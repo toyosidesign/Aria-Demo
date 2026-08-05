@@ -26,10 +26,30 @@ import { Button } from '@/components/ui/button';
 import { ChoiceGroup } from '@/components/ui/choice-chip';
 import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
+import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
+import { ensureAlarmPermission } from '@/lib/alarms';
+import { biometricSupport } from '@/lib/biometrics';
 import { useColors } from '@/lib/colors';
 import { hapticSelect } from '@/lib/haptics';
-import { useAriaStore, type ExplainStyle } from '@/store/aria-store';
+import { useAriaStore, type WorkRole } from '@/store/aria-store';
+
+/**
+ * The one-line description every drafting prompt reads.
+ *
+ * Composed from the answers rather than asked for, and phrased per role: "2nd
+ * year studying Law" and "Running my own thing: an agency or studio" are not
+ * the same sentence, and Aria writes to them differently. Empty when nothing
+ * was answered, which has to read as Aria knowing nothing rather than as a
+ * half-built sentence about a person who does not exist.
+ */
+function describeContext(role: WorkRole | null, field: string, level: string): string {
+  const f = field.trim();
+  if (role === 'employed') return f ? `Works in ${f}` : 'Employed';
+  if (role === 'independent') return f ? `Running my own thing: ${f}` : 'Running my own thing';
+  if (role === 'student') return [level, f && `studying ${f}`].filter(Boolean).join(' ');
+  return [level, f && `studying ${f}`].filter(Boolean).join(' ');
+}
 
 const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -75,15 +95,59 @@ const INTERESTS = [
   'Fashion', 'Travel', 'Cars', 'Podcasts',
 ] as const;
 
-const EXPLAIN: { value: ExplainStyle; label: string; hint: string }[] = [
-  {
-    value: 'examples',
-    label: 'Use examples from what I’m into',
-    hint: 'Projectile motion explained through a jump shot.',
-  },
-  { value: 'direct', label: 'Straight to the point', hint: 'Just the answer, no warm-up.' },
-  { value: 'stepwise', label: 'Step by step, slowly', hint: 'Small pieces, checking in as we go.' },
+/**
+ * The first question, and the one the rest hang off.
+ *
+ * It used to be "What are you studying?", which answers itself inside the
+ * question: someone employed, or running their own thing, had to either lie or
+ * skip — and every prompt afterwards addressed them as a student, because that
+ * was the only shape the profile had.
+ *
+ * The three lines underneath are what actually distinguishes them, and they are
+ * about the *work* rather than about status: coursework arrives with a brief
+ * and a deadline, employed work is assigned by somebody, and your own thing is
+ * work you scope yourself. Those are the three flows this app already has.
+ */
+const ROLES: { value: WorkRole; label: string; line: string }[] = [
+  { value: 'student', label: 'Studying', line: 'Coursework, deadlines' },
+  { value: 'employed', label: 'Employed', line: 'Work someone assigns' },
+  { value: 'independent', label: 'Running my own thing', line: 'Work you scope' },
 ];
+
+/** Fields for someone employed. Broad, because the point is the register Aria
+ *  writes in, not a taxonomy. */
+const AREAS = [
+  'Design', 'Engineering', 'Product', 'Marketing', 'Sales', 'Operations',
+  'Finance', 'People & HR', 'Legal', 'Healthcare', 'Education', 'Research',
+] as const;
+
+/** And for someone running their own thing — what they run, not what they do. */
+const VENTURES = [
+  'Freelance', 'Consulting', 'An agency or studio', 'A startup',
+  'A shop', 'Creator work', 'A trade or service', 'A side project',
+] as const;
+
+/**
+ * The switches worth deciding before the app opens, rather than after.
+ *
+ * Deliberately four and not the whole Settings screen. Each one changes
+ * something a person would otherwise be surprised by: whether Aria speaks up on
+ * its own, whether the phone makes a sound at the right moment, whether the app
+ * opens to anyone holding the phone, and — on Pro — whether things go out
+ * without a final tap.
+ */
+const ESSENTIALS = [
+  {
+    key: 'proactiveAria' as const,
+    label: 'Let Aria offer to help',
+    hint: 'On the day, Aria says what it can do. Off, it waits until you ask.',
+  },
+  {
+    key: 'notifications' as const,
+    label: 'Notifications',
+    hint: 'Alarms on tasks, and a nudge when something is due.',
+  },
+] as const;
 
 /**
  * How a send actually happens, which is the one thing Free and Pro differ on.
@@ -112,7 +176,27 @@ const PLANS = [
   },
 ];
 
-/** Intro, then one question per screen. */
+/**
+ * Intro, then one question per screen.
+ *
+ *   0  intro
+ *   1  which fits you            role
+ *   2  the follow-up that fits   year · area · what you run
+ *   3  what you're into          examples Aria can reach for
+ *   4  who sends it              Free or Pro
+ *   5  the essentials            the switches, applied as you tap them
+ *
+ * Free/Pro sits at 4, immediately before the essentials, and that order is
+ * load-bearing rather than aesthetic: the last switch on the essentials screen
+ * is "send at the scheduled time", which exists only on Pro. Asked the other
+ * way round, that screen would have to either hide the switch from someone who
+ * had not been asked yet, or show a control whose availability was undecided.
+ *
+ * It is also the earliest point where the question means anything: by then Aria
+ * has said what it will do with their answers, so "who presses send" is a
+ * decision about something concrete rather than a price list shown to someone
+ * who has not seen the app work.
+ */
 const LAST_STEP = 5;
 /** The payoff after the last question — not a question, so not in the progress bar. */
 const CELEBRATE = 6;
@@ -134,14 +218,28 @@ export default function WelcomeScreen() {
    * and because these values feed Aria's prompts, Aria would then address
    * someone using facts they never gave.
    */
+  const [role, setRole] = useState<WorkRole | null>(null);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [otherSubject, setOtherSubject] = useState('');
   const [levels, setLevels] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [otherInterest, setOtherInterest] = useState('');
-  const [explain, setExplain] = useState<ExplainStyle[]>([]);
   /** Free or Pro — who taps send. Defaults to the one that exists today. */
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
+
+  const settings = useAriaStore((s) => s.settings);
+  const setSetting = useAriaStore((s) => s.setSetting);
+  /*
+   * Whether this device can do Face ID at all.
+   *
+   * Asked before the switch is drawn, exactly as the Settings screen does it: a
+   * lock offered on hardware that cannot open it is a way to lock someone out
+   * of their own account on the first screen they ever see.
+   */
+  const [bio, setBio] = useState<{ available: boolean; label: string } | null>(null);
+  useEffect(() => {
+    void biometricSupport().then(setBio);
+  }, []);
 
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
@@ -180,9 +278,19 @@ export default function WelcomeScreen() {
    * claims about a person it knows nothing about.
    */
   const highlights = [
-    studying
-      ? { Icon: Sparkles, text: `I'll break your ${studying} work into steps you can actually start.` }
-      : { Icon: Sparkles, text: 'I’ll break big pieces of work into steps you can actually start.' },
+    /*
+     * The field only reads as an adjective for two of the three roles.
+     *
+     * "Your Law work" and "your Design work" are both sentences a person would
+     * say. "Your A startup work" is not — a venture is a thing you run, not a
+     * subject your work is in, so that branch says what it is instead of
+     * splicing the answer into the middle of a phrase.
+     */
+    role === 'independent'
+      ? { Icon: Sparkles, text: 'I’ll turn what you’re scoping into steps you can actually start.' }
+      : studying
+        ? { Icon: Sparkles, text: `I'll break your ${studying} work into steps you can actually start.` }
+        : { Icon: Sparkles, text: 'I’ll break big pieces of work into steps you can actually start.' },
     allInterests.length
       ? {
           Icon: MessageCircle,
@@ -216,14 +324,17 @@ export default function WelcomeScreen() {
      * wrong about them.
      */
     updateProfile({
+      role: role ?? undefined,
       studying,
-      level,
+      // A year belongs to a student. Left blank for anyone else, so nothing
+      // downstream reads "3rd year" off a freelancer's profile.
+      level: role === 'student' ? level : '',
       interests: allInterests,
-      explainStyle: explain[0],
       // The one-line description the drafting prompts already read. Composed
-      // from the structured answers, so those prompts improve without asking a
-      // fifth question.
-      context: [level, studying && `studying ${studying}`].filter(Boolean).join(' '),
+      // from the structured answers, and phrased per role — "2nd year studying
+      // Law" and "Running my own thing: an agency" are not the same sentence,
+      // and Aria writes differently to each.
+      context: describeContext(role, studying, level),
     });
     /*
      * Wanting Pro is recorded; Pro itself is not granted here.
@@ -267,7 +378,7 @@ export default function WelcomeScreen() {
   };
 
   /** Whether this step has an answer. Changes the button's wording, never blocks. */
-  const answered = [true, !!studying, !!level, allInterests.length > 0, explain.length > 0, true][step];
+  const answered = [true, !!role, !!studying || !!level, allInterests.length > 0, true, true][step];
 
   return (
     <Screen padded edges={['top', 'bottom']}>
@@ -337,12 +448,65 @@ export default function WelcomeScreen() {
         ) : null}
 
         {step === 1 ? (
+          <Step title="Which fits you?" blurb="Changeable later.">
+            <View className="gap-2">
+              {ROLES.map((r) => {
+                const on = role === r.value;
+                return (
+                  <Pressable
+                    key={r.value}
+                    onPress={() => {
+                      hapticSelect();
+                      /*
+                       * Switching role clears the follow-up.
+                       *
+                       * "3rd year" is not an answer to "what's your area", and
+                       * carrying it across would put a student's year on a
+                       * freelancer's profile — where `describeLearner` would
+                       * read it back as fact.
+                       */
+                      if (role !== r.value) {
+                        setSubjects([]);
+                        setOtherSubject('');
+                        setLevels([]);
+                      }
+                      setRole(r.value);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    className={`gap-1 rounded-2xl border p-4 active:opacity-70 ${
+                      on ? 'border-accent bg-accent-soft' : 'border-border bg-surface'
+                    }`}>
+                    <Text className="font-strong" tone={on ? 'accent' : 'default'}>
+                      {r.label}
+                    </Text>
+                    <Text variant="small" tone="muted">
+                      {r.line}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Step>
+        ) : null}
+
+        {/*
+          One screen, three questions — whichever one their answer earned.
+
+          A student gets the year, because it sets how deep an explanation goes;
+          the other two get their field, because that is what makes a breakdown
+          belong to the actual work instead of being scaffolding. The subject
+          stays for students for the same reason: "Law" is what turns a generic
+          essay checklist into one about this essay.
+        */}
+        {step === 2 && role === 'student' ? (
           <Step
-            title="What are you studying?"
-            blurb="So when I break down an assignment, the steps belong to your subject instead of being generic.">
+            title="Where are you up to?"
+            blurb="This sets how deep I go. A first-year and a finalist asking the same question need different answers.">
+            <ChoiceGroup options={LEVELS} value={levels} onChange={setLevels} single />
             <ChoiceGroup options={SUBJECTS} value={subjects} onChange={setSubjects} single />
             <Input
-              label="Something else"
+              label="Studying something else"
               placeholder="e.g. Architecture"
               value={otherSubject}
               onChangeText={setOtherSubject}
@@ -351,11 +515,41 @@ export default function WelcomeScreen() {
           </Step>
         ) : null}
 
-        {step === 2 ? (
+        {step === 2 && role === 'employed' ? (
           <Step
-            title="Where are you up to?"
-            blurb="This sets how deep I go. A first-year and a finalist asking the same question need different answers.">
-            <ChoiceGroup options={LEVELS} value={levels} onChange={setLevels} single />
+            title="What's your area?"
+            blurb="So I write to you as a colleague who knows the field, rather than explaining it to you.">
+            <ChoiceGroup options={AREAS} value={subjects} onChange={setSubjects} single />
+            <Input
+              label="Something else"
+              placeholder="e.g. Logistics"
+              value={otherSubject}
+              onChangeText={setOtherSubject}
+              returnKeyType="done"
+            />
+          </Step>
+        ) : null}
+
+        {step === 2 && role === 'independent' ? (
+          <Step
+            title="What are you running?"
+            blurb="Your time is the thing in short supply, so I'll be concrete about what each piece of work costs.">
+            <ChoiceGroup options={VENTURES} value={subjects} onChange={setSubjects} single />
+            <Input
+              label="Something else"
+              placeholder="e.g. A bakery"
+              value={otherSubject}
+              onChangeText={setOtherSubject}
+              returnKeyType="done"
+            />
+          </Step>
+        ) : null}
+
+        {/* Nothing picked at step 1, so there is no follow-up to ask. Said out
+            loud rather than shown as an empty screen. */}
+        {step === 2 && !role ? (
+          <Step title="Nothing to ask yet" blurb="Go back and pick one, or carry on — none of this is required.">
+            <View />
           </Step>
         ) : null}
 
@@ -375,38 +569,6 @@ export default function WelcomeScreen() {
         ) : null}
 
         {step === 4 ? (
-          <Step
-            title="How should I explain things?"
-            blurb="You can change any of this later in your profile.">
-            <View className="gap-2">
-              {EXPLAIN.map((o) => {
-                const on = explain[0] === o.value;
-                return (
-                  <Pressable
-                    key={o.value}
-                    onPress={() => {
-                      hapticSelect();
-                      setExplain(on ? [] : [o.value]);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: on }}
-                    className={`gap-1 rounded-2xl border p-4 active:opacity-70 ${
-                      on ? 'border-accent bg-accent-soft' : 'border-border bg-surface'
-                    }`}>
-                    <Text className="font-strong" tone={on ? 'accent' : 'default'}>
-                      {o.label}
-                    </Text>
-                    <Text variant="small" tone="muted">
-                      {o.hint}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Step>
-        ) : null}
-
-        {step === 5 ? (
           <Step
             title="When something's ready to go, who sends it?"
             blurb="Either way I do the work. This is only about the last step.">
@@ -463,6 +625,98 @@ export default function WelcomeScreen() {
                 and leave the send to you.
               </Text>
             ) : null}
+          </Step>
+        ) : null}
+
+        {/*
+          The last screen before the app, and the only one that changes
+          something immediately.
+
+          Each switch is applied the moment it is tapped rather than saved at
+          the end, because these are the real settings — the same store, the
+          same toggles as the Settings screen. A copy that had to be committed
+          later is a copy that can disagree with what the switch was showing.
+        */}
+        {step === 5 ? (
+          <Step
+            title="A few things to switch on"
+            blurb="All of these live in Settings too, so nothing here is final.">
+            <View className="gap-2">
+              {ESSENTIALS.map((row) => (
+                <View
+                  key={row.key}
+                  className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-strong">{row.label}</Text>
+                    <Text variant="small" tone="muted">
+                      {row.hint}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={settings[row.key]}
+                    onValueChange={(v) => {
+                      hapticSelect();
+                      setSetting(row.key, v);
+                      /*
+                       * Ask the OS at the moment it is switched on.
+                       *
+                       * A notifications toggle that says "on" while iOS has
+                       * never been asked is a promise the app cannot keep, and
+                       * the first thing to break is the one alarm somebody
+                       * actually needed.
+                       */
+                      if (row.key === 'notifications' && v) void ensureAlarmPermission();
+                    }}
+                  />
+                </View>
+              ))}
+
+              {bio?.available ? (
+                <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+                  <View className="flex-1 gap-1">
+                    <Text className="font-strong">Unlock with {bio.label}</Text>
+                    <Text variant="small" tone="muted">
+                      Ask for it each time Aria opens.
+                    </Text>
+                  </View>
+                  <Switch
+                    value={settings.biometricLock}
+                    onValueChange={(v) => {
+                      hapticSelect();
+                      setSetting('biometricLock', v);
+                    }}
+                  />
+                </View>
+              ) : null}
+
+              {/*
+                Shown only to someone who asked for Pro, and shown as unavailable.
+
+                This is the switch the whole ordering exists for: it is the Pro
+                half of the previous question, and it cannot be turned on yet.
+                Drawing it disabled is more honest than hiding it — it says what
+                Pro will actually change, at the moment they are thinking about
+                it.
+              */}
+              {plan === 'pro' ? (
+                <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4 opacity-60">
+                  <View className="flex-1 gap-1">
+                    <View className="flex-row items-center gap-2">
+                      <Text className="font-strong">Send at the scheduled time</Text>
+                      <View className="rounded-md bg-border/60 px-2 py-0.5">
+                        <Text variant="caption" tone="muted" className="font-strong">
+                          With Pro
+                        </Text>
+                      </View>
+                    </View>
+                    <Text variant="small" tone="muted">
+                      Waiting on Pro. Until then I&apos;ll have it ready and ask you first.
+                    </Text>
+                  </View>
+                  <Switch value={false} disabled onValueChange={() => {}} />
+                </View>
+              ) : null}
+            </View>
           </Step>
         ) : null}
 

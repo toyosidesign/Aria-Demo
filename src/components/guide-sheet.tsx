@@ -63,12 +63,15 @@ export function GuideSheet({
           .join('\n\n')
           .slice(0, 2000),
         learner: {
+          role: profile.role,
           studying: profile.studying,
           level: profile.level,
           interests: profile.interests,
           explainStyle: profile.explainStyle,
         },
-        student: task.kind === 'assignment',
+        // Same rule as the chat's Guide: it protects someone being marked, and
+        // onboarding is where we learned whether anyone is marking them.
+        student: task.kind === 'assignment' && profile.role !== 'independent' && profile.role !== 'employed',
       });
       if (res.kind === 'needs') {
         setNeeds(res.ask);

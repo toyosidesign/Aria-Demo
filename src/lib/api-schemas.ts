@@ -36,6 +36,7 @@ const TASK_METHODS = [
 ] as const;
 
 export const LearnerSchema = z.object({
+  role: z.enum(['student', 'employed', 'independent']).optional(),
   studying: z.string().max(80).optional(),
   level: z.string().max(40).optional(),
   interests: z.array(z.string().max(40)).max(12).optional(),

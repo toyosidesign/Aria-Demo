@@ -395,6 +395,7 @@ export default function ChatScreen() {
       kind: flow.kind,
       explain: true,
       learner: {
+        role: profile.role,
         studying: profile.studying,
         level: profile.level,
         interests: profile.interests,
@@ -448,6 +449,7 @@ export default function ChatScreen() {
         // worth reading. It goes in as the description the breakdown works from.
         description: [flow.approach, flow.explanation].filter(Boolean).join('\n\n') || undefined,
         learner: {
+          role: profile.role,
           studying: profile.studying,
           level: profile.level,
           interests: profile.interests,
@@ -608,6 +610,7 @@ export default function ChatScreen() {
             .filter(Boolean)
             .join('\n\n') || undefined,
         learner: {
+          role: profile.role,
           studying: profile.studying,
           level: profile.level,
           interests: profile.interests,
@@ -693,14 +696,21 @@ export default function ChatScreen() {
         scopeOut: flow.scopeOut,
         note: flow.brief?.text,
         learner: {
+          role: profile.role,
           studying: profile.studying,
           level: profile.level,
           interests: profile.interests,
           explainStyle: profile.explainStyle,
         },
-        // A student is being marked; a project is their own. The integrity rule
-        // follows who is asking, not which screen they asked from.
-        student: flow.kind === 'assignment',
+        /*
+         * The integrity rule follows the person, not the screen.
+         *
+         * Withholding the argument protects someone who will be marked on it.
+         * Onboarding now asks who they are, so a freelancer working through an
+         * assignment-shaped brief gets a straight answer, and a student still
+         * gets angles rather than an essay.
+         */
+        student: flow.kind === 'assignment' && profile.role !== 'independent' && profile.role !== 'employed',
       });
       const guided: FlowDraft = {
         ...asked,
@@ -756,6 +766,7 @@ export default function ChatScreen() {
         subtaskTitle: item,
         research: true,
         learner: {
+          role: profile.role,
           studying: profile.studying,
           level: profile.level,
           interests: profile.interests,
