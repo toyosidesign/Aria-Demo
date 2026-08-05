@@ -68,7 +68,8 @@
     "security-check:live": "node scripts/security-check/live.mjs",
     "check:themes": "node --import ./scripts/security-check/register.mjs scripts/checks/themes.ts",
     "check:flow": "node --import ./scripts/security-check/register.mjs scripts/checks/task-flow.ts",
-    "check:plan": "node --import ./scripts/security-check/register.mjs scripts/checks/plan.ts"
+    "check:plan": "node --import ./scripts/security-check/register.mjs scripts/checks/plan.ts",
+    "check:review": "node --import ./scripts/security-check/register.mjs scripts/checks/review.ts"
   },
   "private": true
 }

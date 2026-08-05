@@ -22,6 +22,10 @@ const SETTINGS_DEFAULTS: Settings = {
   haptics: true,
   notifications: true,
   autoSend: false,
+  // Local, like `theme`: the review prompt is scheduled on the device that
+  // shows it, and there is no column or server-side reader for either of these.
+  dailyReview: true,
+  reviewTime: '08:00',
 };
 
 // ---------------------------------------------------------------------------

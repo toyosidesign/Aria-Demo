@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { ariaActionFor } from '@/lib/aria-actions';
+import { buildReview, reviewSummary } from '@/lib/daily-review';
 import { useColors } from '@/lib/colors';
 import { formatLong, toISODate } from '@/lib/dates';
 import {
@@ -49,7 +50,10 @@ export default function TodayScreen() {
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const proactive = useAriaStore((s) => s.settings.proactiveAria);
   const demoOfferDismissed = useAriaStore((s) => s.demoOfferDismissed);
+  const pro = useAriaStore((s) => s.pro);
+  const lastReviewedOn = useAriaStore((s) => s.lastReviewedOn);
   const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
+  const markDayReviewed = useAriaStore((s) => s.markDayReviewed);
   /*
    * Handed to every swipeable row so the row's drag beats the page's.
    * Without it the scroll steals the pan and rows snap back mid-swipe.
@@ -86,6 +90,19 @@ export default function TodayScreen() {
 
   const hasNoTasks = tasks.length === 0;
   const showDemoInvite = hasNoTasks && !demoOfferDismissed;
+
+  /*
+   * The Pro morning: one card, once a day, and then it is gone.
+   *
+   * Shown only while there is something approval would actually act on. A
+   * review of a day Aria cannot help with is a prompt asking somebody to
+   * confirm that they will be doing their own work, which is worse than
+   * silence. Free accounts never see it: on Free the offers on each card below
+   * are the whole product, and this would be an advert wearing the same clothes
+   * as the app.
+   */
+  const review = useMemo(() => buildReview(tasks, demoDate), [tasks, demoDate]);
+  const showReview = pro && lastReviewedOn !== demoDate && review.actionable.length > 0;
 
   return (
     <Screen padded>
@@ -167,6 +184,33 @@ export default function TodayScreen() {
         {/* Only on an empty planner, so accepting it can never overwrite work
             someone has already done. Answered either way, it doesn't return. */}
         {showDemoInvite ? <DemoInviteCard /> : null}
+
+        {showReview ? (
+          <Animated.View
+            entering={FadeIn.duration(250)}
+            className="gap-3 rounded-2xl border border-accent bg-accent-soft p-4">
+            <View className="flex-row items-center gap-2.5">
+              <AriaAvatar size={26} />
+              <Text variant="small" className="flex-1 leading-5">
+                {reviewSummary(review)}
+              </Text>
+            </View>
+            <View className="flex-row gap-2">
+              <Button
+                title="Review my day"
+                className="flex-1"
+                onPress={() => router.push('/review')}
+              />
+              {/* Dismissing is answering: it marks the day so the card does not
+                  ask again this morning, and nothing is scheduled. */}
+              <Button
+                title="Not now"
+                variant="secondary"
+                onPress={() => markDayReviewed(demoDate)}
+              />
+            </View>
+          </Animated.View>
+        ) : null}
 
         {/* "Not now" confirmation, moved to tomorrow, with a way to pick properly */}
         {deferred ? (

@@ -70,7 +70,8 @@ npm run security-check     59 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
-npm run check:plan         24 checks   # backwards planning, rollovers, briefs
+npm run check:plan         25 checks
+npm run check:review       16 checks   # the Pro daily review   # backwards planning, rollovers, briefs
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -507,7 +508,49 @@ only on Pro; asked the other way round that screen would either hide the switch
 or show a control whose availability was undecided. It is also the earliest
 point where the question means anything.
 
-### 8a. Pro is open, 2026-08-05
+### 8a. The Pro day, built 2026-08-05
+
+**This is what the two tiers actually differ on.** Free is a planner that
+reminds you: every task hands you its own buttons and you press them. Pro is an
+assistant: once a day it asks, you approve, and it works while you are somewhere
+else.
+
+The prompt (`lib/daily-brief.ts`) is a repeating daily notification at an hour
+they pick, booked with `SchedulableTriggerInputTypes.DAILY` so it survives the
+app never being opened, which is the whole point: the person Pro is for is the
+one who did not open the planner. It is cancelled the moment Pro lapses,
+notifications go off, or the switch is turned off, and `syncDailyReview` is the
+only thing that decides.
+
+Tapping it opens `app/review.tsx`, which is three lists and the wording between
+them **is** the feature:
+
+| List | What approval means |
+|---|---|
+| I'll send these | Aria completes it, nobody watching. Email only. |
+| Ready for your tap | Written and addressed at the right moment; you still tap. |
+| Yours today | Aria cannot do it. Listed so the day is the whole day. |
+
+**Only email is ever in the first list**, and that is a platform limit rather
+than a product choice: no mobile OS lets an app send a text or a WhatsApp as
+you. Counting those as sent would be a lie discovered by the person who never
+got the message, so `lib/daily-review.ts` keeps the boundary and `check:review`
+holds it in 16 checks.
+
+**Approving schedules; it never sends.** Every item gets `HOLD_MINUTES` (10)
+before it runs, which is the promise onboarding makes in as many words, and a
+task whose time has already gone is pushed to the end of the hold rather than
+skipped, so approving at 8am still covers the 7am ones.
+
+**This is also the caller §2 was missing.** Approval calls `scheduleAutomation`,
+so rows finally reach the `automations` table and the cron has something to
+send. The gap in §2 is closed by this screen, not by a new backend.
+
+Blocked items (no recipient, nothing written) are shown with the one missing
+thing rather than dropped, because dropping them silently is what turns "I
+approved my day" into an afternoon discovering nothing went.
+
+### 8b. Pro is open, 2026-08-05
 
 Aria Pro is available, and choosing it turns it on. `lib/pro.ts` was built
 entirely around a waiting list; it now has `turnOnPro`, and every gate, the
@@ -531,7 +574,7 @@ call as the moment entitlement begins.
 rather than removed: it is in the per-person reset list, and dropping a
 persisted key is a migration rather than a deletion.
 
-### 8b. What Free and Pro actually say
+### 8c. What Free and Pro actually say
 
 A sixth question: *when something's ready to go, who sends it?* Free means Aria
 prepares it and you tap send; Pro means Aria sends on the schedule using the

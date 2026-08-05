@@ -22,6 +22,7 @@ import { AriaLoading } from '@/components/aria-loading';
 import { ToastHost } from '@/components/toast-host';
 import { setupNotificationHandler } from '@/lib/alarms';
 import { addAutomationTapListener } from '@/lib/automation-notices';
+import { addDailyReviewTapListener } from '@/lib/daily-brief';
 import { THEMES, resolveTheme, themeVars, type Palette } from '@/lib/colors';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { flushOutbox, setSyncUser } from '@/lib/sync';
@@ -107,6 +108,8 @@ export default function RootLayout() {
   // Tapping "Aria has it ready" goes straight to the run screen, which is what
   // makes a scheduled task actionable the moment it comes due.
   useEffect(() => addAutomationTapListener(() => router.push('/aria/run')), []);
+  // The morning prompt opens the day it is about, not wherever the app was left.
+  useEffect(() => addDailyReviewTapListener(() => router.push('/review')), []);
 
   // Supabase session → drives signedIn/onboarded and hydrates the local cache.
   useEffect(() => {

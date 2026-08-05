@@ -7,11 +7,12 @@ import { DemoDateBar } from '@/components/demo-date-bar';
 import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
 import { ThemePicker } from '@/components/theme-picker';
+import { TimeField } from '@/components/time-field';
 import { Screen } from '@/components/ui/screen';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
-import { formatLong, realToday } from '@/lib/dates';
+import { formatLong, formatTime, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
@@ -202,6 +203,44 @@ export default function SettingsScreen() {
                   }}>
                   Cancel
                 </Text>
+              }
+            />
+          ) : null}
+          {/*
+            The morning prompt, and the hour it arrives.
+
+            Pro only, and shown only on Pro, because the review is the thing Pro
+            is: on Free every task hands you its own buttons and there is
+            nothing to approve. Off is a real choice, not a broken feature, so
+            the description says what stops rather than what is missing.
+          */}
+          {pro ? (
+            <SettingsRow
+              label="Ask me to review the day"
+              description={
+                settings.dailyReview
+                  ? `Every morning at ${formatTime(settings.reviewTime)}, I'll show you what today needs and what I can take off your hands.`
+                  : "I won't ask. You can still open the review from Today whenever you want it."
+              }
+              right={
+                <Switch
+                  value={settings.dailyReview}
+                  onValueChange={(v) => {
+                    hapticSelect();
+                    setSetting('dailyReview', v);
+                  }}
+                />
+              }
+            />
+          ) : null}
+          {pro && settings.dailyReview ? (
+            <SettingsRow
+              label="When"
+              description="Early enough to matter, before the day has started."
+              right={
+                <View style={{ minWidth: 132 }}>
+                  <TimeField value={settings.reviewTime} onChange={(t) => setSetting('reviewTime', t ?? '08:00')} />
+                </View>
               }
             />
           ) : null}

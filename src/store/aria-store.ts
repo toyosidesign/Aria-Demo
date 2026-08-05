@@ -25,6 +25,7 @@ import {
   type Repeat,
 } from '@/lib/dates';
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
+import { DEFAULT_REVIEW_TIME, syncDailyReview } from '@/lib/daily-brief';
 import { sampleDataPresent } from '@/lib/demo';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/themes';
 import { showToast } from '@/lib/toast';
@@ -292,6 +293,17 @@ export interface Settings {
    */
   autoSend: boolean;
   /**
+   * The daily review prompt, and when it arrives. Pro only.
+   *
+   * On by default *for Pro*, because the review is what Pro is: an account that
+   * pays for Aria to work behind the scenes and is never asked to approve
+   * anything has bought a label. Free accounts never see it, whatever this
+   * says, and `syncDailyReview` is the single place that decides.
+   */
+  dailyReview: boolean;
+  /** HH:mm. Early, before the day has started. */
+  reviewTime: string;
+  /**
    * Weekdays that are always spoken for. 0 = Sunday.
    *
    * Lectures, a shift, a standing commitment, the part of someone's week the
@@ -343,6 +355,8 @@ export const DEFAULT_SETTINGS: Settings = {
    * already received.
    */
   autoSend: false,
+  dailyReview: true,
+  reviewTime: DEFAULT_REVIEW_TIME,
 };
 
 /**
@@ -702,6 +716,16 @@ interface AriaState {
    */
   sampleIds: string[];
   /**
+   * The last day whose review was approved, as yyyy-MM-dd.
+   *
+   * What stops the card asking again once somebody has answered it, and what
+   * makes "approved" a fact the screen can state rather than a mood. Per person,
+   * because approving a day is a decision somebody made about their own work.
+   */
+  lastReviewedOn: string | null;
+  /** Record that today's review has been answered. */
+  markDayReviewed: (date: string) => void;
+  /**
    * Add the sample tasks and contacts, or take them away.
    *
    * The onboarding switch and the empty-state card on Today both call this.
@@ -774,6 +798,7 @@ export const useAriaStore = create<AriaState>()(
        */
       tasks: [],
       sampleIds: [],
+      lastReviewedOn: null,
       demoDate: DEFAULT_DEMO_DATE,
       profile: DEFAULT_PROFILE,
       settings: DEFAULT_SETTINGS,
@@ -798,6 +823,18 @@ export const useAriaStore = create<AriaState>()(
       },
       setPro: (pro) => {
         set({ pro });
+        /*
+         * The review prompt is the shape Pro takes, so it starts and stops with
+         * it. Cancelling on the way down matters more than booking on the way
+         * up: an account that lapses must stop being told Aria will handle its
+         * day, because it no longer will.
+         */
+        void syncDailyReview({
+          pro,
+          enabled: get().settings.dailyReview,
+          time: get().settings.reviewTime,
+          notifications: get().settings.notifications,
+        });
         /*
          * Pro has to reach the server, not just the device.
          *
@@ -827,6 +864,23 @@ export const useAriaStore = create<AriaState>()(
           setNotificationsEnabled(value as boolean);
           void reconcileAlarms(get().tasks);
           void reconcileAutomationNotices(get().automations);
+        }
+        /*
+         * The daily prompt follows three switches, so it is rebooked whenever
+         * any of them moves rather than only when its own does.
+         *
+         * Turning notifications off has to silence it too: a review prompt is a
+         * notification whatever menu it lives under, and leaving it ringing
+         * after somebody said no is the same broken promise the alarms above
+         * were fixed for.
+         */
+        if (key === 'notifications' || key === 'dailyReview' || key === 'reviewTime') {
+          void syncDailyReview({
+            pro: get().pro,
+            enabled: get().settings.dailyReview,
+            time: get().settings.reviewTime,
+            notifications: get().settings.notifications,
+          });
         }
         upsertProfile(get().profile, get().settings, get().onboarded, get().pro);
       },
@@ -873,6 +927,7 @@ export const useAriaStore = create<AriaState>()(
           set({
             tasks: [],
             sampleIds: [],
+            lastReviewedOn: null,
             contacts: [],
             automations: [],
             chat: [],
@@ -1359,6 +1414,7 @@ export const useAriaStore = create<AriaState>()(
         void replaceAllContacts([]);
         void replaceAllAutomations([]);
       },
+      markDayReviewed: (date) => set({ lastReviewedOn: date }),
       dismissDemoOffer: () => set({ demoOfferDismissed: true }),
       addChatMessage: (message) =>
         set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
@@ -1390,8 +1446,9 @@ export const useAriaStore = create<AriaState>()(
        * PER-PERSON, must reset on an account change. That happens in exactly
        * one place: the `previous !== userId` branch in `hydrate`. Add new keys
        * there, NOT to `clearLocal`.
-       *   tasks, sampleIds, contacts, automations, chat, profile, settings,
-       *   onboarded, demoOfferDismissed, lastUser, pro, proWaitlisted
+       *   tasks, sampleIds, lastReviewedOn, contacts, automations, chat,
+       *   profile, settings, onboarded, demoOfferDismissed, lastUser, pro,
+       *   proWaitlisted
        *
        * PER-DEVICE / PER-SESSION, must NOT reset, or they defeat the thing
        * they exist for.
@@ -1411,6 +1468,7 @@ export const useAriaStore = create<AriaState>()(
         // switch would forget what it added and lose the ability to take it
         // back after a restart.
         sampleIds: s.sampleIds,
+        lastReviewedOn: s.lastReviewedOn,
         demoDate: s.demoDate,
         profile: s.profile,
         settings: s.settings,
