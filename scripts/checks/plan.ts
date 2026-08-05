@@ -24,7 +24,7 @@ import {
   strike,
 } from '@/lib/plan';
 import { briefGaps, localBrief, priorityFromWeighting, tutorQuestion } from '@/lib/brief';
-import { nextTourDate } from '@/lib/demo';
+import { nextTourDate, sampleDataPresent } from '@/lib/demo';
 
 let passed = 0;
 const failures: string[] = [];
@@ -259,6 +259,21 @@ test('it takes the soonest of them, whatever order they arrive in', () => {
     nextTourDate(['2026-09-30', '2026-09-12', '2026-09-21'], '2026-09-10'),
     '2026-09-12',
   );
+});
+
+test('the samples count as present only while their rows exist', () => {
+  /*
+   * Reported as the switch disappearing after "Start fresh" and a replayed
+   * onboarding. The ids of the sample rows are recorded when they are added,
+   * and clearing all data deleted the rows without clearing the record, so the
+   * switch believed a week of examples was sitting on an empty planner: it
+   * showed as on, described tasks that were not there, and refused to add them
+   * back because it thought they already were.
+   */
+  assert.equal(sampleDataPresent(['a', 'b'], ['a']), true);
+  assert.equal(sampleDataPresent([], ['a', 'b']), false, 'the rows are gone, so they are not present');
+  assert.equal(sampleDataPresent(['x', 'y'], ['a']), false, 'somebody else\'s rows are not samples');
+  assert.equal(sampleDataPresent(['a'], []), false, 'nothing was ever added');
 });
 
 test('nothing waiting means no offer at all', () => {

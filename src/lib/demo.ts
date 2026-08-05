@@ -32,3 +32,22 @@
 export function nextTourDate(candidates: string[], today: string): string | undefined {
   return candidates.filter((d) => d > today).sort()[0];
 }
+
+/**
+ * Are the samples actually here?
+ *
+ * Asked of the rows, not of the bookkeeping. The ids of the sample rows are
+ * recorded when they are added, and that list can outlive them: "Start fresh"
+ * deletes every task and contact, and anything that empties the planner without
+ * going through the switch leaves the same stale list behind.
+ *
+ * Trusting the list alone made the onboarding switch describe a week of
+ * examples on an empty planner, and refuse to add them because it believed they
+ * were already there. So presence means a recorded id that still matches a row
+ * in front of you.
+ */
+export function sampleDataPresent(rowIds: string[], sampleIds: string[]): boolean {
+  if (!sampleIds.length) return false;
+  const rows = new Set(rowIds);
+  return sampleIds.some((id) => rows.has(id));
+}

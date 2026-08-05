@@ -479,6 +479,14 @@ and the ids are recorded in `sampleIds`, which is what makes removing them safe:
 anything created afterwards is not in the list and is never touched. A switch on
 a setup screen must not be able to delete somebody's own work.
 
+**Presence is asked of the rows, never of that list** (`sampleDataPresent`).
+The list outlives the rows: "Start fresh" deletes every task and contact, and
+anything else that empties the planner without going through the switch leaves
+the same record behind. Trusting it alone made the switch show as on over an
+empty planner and then refuse to add the samples back, because it believed they
+were already there. `clearAllData` clears the list too, and the guard checks the
+rows regardless, so neither half depends on the other being right.
+
 **It has to be a day you are not on.** Three of the seeded tasks fall on the
 current day, so the first version, "today or later", resolved to today: the
 switch set the date it was already on, `simulating` stayed false, and the control

@@ -25,6 +25,7 @@ import {
   type Repeat,
 } from '@/lib/dates';
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
+import { sampleDataPresent } from '@/lib/demo';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/themes';
 import { showToast } from '@/lib/toast';
 import { uuidv4 } from '@/lib/id';
@@ -1316,7 +1317,9 @@ export const useAriaStore = create<AriaState>()(
           return;
         }
         // Already there: nothing to add, and adding anyway would double them.
-        if (get().sampleIds.length) return;
+        // Asked of the rows, so a stale list cannot block the restore.
+        const { tasks: current, contacts: currentContacts, sampleIds } = get();
+        if (sampleDataPresent([...current, ...currentContacts].map((r) => r.id), sampleIds)) return;
         const fresh = buildSeedTasks().map((t) => ({ ...t, id: uuidv4() }));
         const freshContacts = SEED_CONTACTS.map((c) => ({ ...c, id: uuidv4() }));
         const tasks = [...get().tasks, ...fresh];
@@ -1335,6 +1338,10 @@ export const useAriaStore = create<AriaState>()(
         set({
           tasks: [],
           contacts: [],
+          // The samples were among the rows just deleted. Leaving their ids
+          // behind told the onboarding switch they were still there, so it
+          // showed as on over an empty planner and then refused to add them.
+          sampleIds: [],
           automations: [],
           // Back to the real calendar too: a simulated date is part of the demo,
           // and leaving it set would make an empty planner look broken.

@@ -30,7 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ThemePicker } from '@/components/theme-picker';
 import { ariaActionFor } from '@/lib/aria-actions';
-import { nextTourDate } from '@/lib/demo';
+import { nextTourDate, sampleDataPresent } from '@/lib/demo';
 import { ensureAlarmPermission } from '@/lib/alarms';
 import { useColors, useTheme } from '@/lib/colors';
 import { formatLong, realToday } from '@/lib/dates';
@@ -251,7 +251,9 @@ export default function WelcomeScreen() {
    * regardless, so somebody who never touched it still arrived to a planner
    * full of Jane's birthday and a chemistry lab report.
    */
-  const hasSamples = useAriaStore((s) => s.sampleIds.length > 0);
+  const hasSamples = useAriaStore((s) =>
+    sampleDataPresent([...s.tasks, ...s.contacts].map((r) => r.id), s.sampleIds),
+  );
 
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
