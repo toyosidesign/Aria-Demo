@@ -70,7 +70,7 @@ npm run security-check     59 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
-npm run check:plan         21 checks   # backwards planning, rollovers, briefs
+npm run check:plan         24 checks   # backwards planning, rollovers, briefs
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -466,6 +466,13 @@ tapped. The demo tour is there because everything worth seeing happens on the
 day a task is due, and a new account has no such day; the switch jumps to the
 soonest task Aria can actually offer help on, computed rather than hardcoded, and
 turning it off restores the real date.
+
+**It has to be a day you are not on.** Three of the seeded tasks fall on the
+current day, so the first version — "today or later" — resolved to today: the
+switch set the date it was already on, `simulating` stayed false, and the control
+flicked straight back off. The rule now lives in `nextTourDate` (`lib/demo.ts`)
+with three checks in `check:plan`, because a toggle that visibly undoes itself
+reads as broken rather than as "already there".
 
 **The biometric lock is gone from the app entirely** — the setting, the lock
 screen, `lib/biometrics.ts`, the `expo-local-authentication` dependency and the

@@ -24,6 +24,7 @@ import {
   strike,
 } from '@/lib/plan';
 import { briefGaps, localBrief, priorityFromWeighting, tutorQuestion } from '@/lib/brief';
+import { nextTourDate } from '@/lib/demo';
 
 let passed = 0;
 const failures: string[] = [];
@@ -234,6 +235,37 @@ test('the drop question is answerable, and names the step', () => {
   const q = dropQuestion('Read the sources');
   assert.match(q, /Read the sources/);
   assert.match(q, /\?$/, 'it has to be a question, not a verdict');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('The demo tour jumps somewhere');
+
+test('the tour never picks the day you are already on', () => {
+  /*
+   * The bug this exists to prevent, and it shipped once. Three seeded tasks
+   * fall on the current day, so a "today or later" rule returned today: the
+   * switch set the date it was already on, nothing changed, and it flicked
+   * straight back off. A control that visibly undoes itself reads as broken.
+   */
+  const today = '2026-09-10';
+  assert.equal(nextTourDate([today, '2026-09-12'], today), '2026-09-12');
+  assert.equal(nextTourDate([today, today], today), undefined, 'only today means nowhere to go');
+});
+
+test('it takes the soonest of them, whatever order they arrive in', () => {
+  // The store hands over task dates unsorted, and the nearest one is the one
+  // worth seeing — a tour that opens three weeks out demonstrates nothing today.
+  assert.equal(
+    nextTourDate(['2026-09-30', '2026-09-12', '2026-09-21'], '2026-09-10'),
+    '2026-09-12',
+  );
+});
+
+test('nothing waiting means no offer at all', () => {
+  // The caller hides the row on undefined. An offer that goes nowhere is worse
+  // than no offer, so this has to be distinguishable from a date.
+  assert.equal(nextTourDate([], '2026-09-10'), undefined);
+  assert.equal(nextTourDate(['2026-09-01', '2026-09-09'], '2026-09-10'), undefined);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

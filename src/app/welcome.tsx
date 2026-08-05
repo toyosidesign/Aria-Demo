@@ -30,6 +30,7 @@ import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ThemePicker } from '@/components/theme-picker';
 import { ariaActionFor } from '@/lib/aria-actions';
+import { nextTourDate } from '@/lib/demo';
 import { ensureAlarmPermission } from '@/lib/alarms';
 import { useColors, useTheme } from '@/lib/colors';
 import { formatLong, realToday } from '@/lib/dates';
@@ -230,21 +231,20 @@ export default function WelcomeScreen() {
   const matchingDevice = settings.theme === 'system';
   const simulating = demoDate !== realToday();
   /*
-   * The soonest day something is actually waiting on.
+   * The day the tour jumps to: the soonest one with something Aria can offer
+   * help on, and never the day you are already standing on.
    *
-   * Not a hardcoded date: the seeded tasks move with whenever the account was
-   * made, and a constant would eventually point at an empty day and demo
-   * nothing. Same rule the demo bar uses — a task Aria can offer to help with,
-   * today or later, earliest first — so the two controls agree about which day
-   * is worth jumping to.
+   * The rule lives in `nextTourDate` so `check:plan` can hold it — this line
+   * shipped once as "today or later", which resolved to today (three seeds fall
+   * on the current day), set the date it was already on, and left the switch
+   * flicking back the instant it was touched.
    */
-  const tourDate = useAriaStore((s) => {
-    const today = realToday();
-    return s.tasks
-      .filter((t) => t.status === 'todo' && t.date >= today && ariaActionFor(t))
-      .map((t) => t.date)
-      .sort()[0];
-  });
+  const tourDate = useAriaStore((s) =>
+    nextTourDate(
+      s.tasks.filter((t) => t.status === 'todo' && ariaActionFor(t)).map((t) => t.date),
+      realToday(),
+    ),
+  );
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
 
