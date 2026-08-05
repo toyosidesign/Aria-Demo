@@ -246,12 +246,12 @@ export default function WelcomeScreen() {
   /*
    * Whether the samples are actually there, which is what the switch is about.
    *
-   * Read from the data rather than from the simulated date. The switch used to
-   * show the date state, so somebody who never touched it still arrived to a
-   * planner full of Jane's birthday and a chemistry lab report: the tasks were
-   * seeded regardless and the control had nothing to do with them.
+   * Read from the data rather than from the simulated date, and off to begin
+   * with. The switch used to show the date state while the tasks were seeded
+   * regardless, so somebody who never touched it still arrived to a planner
+   * full of Jane's birthday and a chemistry lab report.
    */
-  const hasSamples = useAriaStore((s) => s.tasks.some((t) => t.id.startsWith('seed-')));
+  const hasSamples = useAriaStore((s) => s.sampleIds.length > 0);
 
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';

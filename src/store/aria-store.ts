@@ -689,10 +689,23 @@ interface AriaState {
    * survive. This clears what's *in* the planner, it doesn't reset the app.
    */
   /**
-   * Whether the sample tasks and contacts are present.
+   * Which rows are the sample ones.
    *
-   * The onboarding switch calls this. Off removes the seeds and leaves anything
-   * the person made; on restores only what is missing.
+   * Recorded rather than recognised: `tasks.id` is a `uuid` column, so a
+   * readable `seed-` id cannot be written to the server, and a fixed uuid per
+   * sample would collide as soon as a second account inserted the same row. So
+   * every copy gets a fresh uuid and its id is kept here.
+   *
+   * This is what makes removing the samples safe. Anything created afterwards
+   * is not in the list and is never touched.
+   */
+  sampleIds: string[];
+  /**
+   * Add the sample tasks and contacts, or take them away.
+   *
+   * The onboarding switch and the empty-state card on Today both call this.
+   * Off removes only what is in `sampleIds`; on adds a fresh copy, and does
+   * nothing when they are already there.
    */
   setSampleData: (on: boolean) => void;
   clearAllData: () => void;
@@ -743,11 +756,29 @@ function syncTask(get: () => AriaState, id: string) {
 export const useAriaStore = create<AriaState>()(
   persist(
     (set, get) => ({
-      tasks: buildSeedTasks(),
+      /*
+       * Empty until somebody asks for the samples.
+       *
+       * They used to be seeded here, which meant a new account opened onto a
+       * planner holding Jane's birthday, a chemistry lab report and a group
+       * project it had never been told about. Two things were wrong with that.
+       * The onboarding switch offering "show me around with sample tasks" was
+       * describing something that had already happened, and the empty-state
+       * card on Today, the one that offers exactly this, could never appear:
+       * it renders only when there are no tasks.
+       *
+       * So the samples are opt-in, from either of those two places, and both
+       * go through `setSampleData` / `resetDemo`. What someone sees before they
+       * answer is their own empty planner, which is the truth.
+       */
+      tasks: [],
+      sampleIds: [],
       demoDate: DEFAULT_DEMO_DATE,
       profile: DEFAULT_PROFILE,
       settings: DEFAULT_SETTINGS,
-      contacts: SEED_CONTACTS,
+      // Sample people belong with the sample tasks: a planner with nothing in
+      // it and a contact list holding eight strangers is a stranger mix still.
+      contacts: [],
       automations: [],
       lastUser: null,
       pro: false,
@@ -840,6 +871,7 @@ export const useAriaStore = create<AriaState>()(
            */
           set({
             tasks: [],
+            sampleIds: [],
             contacts: [],
             automations: [],
             chat: [],
@@ -1227,7 +1259,14 @@ export const useAriaStore = create<AriaState>()(
         const contacts = SEED_CONTACTS.map((c) => ({ ...c, id: uuidv4() }));
         // Answered by taking it, so the home-screen offer doesn't come back and
         // ask whether you'd like the data you're currently looking at.
-        set({ tasks, demoDate: DEFAULT_DEMO_DATE, contacts, automations: [], demoOfferDismissed: true });
+        set({
+          tasks,
+          demoDate: DEFAULT_DEMO_DATE,
+          contacts,
+          automations: [],
+          demoOfferDismissed: true,
+          sampleIds: [...tasks, ...contacts].map((r) => r.id),
+        });
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
         // Clearing the list locally is not enough now that the cron holds a
@@ -1246,14 +1285,29 @@ export const useAriaStore = create<AriaState>()(
          * with sample tasks" has to be the thing that decides whether there are
          * sample tasks.
          *
-         * Turning it off removes the samples and nothing else. Anything created
-         * since is kept: the seeds are recognisable by their ids, and a switch
-         * on a setup screen must never be able to delete somebody's own work.
+         * ── Why the ids are recorded rather than recognised ──────────────────
+         *
+         * The samples were identifiable by a `seed-` id until they had to sync:
+         * `tasks.id` is a `uuid` column, so a readable id cannot be written at
+         * all, and a *fixed* uuid per sample would collide the moment a second
+         * account inserted the same row. So each copy gets a fresh uuid and the
+         * ids are remembered here instead.
+         *
+         * That list is what makes turning the switch off safe. Anything created
+         * since is not in it and is never touched: a switch on a setup screen
+         * must not be able to delete somebody's own work.
          */
         if (!on) {
-          const tasks = get().tasks.filter((t) => !t.id.startsWith('seed-'));
-          const contacts = get().contacts.filter((c) => !c.id.startsWith('ct-'));
-          set({ tasks, contacts, demoDate: DEFAULT_DEMO_DATE, demoOfferDismissed: true });
+          const sample = new Set(get().sampleIds);
+          const tasks = get().tasks.filter((t) => !sample.has(t.id));
+          const contacts = get().contacts.filter((c) => !sample.has(c.id));
+          set({
+            tasks,
+            contacts,
+            sampleIds: [],
+            demoDate: DEFAULT_DEMO_DATE,
+            demoOfferDismissed: true,
+          });
           // Alarms outlive the tasks that scheduled them, so a removed sample
           // would otherwise still chime.
           void reconcileAlarms(tasks);
@@ -1261,16 +1315,18 @@ export const useAriaStore = create<AriaState>()(
           void replaceAllContacts(contacts);
           return;
         }
-        // Back on: restore only what is missing, so a second toggle doesn't
-        // duplicate the samples or discard real work sitting beside them.
-        const have = new Set(get().tasks.map((t) => t.id));
-        const haveContacts = new Set(get().contacts.map((c) => c.id));
-        const tasks = [...get().tasks, ...buildSeedTasks().filter((t) => !have.has(t.id))];
-        const contacts = [
-          ...get().contacts,
-          ...SEED_CONTACTS.filter((c) => !haveContacts.has(c.id)),
-        ];
-        set({ tasks, contacts, demoOfferDismissed: true });
+        // Already there: nothing to add, and adding anyway would double them.
+        if (get().sampleIds.length) return;
+        const fresh = buildSeedTasks().map((t) => ({ ...t, id: uuidv4() }));
+        const freshContacts = SEED_CONTACTS.map((c) => ({ ...c, id: uuidv4() }));
+        const tasks = [...get().tasks, ...fresh];
+        const contacts = [...get().contacts, ...freshContacts];
+        set({
+          tasks,
+          contacts,
+          demoOfferDismissed: true,
+          sampleIds: [...fresh, ...freshContacts].map((r) => r.id),
+        });
         void reconcileAlarms(tasks);
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
@@ -1327,7 +1383,7 @@ export const useAriaStore = create<AriaState>()(
        * PER-PERSON, must reset on an account change. That happens in exactly
        * one place: the `previous !== userId` branch in `hydrate`. Add new keys
        * there, NOT to `clearLocal`.
-       *   tasks, contacts, automations, chat, profile, settings,
+       *   tasks, sampleIds, contacts, automations, chat, profile, settings,
        *   onboarded, demoOfferDismissed, lastUser, pro, proWaitlisted
        *
        * PER-DEVICE / PER-SESSION, must NOT reset, or they defeat the thing
@@ -1344,6 +1400,10 @@ export const useAriaStore = create<AriaState>()(
        */
       partialize: (s) => ({
         tasks: s.tasks,
+        // Which of those tasks are the samples. Persisted with them, or the
+        // switch would forget what it added and lose the ability to take it
+        // back after a restart.
+        sampleIds: s.sampleIds,
         demoDate: s.demoDate,
         profile: s.profile,
         settings: s.settings,

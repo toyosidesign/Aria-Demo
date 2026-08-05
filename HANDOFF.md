@@ -465,13 +465,19 @@ anyone looks for and the only one whose effect is visible the instant it is
 tapped. The demo tour is there because everything worth seeing happens on the
 day a task is due, and a new account has no such day.
 
-**The tour switch owns the sample data, not just the date.** It used to move the
-simulated day while the samples were seeded regardless, so somebody who never
-touched it still arrived to a planner full of Jane's birthday and a chemistry lab
-report. On restores the seeds and jumps to a day something is waiting; off
-removes them and puts the real date back. `setSampleData` only ever touches rows
-with seeded ids, so anything the person made themselves survives both
-directions, and a switch on a setup screen can never delete real work.
+**The samples are opt-in, and off to begin with.** The store used to seed tasks
+and contacts in its initial state, so a new account opened onto a planner it had
+never been told about, the onboarding switch described something that had already
+happened, and the empty-state card on Today (which renders only when there are no
+tasks) could never appear. Both of those are now the two ways in, and both go
+through `setSampleData` / `resetDemo`.
+
+**How the samples are identified.** Not by a `seed-` id: `tasks.id` is a `uuid`
+column, so a readable id cannot sync, and a fixed uuid per sample would collide
+the moment a second account inserted the same row. Each copy gets a fresh uuid
+and the ids are recorded in `sampleIds`, which is what makes removing them safe:
+anything created afterwards is not in the list and is never touched. A switch on
+a setup screen must not be able to delete somebody's own work.
 
 **It has to be a day you are not on.** Three of the seeded tasks fall on the
 current day, so the first version, "today or later", resolved to today: the
