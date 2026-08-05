@@ -34,7 +34,6 @@ export default function ScheduleScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const scheduleAutomation = useAriaStore((s) => s.scheduleAutomation);
   const pro = useAriaStore((s) => s.pro);
-  const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
 
   const task = tasks.find((t) => t.id === params.taskId);
 
@@ -163,23 +162,22 @@ export default function ScheduleScreen() {
             those for you. Pro has them written and addressed the moment they’re due.
           </Text>
 
-          {proWaitlisted ? (
-            <View className="flex-row items-start gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
-              <Check size={16} color={c.success} style={{ marginTop: 1 }} />
-              <Text variant="small" tone="muted" className="flex-1 leading-5">
-                You’re on the waiting list. I’ll tell you the moment Pro opens up.
-              </Text>
-            </View>
-          ) : null}
+          {/* What turning it on does not do. "Pro is on" reads as consent to
+              autonomous sending, and that is a separate switch in Settings. */}
+          <View className="flex-row items-start gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3.5">
+            <Check size={16} color={c.success} style={{ marginTop: 1 }} />
+            <Text variant="small" tone="muted" className="flex-1 leading-5">
+              Aria still asks before anything leaves, until you say otherwise in Settings.
+            </Text>
+          </View>
       </ScrollView>
 
         <View className="gap-2 border-t border-border px-5 pb-6 pt-3">
           <Button
-            title={proWaitlisted ? 'You’re on the waiting list' : 'Join the Pro waiting list'}
+            title="Turn on Aria Pro"
             leftIcon={<Sparkles size={18} color={c.accentInk} />}
             block
             size="lg"
-            disabled={proWaitlisted}
             onPress={() => promptProUpgrade(PRO_PITCH)}
           />
           <Button title="Go back" variant="ghost" size="sm" block onPress={() => router.back()} />

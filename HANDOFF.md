@@ -421,8 +421,8 @@ what a finished assignment looks like too.
 
 ### 8. Onboarding — rebuilt 2026-08-05
 
-Six screens: intro → **which fits you** → the follow-up that fits → what you're
-into → **who sends it** → **the essentials**, then the payoff.
+Five screens: intro → **which fits you** → the follow-up that fits → **who
+sends it** → **the essentials**, then the payoff.
 
 **"What are you studying?" is gone**, and it was the wrong first question:
 someone employed, or running their own thing, had to lie or skip — and every
@@ -441,10 +441,15 @@ distinguishes this app for a student.
 withholds prose because someone is being marked; a freelancer working through an
 assignment-shaped brief is not, and now gets a straight answer.
 
-**"How should I explain things?" is gone.** `explainStyle` stays on the profile
-and in `describeLearner` — accounts that answered it before still carry the
-value, and throwing away a stated preference to tidy a type is a bad trade — but
-nothing collects it any more.
+**"How should I explain things?" and "What are you into?" are both gone.**
+`explainStyle` and `interests` stay on the profile and in `describeLearner` —
+accounts that answered them still carry the values, and throwing away a stated
+preference to tidy a type is a bad trade — but nothing collects them any more.
+
+One catch worth knowing: onboarding now writes `interests: []` explicitly. The
+seeded demo persona lists basketball and music, and a question that is no longer
+asked cannot clear them by being answered — so a new account would otherwise
+carry someone else's hobbies into every prompt. Not asked has to mean not known.
 
 **The essentials screen is last**, and its switches write to the store as they
 are tapped rather than being saved at the end: they are the real settings, so a
@@ -459,7 +464,31 @@ only on Pro; asked the other way round that screen would either hide the switch
 or show a control whose availability was undecided. It is also the earliest
 point where the question means anything.
 
-### 8a. What Free and Pro actually say
+### 8a. Pro is open — 2026-08-05
+
+Aria Pro is available, and choosing it turns it on. `lib/pro.ts` was built
+entirely around a waiting list; it now has `turnOnPro`, and every gate — the
+schedule screen, connections, Settings — offers the upgrade instead of a queue.
+The dev-only "Turn Pro on (testing)" row in Settings is gone with it: it existed
+because Pro could not be obtained, which is no longer true.
+
+**Pro and autonomous sending are still two different decisions, deliberately.**
+`setPro` writes `profiles.pro`, which is the entitlement the Edge Function reads
+before sending on somebody's behalf. Whether it sends *without asking* is
+`settings.autoSend`, and `autoSendEnabled` requires both. Anything reading only
+the tier would mail somebody the moment an account upgraded — so the onboarding
+copy, the Pro sheet and the schedule screen all say the same thing out loud:
+Aria still asks until you say otherwise.
+
+There is no payment step in this build. When billing arrives it belongs inside
+`turnOnPro`, before `setPro` — everything downstream already treats that one
+call as the moment entitlement begins.
+
+`proWaitlisted` is still on the store and no screen reads it now. Left in place
+rather than removed: it is in the per-person reset list, and dropping a
+persisted key is a migration rather than a deletion.
+
+### 8b. What Free and Pro actually say
 
 A sixth question: *when something's ready to go, who sends it?* Free means Aria
 prepares it and you tap send; Pro means Aria sends on the schedule using the

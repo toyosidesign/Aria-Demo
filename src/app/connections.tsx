@@ -41,7 +41,6 @@ const INITIAL: Record<string, boolean> = { gmail: true, gcal: true };
 export default function ConnectionsScreen() {
   const c = useColors();
   const pro = useAriaStore((s) => s.pro);
-  const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
   const [connected, setConnected] = useState<Record<string, boolean>>(INITIAL);
 
   function toggle(app: AppInfo, on: boolean) {
@@ -90,15 +89,10 @@ export default function ConnectionsScreen() {
           <Text className="leading-6">
             {pro
               ? 'Every app is unlocked, and Aria can take work off your hands on a schedule.'
-              : 'Gmail and Calendar are ready to go. Aria Pro adds scheduled work Aria handles for you, plus Teams, Maps, Bolt and the rest. It isn’t open to everyone yet.'}
+              : 'Gmail and Calendar are ready to go. Aria Pro adds scheduled work Aria handles for you, plus Teams, Maps, Bolt and the rest.'}
           </Text>
           {!pro ? (
-            <Button
-              title={proWaitlisted ? 'You’re on the waiting list' : 'Join the Pro waiting list'}
-              block
-              disabled={proWaitlisted}
-              onPress={() => promptProUpgrade(PRO_PITCH)}
-            />
+            <Button title="Turn on Aria Pro" block onPress={() => promptProUpgrade(PRO_PITCH)} />
           ) : null}
         </View>
 
@@ -161,11 +155,7 @@ export default function ConnectionsScreen() {
         <View className="flex-row items-center justify-center gap-1.5 opacity-70">
           <Sparkles size={13} color={c.faint} />
           <Text variant="caption" tone="faint">
-            {pro
-              ? 'Included with your Aria Pro plan.'
-              : proWaitlisted
-                ? 'You’re on the list. I’ll tell you when Pro opens up.'
-                : 'Aria Pro will unlock all of these.'}
+            {pro ? 'Included with your Aria Pro plan.' : 'Aria Pro unlocks all of these.'}
           </Text>
         </View>
       </ScrollView>

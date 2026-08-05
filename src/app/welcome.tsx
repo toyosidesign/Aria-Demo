@@ -65,7 +65,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: ShieldCheck,
     title: 'I always ask first',
-    body: 'Nothing is sent or changed without your OK. You’re in control the whole way.',
+    body: 'Nothing is sent or changed without your OK. On Pro you can let scheduled sends go on their own, and I’ll report back every time.',
   },
   {
     Icon: CalendarDays,
@@ -88,12 +88,6 @@ const SUBJECTS = [
 ] as const;
 
 const LEVELS = ['1st year', '2nd year', '3rd year', 'Final year', 'Postgrad'] as const;
-
-const INTERESTS = [
-  'Basketball', 'Football', 'Music', 'Gaming', 'Cooking', 'Film',
-  'Art', 'Fitness', 'Anime', 'Reading', 'Photography', 'Dance',
-  'Fashion', 'Travel', 'Cars', 'Podcasts',
-] as const;
 
 /**
  * The first question, and the one the rest hang off.
@@ -182,11 +176,10 @@ const PLANS = [
  *   0  intro
  *   1  which fits you            role
  *   2  the follow-up that fits   year · area · what you run
- *   3  what you're into          examples Aria can reach for
- *   4  who sends it              Free or Pro
- *   5  the essentials            the switches, applied as you tap them
+ *   3  who sends it              Free or Pro
+ *   4  the essentials            the switches, applied as you tap them
  *
- * Free/Pro sits at 4, immediately before the essentials, and that order is
+ * Free/Pro sits at 3, immediately before the essentials, and that order is
  * load-bearing rather than aesthetic: the last switch on the essentials screen
  * is "send at the scheduled time", which exists only on Pro. Asked the other
  * way round, that screen would have to either hide the switch from someone who
@@ -197,16 +190,16 @@ const PLANS = [
  * decision about something concrete rather than a price list shown to someone
  * who has not seen the app work.
  */
-const LAST_STEP = 5;
+const LAST_STEP = 4;
 /** The payoff after the last question — not a question, so not in the progress bar. */
-const CELEBRATE = 6;
+const CELEBRATE = 5;
 
 export default function WelcomeScreen() {
   const c = useColors();
   const firstName = useAriaStore((s) => s.profile.name.split(' ')[0]);
   const completeOnboarding = useAriaStore((s) => s.completeOnboarding);
   const updateProfile = useAriaStore((s) => s.updateProfile);
-  const joinProWaitlist = useAriaStore((s) => s.joinProWaitlist);
+  const setPro = useAriaStore((s) => s.setPro);
 
   const [step, setStep] = useState(0);
 
@@ -222,8 +215,6 @@ export default function WelcomeScreen() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [otherSubject, setOtherSubject] = useState('');
   const [levels, setLevels] = useState<string[]>([]);
-  const [interests, setInterests] = useState<string[]>([]);
-  const [otherInterest, setOtherInterest] = useState('');
   /** Free or Pro — who taps send. Defaults to the one that exists today. */
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
 
@@ -243,10 +234,6 @@ export default function WelcomeScreen() {
 
   const studying = otherSubject.trim() || subjects[0] || '';
   const level = levels[0] ?? '';
-  const allInterests = [
-    ...interests,
-    ...otherInterest.split(',').map((i) => i.trim()).filter(Boolean),
-  ];
 
   /**
    * A halo behind the avatar on the last screen.
@@ -291,12 +278,7 @@ export default function WelcomeScreen() {
       : studying
         ? { Icon: Sparkles, text: `I'll break your ${studying} work into steps you can actually start.` }
         : { Icon: Sparkles, text: 'I’ll break big pieces of work into steps you can actually start.' },
-    allInterests.length
-      ? {
-          Icon: MessageCircle,
-          text: `When something won’t click, I’ll explain it through ${allInterests[0].toLowerCase()}.`,
-        }
-      : { Icon: MessageCircle, text: 'Tell me what’s coming up and I’ll set it all up for you.' },
+    { Icon: MessageCircle, text: 'Tell me what’s coming up and I’ll set it all up for you.' },
     /*
      * The promise now matches the answer they just gave.
      *
@@ -305,7 +287,14 @@ export default function WelcomeScreen() {
      * approval happens once, at the review, rather than at the send. Saying the
      * wrong one of these is worse than saying neither.
      */
-    plan === 'pro'
+    /*
+     * The promise follows the switch, not the tier.
+     *
+     * Pro with auto-send off still asks every time, so promising autonomous
+     * sending to someone who left it off would be as wrong as the old line was
+     * for someone who turned it on. Three states, three true sentences.
+     */
+    plan === 'pro' && settings.autoSend
       ? {
           Icon: ShieldCheck,
           text: 'You approve it at the review, then I send it. Ten minutes to stop it if you change your mind.',
@@ -329,7 +318,16 @@ export default function WelcomeScreen() {
       // A year belongs to a student. Left blank for anyone else, so nothing
       // downstream reads "3rd year" off a freelancer's profile.
       level: role === 'student' ? level : '',
-      interests: allInterests,
+      /*
+       * Cleared rather than left alone.
+       *
+       * Onboarding no longer asks what you're into, and the seeded demo persona
+       * lists basketball and music. Skipping the write would leave a brand-new
+       * account carrying someone else's hobbies into every prompt — Aria
+       * explaining projectile motion through a jump shot to a person who never
+       * mentioned basketball. Not asked has to mean not known.
+       */
+      interests: [],
       // The one-line description the drafting prompts already read. Composed
       // from the structured answers, and phrased per role — "2nd year studying
       // Law" and "Running my own thing: an agency" are not the same sentence,
@@ -337,15 +335,21 @@ export default function WelcomeScreen() {
       context: describeContext(role, studying, level),
     });
     /*
-     * Wanting Pro is recorded; Pro itself is not granted here.
+     * Pro is open now, so choosing it turns it on.
      *
-     * `setPro` writes entitlement to `profiles.pro`, which is what the cron
-     * reads before it sends on someone's behalf — so switching it on from an
-     * onboarding tap would tell the server this account may send autonomously
-     * when nobody has paid for anything. The waitlist is the honest record of
-     * the same answer.
+     * `setPro` writes `profiles.pro`, the column the Edge Function reads before
+     * sending on somebody's behalf — so this is the entitlement itself rather
+     * than a preference about one.
+     *
+     * It is deliberately not the same as agreeing to autonomous sending. That
+     * is `settings.autoSend`, the last switch on the next screen, and
+     * `autoSendEnabled` requires both: Pro is permission to have the feature,
+     * the switch is the decision to use it. Conflating them would mail somebody
+     * the moment an account upgraded.
      */
-    if (plan === 'pro') joinProWaitlist();
+    // `setPro` rather than `turnOnPro`: that one raises a confirmation alert,
+    // and the screen this leads to *is* the confirmation.
+    if (plan === 'pro') setPro(true);
   }
 
   function enterApp() {
@@ -378,7 +382,7 @@ export default function WelcomeScreen() {
   };
 
   /** Whether this step has an answer. Changes the button's wording, never blocks. */
-  const answered = [true, !!role, !!studying || !!level, allInterests.length > 0, true, true][step];
+  const answered = [true, !!role, !!studying || !!level, true, true][step];
 
   return (
     <Screen padded edges={['top', 'bottom']}>
@@ -555,21 +559,6 @@ export default function WelcomeScreen() {
 
         {step === 3 ? (
           <Step
-            title="What are you into?"
-            blurb="This one does the most work. When something abstract won't land, I'll explain it through something you already know well.">
-            <ChoiceGroup options={INTERESTS} value={interests} onChange={setInterests} />
-            <Input
-              label="Anything else"
-              placeholder="e.g. chess, baking (separate with commas)"
-              value={otherInterest}
-              onChangeText={setOtherInterest}
-              returnKeyType="done"
-            />
-          </Step>
-        ) : null}
-
-        {step === 4 ? (
-          <Step
             title="When something's ready to go, who sends it?"
             blurb="Either way I do the work. This is only about the last step.">
             <View className="gap-2">
@@ -594,9 +583,9 @@ export default function WelcomeScreen() {
                       {p.value === 'pro' ? (
                         /* `rounded-md`, because it is a label rather than a
                            control. Shape is the affordance — see badge.tsx. */
-                        <View className="rounded-md bg-border/60 px-2 py-0.5">
-                          <Text variant="caption" tone="muted" className="font-strong">
-                            Coming soon
+                        <View className="rounded-md bg-accent-soft px-2 py-0.5">
+                          <Text variant="caption" tone="accent" className="font-strong">
+                            Available
                           </Text>
                         </View>
                       ) : null}
@@ -613,16 +602,16 @@ export default function WelcomeScreen() {
             </View>
             {plan === 'pro' ? (
               /*
-               * Chosen, not granted.
+               * Says what is still true, not just what changed.
                *
-               * Pro is not open yet, and switching it on here would promise
-               * autonomous sending the app cannot yet do — the failure would
-               * appear as a deadline that quietly passed. So this records the
-               * ask, and `setPro` stays where entitlement is actually decided.
+               * "Pro is on" reads as consent to autonomous sending, and it is
+               * not: that is the last switch on the next screen. Someone who
+               * upgrades and then finds an email already sent was told the
+               * wrong thing here.
                */
               <Text variant="caption" tone="accent">
-                I&apos;ll tell you the moment Pro opens up. Until then I&apos;ll prepare everything
-                and leave the send to you.
+                Pro goes on when you finish here. I&apos;ll still ask before anything leaves until
+                you say otherwise on the next screen.
               </Text>
             ) : null}
           </Step>
@@ -637,7 +626,7 @@ export default function WelcomeScreen() {
           same toggles as the Settings screen. A copy that had to be committed
           later is a copy that can disagree with what the switch was showing.
         */}
-        {step === 5 ? (
+        {step === 4 ? (
           <Step
             title="A few things to switch on"
             blurb="All of these live in Settings too, so nothing here is final.">
@@ -690,30 +679,43 @@ export default function WelcomeScreen() {
               ) : null}
 
               {/*
-                Shown only to someone who asked for Pro, and shown as unavailable.
+                Shown only to someone who chose Pro, and it is a real switch.
 
-                This is the switch the whole ordering exists for: it is the Pro
-                half of the previous question, and it cannot be turned on yet.
-                Drawing it disabled is more honest than hiding it — it says what
-                Pro will actually change, at the moment they are thinking about
-                it.
+                This is what the whole ordering exists for. It is the second
+                half of the previous question — Pro is permission to send
+                without you, this is the decision to actually do it — and the
+                two are deliberately separate: `autoSendEnabled` requires both,
+                so an upgrade on its own never mails anybody.
+
+                Off is not "Aria does nothing". It still drafts, addresses and
+                schedules; off only means it asks before anything leaves. The
+                description says so, because "off" on a screen full of switches
+                otherwise reads as the feature being disabled.
               */}
               {plan === 'pro' ? (
-                <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4 opacity-60">
+                <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4">
                   <View className="flex-1 gap-1">
                     <View className="flex-row items-center gap-2">
                       <Text className="font-strong">Send at the scheduled time</Text>
-                      <View className="rounded-md bg-border/60 px-2 py-0.5">
-                        <Text variant="caption" tone="muted" className="font-strong">
-                          With Pro
+                      <View className="rounded-md bg-accent-soft px-2 py-0.5">
+                        <Text variant="caption" tone="accent" className="font-strong">
+                          Pro
                         </Text>
                       </View>
                     </View>
                     <Text variant="small" tone="muted">
-                      Waiting on Pro. Until then I&apos;ll have it ready and ask you first.
+                      {settings.autoSend
+                        ? 'Aria sends at the time you picked and tells you afterwards.'
+                        : 'Aria gets it ready and asks you first. Nothing leaves without you.'}
                     </Text>
                   </View>
-                  <Switch value={false} disabled onValueChange={() => {}} />
+                  <Switch
+                    value={settings.autoSend}
+                    onValueChange={(v) => {
+                      hapticSelect();
+                      setSetting('autoSend', v);
+                    }}
+                  />
                 </View>
               ) : null}
             </View>

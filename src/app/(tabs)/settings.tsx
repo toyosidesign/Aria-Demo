@@ -39,7 +39,6 @@ export default function SettingsScreen() {
   const clearAllData = useAriaStore((s) => s.clearAllData);
   const replayOnboarding = useAriaStore((s) => s.replayOnboarding);
   const pro = useAriaStore((s) => s.pro);
-  const proWaitlisted = useAriaStore((s) => s.proWaitlisted);
   const setPro = useAriaStore((s) => s.setPro);
 
   function confirmReset() {
@@ -140,22 +139,20 @@ export default function SettingsScreen() {
 
         {/* Automation — lead with what it does, not what tier it sits in.
             "Free plan" told users nothing and hid the feature entirely. */}
-        {/* "PRO" and "ON THE LIST" said nothing about what the feature is, what it
-            costs, or what tapping would do, and the footnote described it as
-            though it already worked. State goes inside the box in plain words;
-            the footnote says what it will do and that it isn't open yet. */}
+        {/* State goes inside the box in plain words; the footnote says what the
+            feature does. It used to say Pro "isn't open yet", which stopped
+            being true the day it opened — copy that describes availability has
+            to be changed when availability changes. */}
         <SettingsGroup
           title="Automation"
-          footnote="Schedule a message and Aria sends it at the time you pick, then reports back. It's part of Aria Pro, which isn't open to everyone yet.">
+          footnote="Schedule a message and Aria sends it at the time you pick, then reports back. It's part of Aria Pro.">
           <SettingsRow
             first
             label="Let Aria send things for you"
             description={
               pro
                 ? 'Active, including every app connection.'
-                : proWaitlisted
-                  ? 'You’re on the waiting list. I’ll tell you the moment it opens.'
-                  : 'Not available yet. Tap to join the waiting list.'
+                : 'Part of Aria Pro. Tap to turn it on.'
             }
             onPress={pro ? undefined : () => promptProUpgrade(PRO_PITCH)}
             showChevron={!pro}
@@ -179,29 +176,6 @@ export default function SettingsScreen() {
             Off is not "Aria does nothing": it still drafts, addresses and
             schedules. Off only means it asks before anything leaves.
           */}
-          {/*
-            A way in, in development only.
-            
-            Pro cannot be bought — the upgrade path joins a waiting list rather
-            than pretending to take payment — which leaves no way to exercise
-            anything behind it, including the scheduler's autonomous sending.
-            Stripped from release builds, like the chat's fallback marker.
-          */}
-          {__DEV__ && !pro ? (
-            <SettingsRow
-              label="Turn Pro on (testing)"
-              description="Development builds only. Enables the settings below and tells the server."
-              right={
-                <Switch
-                  value={false}
-                  onValueChange={() => {
-                    hapticSelect();
-                    setPro(true);
-                  }}
-                />
-              }
-            />
-          ) : null}
           {pro ? (
             <SettingsRow
               label="Send without asking"
