@@ -30,7 +30,7 @@ Rules:
 - Sound like a real person texting, not a greeting card. Match how they'd actually write. Avoid clichés and over-formality.
 - Never invent specific facts (times, places, inside jokes) that weren't given.
 - It should be ready to send as-is.
-- Do not use em dashes (—) or hyphens as separators; use commas, periods, or colons instead.`;
+- Do not use em dashes or long hyphens as separators; use commas, periods, or colons instead.`;
 };
 
 function buildPrompt(req: DraftRequest): string {
@@ -47,7 +47,7 @@ function buildPrompt(req: DraftRequest): string {
        * Say it back, add nothing.
        *
        * The reflect-back card is agreed with or corrected, so an invented goal
-       * would be agreed with too — and a project then gets scoped around
+       * would be agreed with too, and a project then gets scoped around
        * something nobody asked for. The instruction to use only what was given
        * is doing the real work here, not the tone.
        */
@@ -72,7 +72,7 @@ function buildPrompt(req: DraftRequest): string {
        * preference most obviously belongs.
        */
       lines.push(
-        `The student wants "${req.title}" explained${req.subtaskTitle ? ` — specifically "${req.subtaskTitle}"` : ''}.`,
+        `The student wants "${req.title}" explained${req.subtaskTitle ? `, specifically "${req.subtaskTitle}"` : ''}.`,
         'Explain the topic itself, not how to write about it. Break it into a few labelled parts, and ground at least one of them in a concrete real-world situation they would recognise.',
         'No preamble, no restating the question.',
       );
@@ -167,7 +167,7 @@ function extractText(msg: Anthropic.Message): string {
 // Unauthenticated, this was a free proxy to a paid model on our key: the caller
 // controls `instruction` and `previousDraft`, so they controlled the whole prompt
 // and got the completion back. The wrapper enforces identity, quota and shape
-// before this body is trusted — see lib/api-auth.ts.
+// before this body is trusted, see lib/api-auth.ts.
 export const POST = protectedRoute(DraftSchema, limitAi, async (body) => {
   // No key configured → return a scripted draft so the demo still works.
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -199,7 +199,7 @@ export const POST = protectedRoute(DraftSchema, limitAi, async (body) => {
     } satisfies DraftResponse);
   } catch (err) {
     // The scripted draft keeps the app usable, but silence here hid a dead API
-    // key for a long time — every draft looked written when none of them were.
+    // key for a long time, every draft looked written when none of them were.
     console.error('[aria] draft: Claude call failed, using scripted text:', err);
     return Response.json({ message: localFallbackDraft(body), fallback: true } satisfies DraftResponse);
   }

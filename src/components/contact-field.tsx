@@ -12,7 +12,7 @@ import { phoneContactsAvailable, pickPhoneContactResult } from '@/lib/phone-cont
 /**
  * Who a task is going to.
  *
- * The phone's own address book is the source of truth — Aria doesn't keep a
+ * The phone's own address book is the source of truth, Aria doesn't keep a
  * second copy of everyone you know. Pick someone and their details come with
  * them, so there's nothing left to type; the manual fields only appear for
  * someone who isn't in your contacts.
@@ -40,22 +40,22 @@ export function ContactField({
   onEmail: (email: string) => void;
   phone: string;
   onPhone: (phone: string) => void;
-  /** Email method — a valid address is required before the task can be saved. */
+  /** Email method, a valid address is required before the task can be saved. */
   requireEmail: boolean;
-  /** Text or call method — a number is what lets Aria open the app pre-filled. */
+  /** Text or call method, a number is what lets Aria open the app pre-filled. */
   needsPhone: boolean;
   /** A call only ever needs a number: no name to type, no address to collect. */
   phoneOnly?: boolean;
   /**
    * Someone was already chosen elsewhere, so open on the summary rather than on
    * the form. Without it, a contact picked one question earlier in chat came
-   * back as three filled-in text boxes — the exact fields choosing them was
+   * back as three filled-in text boxes, the exact fields choosing them was
    * supposed to replace.
    */
   startPicked?: boolean;
   /**
    * Set by the form once Save has been pressed on an incomplete task, so the
-   * field that blocked it says so. Undefined is the normal state — these are
+   * field that blocked it says so. Undefined is the normal state, these are
    * derived from the values, so they clear as soon as the field is filled.
    */
   nameError?: string;
@@ -68,7 +68,7 @@ export function ContactField({
   /**
    * Why the last pick came back with nobody, when it did.
    *
-   * A cancelled picker needs no explanation — you closed it. A refused
+   * A cancelled picker needs no explanation, you closed it. A refused
    * permission does: on Android the picker cannot open at all without
    * `READ_CONTACTS`, and with nothing said, the button reads as broken. Cleared
    * on the next attempt so a stale reason never sits under a working one.
@@ -102,7 +102,7 @@ export function ContactField({
     setFromPhone(true);
   }
 
-  /** Back to typing it in — keeps whatever was picked so it can be edited. */
+  /** Back to typing it in, keeps whatever was picked so it can be edited. */
   function enterManually() {
     hapticSelect();
     setFromPhone(false);
@@ -120,7 +120,7 @@ export function ContactField({
 
       {fromPhone ? (
         <>
-          {/* Picked from the phone — everything's already here, nothing to ask */}
+          {/* Picked from the phone, everything's already here, nothing to ask */}
           <View className="flex-row items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-3.5">
             <View className="h-11 w-11 items-center justify-center rounded-full bg-accent">
               <UserRound size={22} color={c.accentInk} strokeWidth={2} />

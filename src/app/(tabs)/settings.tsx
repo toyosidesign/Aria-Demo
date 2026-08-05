@@ -94,8 +94,8 @@ export default function SettingsScreen() {
           </Text>
 
           {/* A switch, not a two-option segmented control. "Match my device"
-              isn't a colour you pick alongside the others — it's a rule about
-              when to switch — and phrasing it as one of two modes cost a
+              isn't a colour you pick alongside the others, it's a rule about
+              when to switch, and phrasing it as one of two modes cost a
               full-width control to say something a toggle says in a row. */}
           <SettingsGroup>
             <SettingsRow
@@ -103,7 +103,7 @@ export default function SettingsScreen() {
               label="Match my device"
               /* Off-state copy says what turning it on would *do*, not just
                  that it's off. Agreeing to something the app will then do by
-                 itself — change appearance at dusk — only counts if the switch
+                 itself, change appearance at dusk, only counts if the switch
                  said so before it was flipped. */
               description={
                 matchingDevice
@@ -130,11 +130,11 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* Automation — lead with what it does, not what tier it sits in.
+        {/* Automation, lead with what it does, not what tier it sits in.
             "Free plan" told users nothing and hid the feature entirely. */}
         {/* State goes inside the box in plain words; the footnote says what the
             feature does. It used to say Pro "isn't open yet", which stopped
-            being true the day it opened — copy that describes availability has
+            being true the day it opened, copy that describes availability has
             to be changed when availability changes. */}
         <SettingsGroup
           title="Automation"
@@ -162,7 +162,7 @@ export default function SettingsScreen() {
 
             This switch decides whether a real email reaches a real person
             without anyone seeing it first, so an account that isn't entitled to
-            it should not have it on screen at all — a greyed-out control still
+            it should not have it on screen at all, a greyed-out control still
             advertises the behaviour as one tap away, and `Switch` here has no
             disabled state to lean on anyway. The row above is the upgrade path.
 
@@ -310,7 +310,7 @@ export default function SettingsScreen() {
           />
           {/* Development only. Onboarding runs once per account, so without
               this every look at it costs a sign-out, a deleted account and a
-              fresh signup — which is why it's the screen that gets checked
+              fresh signup, which is why it's the screen that gets checked
               least and breaks most. Stripped from release builds. */}
           {__DEV__ ? (
             <SettingsRow

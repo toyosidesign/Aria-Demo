@@ -14,7 +14,7 @@ import { useColors } from '@/lib/colors';
 import { formatTime } from '@/lib/dates';
 import { type Task } from '@/store/aria-store';
 
-/** A proactive Aria offer surfaced on Today — consent-first: has a clear decline. */
+/** A proactive Aria offer surfaced on Today, consent-first: has a clear decline. */
 export function AriaTodayCard({
   task,
   action,
@@ -55,7 +55,7 @@ export function AriaTodayCard({
           <Text className="font-strong" numberOfLines={1}>
             {task.title}
           </Text>
-          {/* Time only — the header already said Today. This card is fed
+          {/* Time only, the header already said Today. This card is fed
               exclusively from today's tasks, so a relative date formatter could
               only ever produce "Today" again, one line under "Aria · Today".
               What isn't already known at a glance is *when* today.
@@ -65,7 +65,7 @@ export function AriaTodayCard({
               the obvious move and is not available: on this card's accent-soft
               panel `faint` lands at 2.3–3.3:1, well under AA, and the palette
               has no step between the two. So the distinction is made by role
-              instead — an icon marks it as a data point rather than prose, the
+              instead, an icon marks it as a data point rather than prose, the
               same way TaskCard pairs its date with a calendar. */}
           <View className="flex-row items-center gap-1">
             <Clock size={12} color={c.muted} />
@@ -80,7 +80,7 @@ export function AriaTodayCard({
       {/* The offer, and nothing it doesn't need.
 
           `small` + muted rather than body weight in the default tone, which was
-          the same size *and* colour as the title above it — the two read as one
+          the same size *and* colour as the title above it, the two read as one
           block and nothing led. Matches the demo invite and the empty-state
           card, which already step down for supporting copy.
 
@@ -91,8 +91,8 @@ export function AriaTodayCard({
           mostly-identical text.
 
           The send promise now appears only when something is actually sent.
-          Most actions don't — breaking an assignment into steps or drafting an
-          outline sends nothing — so on those cards it wasn't just padding, it
+          Most actions don't, breaking an assignment into steps or drafting an
+          outline sends nothing, so on those cards it wasn't just padding, it
           implied a step that doesn't exist. */}
       <Text variant="small" tone="muted" className="leading-5">
         {action.offer}
@@ -112,7 +112,7 @@ export function AriaTodayCard({
           "Not now" belongs on an offer, not on a reminder.
           
           Aria proposing to draft or plan something is a suggestion, and a
-          suggestion needs a clear way to decline — that is the consent-first
+          suggestion needs a clear way to decline, that is the consent-first
           rule this card was built around. A card that is written and waiting is
           a different thing: it is you being reminded to send something you
           already decided to send, and offering to dismiss it invites the one

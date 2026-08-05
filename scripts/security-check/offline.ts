@@ -65,7 +65,7 @@ function req(body: string, headers: Record<string, string> = {}): Request {
 const valid = JSON.stringify({ title: 'History essay' });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #1a — the confirmed-contact predicate (opt-in via env)');
+section('FINDING #1a, the confirmed-contact predicate (opt-in via env)');
 
 await test('enforcement is opt-in, and currently reflects the environment', () => {
   // The gate is only correct when Supabase is actually withholding confirmation.
@@ -79,7 +79,7 @@ await test('enforcement is opt-in, and currently reflects the environment', () =
     'the gate must consult the flag, not run unconditionally',
   );
   console.log(
-    `      (currently ${process.env.ARIA_REQUIRE_CONFIRMED_EMAIL === '1' ? 'ENFORCED' : 'not enforced'} — ` +
+    `      (currently ${process.env.ARIA_REQUIRE_CONFIRMED_EMAIL === '1' ? 'ENFORCED' : 'not enforced'}, ` +
       'set ARIA_REQUIRE_CONFIRMED_EMAIL=1 alongside Supabase "Confirm email")',
   );
 });
@@ -111,7 +111,7 @@ await test('a confirmed phone is accepted, so an SMS flow is not locked out', ()
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #1b — process-wide ceiling bounds a scripted account fan-out');
+section('FINDING #1b, process-wide ceiling bounds a scripted account fan-out');
 
 await test('a single user is cut off at their own hourly ceiling', () => {
   __resetRateLimits();
@@ -185,7 +185,7 @@ await test('a refused caller gets a positive, non-growing Retry-After', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #2 — oversized bodies are refused before they are parsed');
+section('FINDING #2, oversized bodies are refused before they are parsed');
 
 await test('a legitimate body still parses', async () => {
   const parsed = await parseBody(req(valid), ChecklistSchema);
@@ -228,7 +228,7 @@ await test('the cap counts bytes, not UTF-16 units', async () => {
 await test('legitimate non-ASCII text is not over-rejected by the byte cap', async () => {
   // The regression risk of counting bytes: a cap that is too eager turns into a
   // bug that only shows up for people who do not write in English.
-  const title = 'Räsonnement über Kierkegaard — 参考文献と結論 🙂';
+  const title = 'Räsonnement über Kierkegaard, 参考文献と結論 🙂';
   assert.ok(Buffer.byteLength(title, 'utf8') > title.length, 'genuinely multi-byte');
   const parsed = await parseBody(req(JSON.stringify({ title })), ChecklistSchema);
   assert.deepEqual(parsed, { title });
@@ -238,7 +238,7 @@ await test('the cap clears the largest body the schemas actually allow', async (
   // The invariant that matters, and the one a character-count intuition gets
   // wrong: zod's .max() counts UTF-16 units, the wire carries UTF-8, and CJK is
   // 1 unit to 3 bytes. Every field below sits at its documented maximum, so this
-  // is a request the API promises to accept — a full chat history in Japanese.
+  // is a request the API promises to accept, a full chat history in Japanese.
   //
   // A 64KB cap passed every other test in this file and rejected this one.
   const cjk = (n: number) => '要'.repeat(n);
@@ -260,7 +260,7 @@ await test('the cap clears the largest body the schemas actually allow', async (
   assert.ok(
     Buffer.byteLength(raw, 'utf8') < MAX_BODY_BYTES,
     `largest valid body is ${Buffer.byteLength(raw, 'utf8')} bytes but the cap is ` +
-      `${MAX_BODY_BYTES} — raise MAX_BODY_BYTES or lower a field cap`,
+      `${MAX_BODY_BYTES}, raise MAX_BODY_BYTES or lower a field cap`,
   );
 
   const request = new Request('https://aria.test/api/assistant', {
@@ -287,7 +287,7 @@ await test('field-level caps still apply under the body cap', async () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #4 — protectedRoute makes route auth default-deny');
+section('FINDING #4, protectedRoute makes route auth default-deny');
 
 /** Records whether the wrapped handler ever ran. */
 function spyRoute() {
@@ -351,7 +351,7 @@ await test('auth is checked before the body is even read', async () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('1.6 — a deploy missing its keys says so instead of degrading silently');
+section('1.6, a deploy missing its keys says so instead of degrading silently');
 
 await test('missing keys are reported, not swallowed', () => {
   const saved = __requirements.map((k) => process.env[k]);
@@ -439,7 +439,7 @@ await test('a fully configured server reports nothing', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('FINDING #3 — sessions are never written to disk on web');
+section('FINDING #3, sessions are never written to disk on web');
 
 const supabaseSrc = readFileSync(path.join(ROOT, 'src/lib/supabase.ts'), 'utf8');
 
@@ -460,7 +460,7 @@ await test('isBrowser distinguishes a real browser from the server render', () =
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('Regression guards — controls that must not silently disappear');
+section('Regression guards, controls that must not silently disappear');
 
 const authSrc = readFileSync(path.join(ROOT, 'src/lib/api-auth.ts'), 'utf8');
 
@@ -504,7 +504,7 @@ await test('every API route on disk is declared through protectedRoute', () => {
     assert.match(
       src,
       /export const (POST|GET|PUT|PATCH|DELETE) = protectedRoute\(/,
-      `${rel} must be declared with protectedRoute — a bare handler is unauthenticated`,
+      `${rel} must be declared with protectedRoute, a bare handler is unauthenticated`,
     );
   }
 });
@@ -515,7 +515,7 @@ await test('only the upload route may raise the body ceiling', () => {
    * route keeps: a brief arrives as a PDF or a photo of a handout, and the
    * bytes have to reach the model because nothing on the device can read one.
    *
-   * It is passed explicitly, by one route, so this is checkable — and it has to
+   * It is passed explicitly, by one route, so this is checkable, and it has to
    * be, because the cheap version of this attack is one large request. A second
    * route picking it up "because uploads are useful there too" is exactly the
    * drift worth failing the build over.
@@ -534,7 +534,7 @@ await test('only the upload route may raise the body ceiling', () => {
     assert.doesNotMatch(
       src,
       /MAX_UPLOAD_BYTES/,
-      `${rel} must keep the default body cap — only ${allowed} carries a file`,
+      `${rel} must keep the default body cap, only ${allowed} carries a file`,
     );
   }
 });
@@ -578,7 +578,7 @@ await test('a header-injection attempt in an email subject is refused', async ()
     body: 'hi',
   };
   assert.equal(SendEmailSchema.safeParse(attempt).success, false, 'CRLF must not pass');
-  // The body is message text, not a header — newlines there are legitimate.
+  // The body is message text, not a header, newlines there are legitimate.
   assert.equal(
     SendEmailSchema.safeParse({ ...attempt, subject: 'Happy birthday!', body: 'line\nline' })
       .success,
@@ -617,7 +617,7 @@ await test('the service_role key appears nowhere in src/', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
-section('The scheduled runner — the one thing here that holds a service_role key');
+section('The scheduled runner, the one thing here that holds a service_role key');
 
 /*
  * Aria can now act while the app is closed, and the price was the first
@@ -626,7 +626,7 @@ section('The scheduled runner — the one thing here that holds a service_role k
  * ignores them.
  *
  * These are the bounds that make that acceptable, asserted rather than trusted.
- * Nothing below runs the function — it is Deno and cannot be imported — so each
+ * Nothing below runs the function, it is Deno and cannot be imported, so each
  * one reads the source and checks a property that would be expensive to notice
  * being wrong: an unauthenticated send endpoint, a second copy of an email, or
  * a key reaching the bundle.
@@ -655,7 +655,7 @@ await test('no service_role key is exposed under an EXPO_PUBLIC_ name', () => {
   assert.ok(files.length, 'expected at least .env.example to exist');
   for (const file of files) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
-      // Only assignments — .env.example talks *about* the service_role key in
+      // Only assignments, .env.example talks *about* the service_role key in
       // its comments, and warning about it is the opposite of leaking it.
       const assignment = line.match(/^\s*([A-Z0-9_]+)\s*=(.*)$/);
       if (!assignment) continue;
@@ -677,7 +677,7 @@ await test('no service_role key is exposed under an EXPO_PUBLIC_ name', () => {
 
 await test('the runner authenticates on a secret the app bundle does not carry', () => {
   // Supabase's own verify_jwt would accept the anon key, which ships inside the
-  // app — "has a valid JWT" is a property every user already has, and this
+  // app, "has a valid JWT" is a property every user already has, and this
   // endpoint spends money and emails strangers.
   assert.match(runnerSrc, /x-aria-cron-secret/, 'must require the cron secret header');
   assert.match(
@@ -702,7 +702,7 @@ await test('the runner can only ever send email, never a text or a WhatsApp mess
 
 await test('every send claims its row first, so the cron and a phone cannot both send it', () => {
   // The conditional update is the lock. Without `status=eq.scheduled` on the
-  // claim, two runners — or a runner and an open app — both read the same row
+  // claim, two runners, or a runner and an open app, both read the same row
   // as due and the student's contact gets the email twice.
   assert.match(
     runnerSrc,
@@ -734,7 +734,7 @@ await test('every send claims its row first, so the cron and a phone cannot both
    * The first version of this collapsed "no server to arbitrate with" and
    * "could not reach the server" into one answer and sent on both. The mail
    * route is a different host from Supabase, so an unreachable database does
-   * not mean the send would fail — it means a cron tick in the same window
+   * not mean the send would fail, it means a cron tick in the same window
    * makes it two emails.
    */
   // Asserted on the failure paths themselves, not just on the type. Checking
@@ -768,9 +768,9 @@ await test('autonomous sending needs Pro AND the setting, and fails closed', () 
    * real person with nobody having seen it. Two ways it could go wrong, both
    * asserted here:
    *
-   *   · reading `auto_send` alone — Pro can lapse while the stored preference
+   *   · reading `auto_send` alone, Pro can lapse while the stored preference
    *     stays true, and the account would keep sending after it stopped paying;
-   *   · failing open — a profile row that cannot be read must hold the send,
+   *   · failing open, a profile row that cannot be read must hold the send,
    *     not assume consent.
    */
   assert.match(
@@ -795,7 +795,7 @@ await test('autonomous sending needs Pro AND the setting, and fails closed', () 
     /export function autoSendEnabled\([^)]*\): boolean \{\s*\n\s*return pro && settings\.autoSend;/,
     'the app-side gate must require both as well',
   );
-  // A held automation goes back to 'scheduled', never 'failed' — nothing was
+  // A held automation goes back to 'scheduled', never 'failed', nothing was
   // attempted, and "couldn't send" would be a lie about a message that was
   // simply left for a human.
   assert.match(
@@ -832,7 +832,7 @@ await test('a stale device cannot rewind a sent automation back into the queue',
 await test('the subject rule has not drifted between the app and the runner', () => {
   /*
    * The runner cannot import from src/, so it carries its own copy of
-   * normaliseSubject — and a copy that quietly drifts is worse than no copy,
+   * normaliseSubject, and a copy that quietly drifts is worse than no copy,
    * because every app-side test would still be green while the server sent
    * subjects the app would have refused.
    *
@@ -888,7 +888,7 @@ await test('the automations table is protected by RLS like every other table', (
   );
   /*
    * The cron is the only thing that may bypass this, and it does so from the
-   * Edge Function's environment — not from a security definer function that a
+   * Edge Function's environment, not from a security definer function that a
    * signed-in user could also call. An earlier draft of this migration had one,
    * taking "am I the cron?" as an argument, which any authenticated caller
    * could have passed to claim somebody else's automation.
@@ -907,7 +907,7 @@ await test('API calls resolve an absolute URL, so a phone reaches the real route
   /*
    * A relative `/api/...` only resolves against a document. React Native has no
    * origin, so every such fetch threw, every caller caught it, and every AI
-   * feature quietly served its scripted fallback — on a device, nothing ever
+   * feature quietly served its scripted fallback, on a device, nothing ever
    * reached the model while the app looked entirely healthy.
    *
    * The suite guards two things: that the resolver still exists, and that

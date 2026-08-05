@@ -8,7 +8,7 @@ import { checkServerConfig, startKeyVerification } from '@/lib/server-config';
 /**
  * Who is calling an API route.
  *
- * The routes spend money — Anthropic tokens, Resend sends — so each one has to
+ * The routes spend money, Anthropic tokens, Resend sends, so each one has to
  * know whose request it is before doing any of that. Every route was open to
  * anyone with the URL before this existed.
  */
@@ -52,7 +52,7 @@ export function isConfirmedUser(user: {
  * Whether to enforce the check above. Off unless explicitly switched on.
  *
  * It is only meaningful when the Supabase project actually withholds
- * confirmation — with autoconfirm on, every account arrives already confirmed
+ * confirmation, with autoconfirm on, every account arrives already confirmed
  * and the check waves everyone through. Worse, it is enforced against a field
  * this app does not control: if a future GoTrue stopped stamping
  * `email_confirmed_at` under autoconfirm, an always-on check would 401 every
@@ -70,7 +70,7 @@ const requireConfirmed = process.env.ARIA_REQUIRE_CONFIRMED_EMAIL === '1';
  *
  * `getUser(token)` asks Supabase to check the token's signature and expiry.
  * Decoding the JWT here instead would mean trusting a value the caller handed
- * us, which is the thing being guarded against — a forged payload would sail
+ * us, which is the thing being guarded against, a forged payload would sail
  * straight through.
  */
 export async function requireUser(request: Request): Promise<string | null> {
@@ -84,7 +84,7 @@ export async function requireUser(request: Request): Promise<string | null> {
     const { data, error } = await verifier.auth.getUser(token);
     if (error || !data.user) return null;
 
-    // Only when the project is actually withholding confirmation — see
+    // Only when the project is actually withholding confirmation, see
     // `requireConfirmed`.
     if (requireConfirmed && !isConfirmedUser(data.user)) return null;
 
@@ -104,7 +104,7 @@ export const unauthorized = (): Response =>
  *
  * Expo Router has no `middleware.ts`, so protection here is per-file: every
  * route repeated the same four guards by hand, and a newly added route was
- * fully public until someone remembered to copy them. That failure is silent —
+ * fully public until someone remembered to copy them. That failure is silent , 
  * working code, no error, no test failure, no symptom.
  *
  * So the guards are not something a handler *calls*, they are how it is
@@ -113,7 +113,7 @@ export const unauthorized = (): Response =>
  * is no other way to obtain either value.
  *
  * Order is deliberate and load-bearing. Identity, then quota, then shape, then
- * spend — nothing costly happens before we know who is asking and whether they
+ * spend, nothing costly happens before we know who is asking and whether they
  * have budget left.
  */
 export function protectedRoute<T extends z.ZodTypeAny>(
@@ -124,17 +124,17 @@ export function protectedRoute<T extends z.ZodTypeAny>(
    * A larger body ceiling, for the one route that carries an uploaded file.
    *
    * An argument rather than a property of the schema, so raising it is a visible
-   * decision at the route rather than a side effect of adding a base64 field —
+   * decision at the route rather than a side effect of adding a base64 field , 
    * and so every other route keeps the default without having to say so.
    */
   maxBytes?: number,
 ): (request: Request) => Promise<Response> {
-  // Runs when the route module is first imported — every route goes through
+  // Runs when the route module is first imported, every route goes through
   // here, so a deploy missing its keys says so once at startup rather than
   // quietly serving scripted output. See lib/server-config.ts.
   checkServerConfig();
   // Presence is checked synchronously above; whether the key actually works is
-  // answered in the background — see server-config.ts.
+  // answered in the background, see server-config.ts.
   startKeyVerification();
 
   return async (request: Request): Promise<Response> => {

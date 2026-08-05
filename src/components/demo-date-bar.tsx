@@ -28,7 +28,7 @@ export function DemoDateBar({ compact = false }: { compact?: boolean } = {}) {
   const setDemoDate = useAriaStore((s) => s.setDemoDate);
 
   /**
-   * Jumping the date used to happen in total silence — from Settings you'd tap
+   * Jumping the date used to happen in total silence, from Settings you'd tap
    * a chip and nothing visibly changed, because the effect is on Today. Say
    * what's now due and take the user where they can see it.
    */

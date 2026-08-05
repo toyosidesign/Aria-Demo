@@ -14,7 +14,7 @@
 
 /*
  * One warm-grey ramp, no second hue. Must stay in lockstep with `ramp` and
- * `palette` in lib/colors.ts — these are the same colours expressed for
+ * `palette` in lib/colors.ts, these are the same colours expressed for
  * className styling, and a drift between them shows up as two slightly
  * different greys sitting next to each other.
  *

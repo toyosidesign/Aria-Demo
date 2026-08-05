@@ -29,7 +29,7 @@ import { isReminderOnly, selectNextDue, useAriaStore, type Task } from '@/store/
  *
  * This used to only *reveal* a round button, which you then had to tap. That
  * reads as broken to anyone who has used Mail: you drag, the row springs back,
- * and nothing happened. Reported three times as "swipe doesn't work" — the
+ * and nothing happened. Reported three times as "swipe doesn't work", the
  * gesture was firing correctly the whole time and doing exactly what it was
  * built to do.
  *
@@ -43,7 +43,7 @@ import { isReminderOnly, selectNextDue, useAriaStore, type Task } from '@/store/
  *     card back the other way (`reopenTask`); rescheduling opens a screen you
  *     can back out of. Nothing is lost by a mis-swipe.
  *
- * The button still renders under the row and still commits on tap — it is the
+ * The button still renders under the row and still commits on tap, it is the
  * affordance that shows what the drag is about to do.
  *
  * A reminder reads the same gestures differently: there is nothing to reschedule
@@ -53,7 +53,7 @@ import { isReminderOnly, selectNextDue, useAriaStore, type Task } from '@/store/
  * How far across the revealed area a drag must go before it counts.
  *
  * Above the old 0.55 on purpose. When the drag merely revealed a button, a low
- * threshold was free — the worst case was a panel you ignored. Now that the
+ * threshold was free, the worst case was a panel you ignored. Now that the
  * drag performs the action, the threshold is the confirmation step, so it wants
  * to be past the halfway point of a gesture nobody makes by accident. Overshoot
  * is disabled, so the row tops out at SWIPE_ACTION_WIDTH and this is a real
@@ -79,14 +79,14 @@ export function SwipeableTaskCard({
    *
    * Home is why this exists. Its Today list sends most tasks to `AriaTodayCard`
    * before they ever reach this component, and that card carries no gesture at
-   * all — so "drag to complete" silently did nothing on the majority of cards
+   * all, so "drag to complete" silently did nothing on the majority of cards
    * on the one screen people use most. It looked intermittent because the
    * cards that *do* swipe there (fired reminders, Coming up) sit right next to
    * the ones that don't.
    *
    * A render prop rather than a second swipeable component: the gesture below
-   * carries three separate hard-won fixes — stable callback identity, the open
-   * row swallowing a tap, and the hint cancelling on drag — and a copy would
+   * carries three separate hard-won fixes, stable callback identity, the open
+   * row swallowing a tap, and the hint cancelling on drag, and a copy would
    * inherit none of them.
    *
    * It receives the guarded press handler, which must be used as the card's
@@ -104,7 +104,7 @@ export function SwipeableTaskCard({
    * Without it the parent scroll and this row's pan compete for the same drag,
    * and the scroll usually wins: the row follows your finger far enough to look
    * like it's opening, the scroll claims the gesture, the pan is cancelled, and
-   * the row springs back. Nothing in the release logic runs at all — it looks
+   * the row springs back. Nothing in the release logic runs at all, it looks
    * like a threshold problem and isn't one.
    *
    * Passing the container makes the row's gesture take precedence over it, so a
@@ -118,8 +118,8 @@ export function SwipeableTaskCard({
   /**
    * Whether the action panel is showing.
    *
-   * The card underneath is a Pressable, so the tap that ends a swipe — or the
-   * next tap, aimed at the revealed button — also counted as "open this task".
+   * The card underneath is a Pressable, so the tap that ends a swipe, or the
+   * next tap, aimed at the revealed button, also counted as "open this task".
    * Swiping to reschedule dumped you into the task detail instead. While the
    * row is open a press closes it rather than navigating.
    */
@@ -130,7 +130,7 @@ export function SwipeableTaskCard({
    * ReanimatedSwipeable keys `dispatchImmediateEvents` on these two props, and
    * that feeds animateRow → handleRelease → panGesture, each a useCallback on
    * the last. Passing inline arrows gave them a new identity every render, so
-   * the pan gesture was torn down and rebuilt constantly — and since this card
+   * the pan gesture was torn down and rebuilt constantly, and since this card
    * subscribes to `tasks`, completing one re-rendered it and destroyed the
    * gesture mid-swipe. useCallback with no deps keeps the chain intact.
    */
@@ -147,7 +147,7 @@ export function SwipeableTaskCard({
    * ref so the handler itself never has to.
    *
    * `onSwipeableOpen` sits in the same dependency chain as the two callbacks
-   * above — dispatchEndEvents → animateRow → handleRelease → panGesture — so a
+   * above, dispatchEndEvents → animateRow → handleRelease → panGesture, so a
    * fresh identity per render rebuilds the pan, which is the bug that comment
    * describes. It cannot close over `task` or `done` directly and stay stable.
    *
@@ -175,7 +175,7 @@ export function SwipeableTaskCard({
    * The nudge animates `translateX` on the View *wrapping* the swipeable, so
    * while it runs the row carries two competing transforms: the hint's and the
    * gesture's. Dragging through it fights the animation and the row springs
-   * back — which reads as the swipe being broken, and only on the one card that
+   * back, which reads as the swipe being broken, and only on the one card that
    * nudges, which is why it looked like a Home-screen bug.
    *
    * A hint exists to be interrupted. The moment the gesture is real, it's done
@@ -195,8 +195,8 @@ export function SwipeableTaskCard({
    *
    * Shared by the default TaskCard and by anything passed through `renderCard`,
    * because the guard is not optional: while the action panel is showing, the
-   * card underneath is still pressable, so the tap that ends a swipe — or the
-   * next one, aimed at the revealed button — counted as "open this task" and
+   * card underneath is still pressable, so the tap that ends a swipe, or the
+   * next one, aimed at the revealed button, counted as "open this task" and
    * swiping to reschedule dumped you into the task detail instead.
    */
   function handlePress() {
@@ -211,7 +211,7 @@ export function SwipeableTaskCard({
   const toggleDone = useCallback(() => {
     const { task: t, done: isDone, advanceOnComplete: advance } = latest.current;
     ref.current?.close();
-    // Read from the store rather than from a subscription — see `latest`.
+    // Read from the store rather than from a subscription, see `latest`.
     const store = useAriaStore.getState();
     if (isDone) {
       store.reopenTask(t.id);
@@ -243,7 +243,7 @@ export function SwipeableTaskCard({
    *
    * `WillOpen`, not `Open`, and the difference is the whole reason the original
    * attempt at this was abandoned. `onSwipeableOpen` fires from the spring's
-   * completion callback — the row finishes animating open, *then* the action
+   * completion callback, the row finishes animating open, *then* the action
    * runs and closes it, which is the "flashed open and slammed shut" in the
    * note at the top of this file. `onSwipeableWillOpen` is dispatched
    * synchronously inside `animateRow`, which only ever runs from
@@ -254,7 +254,7 @@ export function SwipeableTaskCard({
    * guard wants setting here either way.
    *
    * The direction is gesture-handler's and reads backwards. `RIGHT` means the
-   * row settled at a positive offset — the LEFT actions revealed, by a drag to
+   * row settled at a positive offset, the LEFT actions revealed, by a drag to
    * the right. So 'right' is the complete side and 'left' is the reschedule
    * side, matching the two `render*Actions` props below.
    */
@@ -280,7 +280,7 @@ export function SwipeableTaskCard({
           onSwipeableCloseStartDrag={stopHint}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           blocksExternalGesture={scrollRef as any}
-          // 1:1 with the finger — the old value of 2 moved the row at half speed,
+          // 1:1 with the finger, the old value of 2 moved the row at half speed,
           // which is what made the gesture feel sticky.
           friction={1}
           leftThreshold={SWIPE_ACTION_WIDTH * COMMIT_RATIO}

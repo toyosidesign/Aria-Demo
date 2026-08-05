@@ -39,7 +39,7 @@ function minutesFromNow(mins: number): Date {
  * Presets answer "not now", but not "the 14th".
  *
  * The four durations above cover pushing something a few hours out, and nothing
- * else — a reminder you want next Tuesday could only be moved by opening the
+ * else, a reminder you want next Tuesday could only be moved by opening the
  * task and rescheduling it, which is not something anyone finds from a swipe.
  * `onPickDate` hands that case to the Reschedule screen, which already draws a
  * month calendar and a time, so there is one date picker in the app rather than
@@ -96,7 +96,7 @@ export function SnoozeChips({
 /**
  * What a reminder actually needs.
  *
- * There's nothing to draft or send — you've either registered it or you want
+ * There's nothing to draft or send, you've either registered it or you want
  * it again later. So the choice is exactly two things, and "later" asks how
  * much later rather than silently guessing.
  */

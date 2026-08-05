@@ -9,7 +9,7 @@ import { Text } from './text';
 /**
  * A tappable option.
  *
- * The `Chip` in ui/badge.tsx is a label — it renders state it can't change.
+ * The `Chip` in ui/badge.tsx is a label, it renders state it can't change.
  * This one is the input: onboarding is built out of these so a student can
  * answer four questions without opening a keyboard.
  *
@@ -19,7 +19,7 @@ import { Text } from './text';
  *
  * ── The 44pt floor ──────────────────────────────────────────────────────────
  * `min-h`/`min-w`, not a fixed `h-11`. 44×44pt is Apple's minimum tap target
- * and padding alone did not reach it — 14pt text on a 21pt line box with
+ * and padding alone did not reach it, 14pt text on a 21pt line box with
  * `py-2` came to 39pt including borders, which is a miss on every finger.
  *
  * A fixed height would hit 44 too, and then clip the label the moment anyone
@@ -80,7 +80,7 @@ export function ChoiceGroup<T extends string>({
           selected={value.includes(o)}
           onPress={() => {
             if (single) {
-              // Tapping the chosen one again clears it — every question here is
+              // Tapping the chosen one again clears it, every question here is
               // optional, and without this there'd be no way to undo an answer
               // given by accident.
               onChange(value.includes(o) ? [] : [o]);

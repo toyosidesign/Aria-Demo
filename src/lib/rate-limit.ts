@@ -7,8 +7,8 @@
  *
  * Two ceilings, checked in order, because they stop different attacks:
  *
- *  1. Per-user — bounds one honest account having a heavy day.
- *  2. Process-wide — bounds the bill when someone scripts a hundred accounts.
+ *  1. Per-user, bounds one honest account having a heavy day.
+ *  2. Process-wide, bounds the bill when someone scripts a hundred accounts.
  *     Per-user limits are worthless against that on their own: signing up is
  *     free, so quota scaled linearly with however many addresses an attacker
  *     could cycle through. This is the circuit breaker, sized well above real
@@ -17,7 +17,7 @@
  * ── The trade-off the second ceiling makes ────────────────────────────────────
  * A shared ceiling means one caller's spending can refuse another's request, so
  * it converts an unbounded *cost* risk into a bounded *availability* risk. That
- * is the right way round — a bill cannot be undone and an hour of 429s can — but
+ * is the right way round, a bill cannot be undone and an hour of 429s can, but
  * it is a real consequence, not a free win.
  *
  * The ratio is what keeps it honest: the per-user ceiling is ~6% of the global
@@ -26,7 +26,7 @@
  * cost threshold the confirmed-contact requirement in lib/api-auth.ts imposes,
  * so neither control is the weak link.
  *
- * Raise ARIA_AI_GLOBAL_HOURLY as real traffic grows — a ceiling tight enough to
+ * Raise ARIA_AI_GLOBAL_HOURLY as real traffic grows, a ceiling tight enough to
  * turn a busy afternoon into an outage is worse than no ceiling, because the
  * next person to hit it will simply delete it.
  *
@@ -45,12 +45,12 @@
  * Porting this to an async store by awaiting inside `limit` silently destroys
  * that. Between the `await peek(...)` and the `await record(...)` the runtime is
  * free to service other requests, so N concurrent callers can all observe
- * "under the limit" and all record a hit — the ceiling is overshot by up to N,
+ * "under the limit" and all record a hit, the ceiling is overshot by up to N,
  * and precisely under the load an attacker creates. A naive port makes this
  * control weaker while looking like an upgrade.
  *
  * Do it atomically instead. With Upstash/Redis that means one round trip that
- * both tests and increments — a Lua script via EVAL, or INCR against a fixed
+ * both tests and increments, a Lua script via EVAL, or INCR against a fixed
  * window with EXPIRE. Sketch:
  *
  *     -- KEYS[1] = bucket key, ARGV[1] = now, ARGV[2] = window ms, ARGV[3] = max
@@ -61,7 +61,7 @@
  *     redis.call('PEXPIRE', KEYS[1], ARGV[2])
  *     return {1, 0}
  *
- * And fail *closed onto this store* if Redis is unreachable — degrading to
+ * And fail *closed onto this store* if Redis is unreachable, degrading to
  * per-instance limiting is acceptable, degrading to no limiting is not.
  */
 
@@ -136,7 +136,7 @@ function record(bucket: string, id: string, now: number) {
  * Sliding window, so a burst at a boundary can't get two windows' worth.
  *
  * Nothing is recorded unless *both* ceilings allow the request, so a caller is
- * never charged for a rejection — neither their own, nor one caused by someone
+ * never charged for a rejection, neither their own, nor one caused by someone
  * else exhausting the shared ceiling.
  */
 function limit(

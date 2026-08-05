@@ -108,7 +108,7 @@ const VOICE_SCRIPTS = [
 /**
  * A message id that survives a reload.
  *
- * This was a module-scoped counter — `c0`, `c1`, … — which was fine while the
+ * This was a module-scoped counter, `c0`, `c1`, …, which was fine while the
  * thread lived in component state and died with it. Now that the conversation
  * persists, the counter still restarts at zero on every reload while the stored
  * messages keep their old ids, so the next message collided with `c0` and React
@@ -134,7 +134,7 @@ const mkPrompt = (text: string): Msg => ({ ...mk('aria', text), flowPrompt: true
  * A stable empty array for the "no fixed days yet" case.
  *
  * `useAriaStore(s => s.settings.fixedDays ?? [])` would return a new array on
- * every render and re-render this screen forever — zustand compares by
+ * every render and re-render this screen forever, zustand compares by
  * identity. The selector returns the stored value or undefined, and the
  * fallback happens outside it.
  */
@@ -166,7 +166,7 @@ function applyGapAnswer(slot: BriefSlot, text: string): Partial<FlowDraft> {
           weight: Number.isFinite(weight) ? weight : undefined,
         };
       });
-    // Their own answer, so it is high confidence — they are the source now,
+    // Their own answer, so it is high confidence, they are the source now,
     // not a model reading a PDF.
     return { facts: { criteria: { items, confidence: 'high' } } };
   }
@@ -233,7 +233,7 @@ export default function ChatScreen() {
   const clearChat = useAriaStore((s) => s.clearChat);
 
   /*
-   * Greet once, into an empty thread — not on every mount.
+   * Greet once, into an empty thread, not on every mount.
    *
    * Seeding this as initial state meant a fresh "Hi, I'm Aria" every time the
    * sheet opened. It belongs in the history like any other turn, so it is
@@ -257,8 +257,8 @@ export default function ChatScreen() {
    * The conversational setup, when one is running.
    *
    * Null means ordinary chat. Non-null means Aria is part-way through building
-   * something and the composer steps aside for the step's own control — a
-   * calendar, a contact picker, two buttons — because the whole point is that
+   * something and the composer steps aside for the step's own control, a
+   * calendar, a contact picker, two buttons, because the whole point is that
    * this should be less typing than the form, not more.
    */
   const [flow, setFlow] = useState<FlowDraft | null>(null);
@@ -312,7 +312,7 @@ export default function ChatScreen() {
    *
    * Read rather than asked for: everything in here is already in the app, and a
    * planner that makes you tell it what it can see is a form with extra steps.
-   * The weekly commitments — lectures, a shift — are the part it cannot know,
+   * The weekly commitments, lectures, a shift, are the part it cannot know,
    * which is why those are the only thing the commitments step actually asks.
    */
   const busyDates = (() => {
@@ -340,7 +340,7 @@ export default function ChatScreen() {
     const step = nextStep(next);
     setFlow(next);
     setFlowStep(step);
-    // The preview speaks for itself — its own panel is the message.
+    // The preview speaks for itself, its own panel is the message.
     if (step !== 'done') addChatMessage(mkPrompt(promptFor(step, next)));
   }
 
@@ -413,7 +413,7 @@ export default function ChatScreen() {
        *
        * requestDraft catches its own failures today, but if anything above it
        * ever throws, the spinner would stay up and the step would be stuck with
-       * both buttons disabled — an actual freeze rather than a slow reply.
+       * both buttons disabled, an actual freeze rather than a slow reply.
        */
       setDrafting(false);
     }
@@ -423,7 +423,7 @@ export default function ChatScreen() {
    * Put the screen back to a blank conversation.
    *
    * The eraser used to call `clearChat()` alone, which empties the messages the
-   * store holds and leaves everything the *screen* holds untouched — so the
+   * store holds and leaves everything the *screen* holds untouched, so the
    * calendar, or whichever step was open, stayed on a thread that no longer had
    * a question in it. Same split that stranded a half-finished setup on reopen:
    * the conversation and the flow live in different places, and anything that
@@ -471,7 +471,7 @@ export default function ChatScreen() {
    * screen that can also say something about it in the transcript.
    */
 
-  /** Read a brief — uploaded, photographed or pasted — and fill the card in. */
+  /** Read a brief, uploaded, photographed or pasted, and fill the card in. */
   async function extractBrief(input: {
     text?: string;
     file?: { data: string; mediaType: string; name?: string };
@@ -507,7 +507,7 @@ export default function ChatScreen() {
   /**
    * Upload, and say which of the three things went wrong when one does.
    *
-   * A cancelled picker says nothing — you closed it. Everything else gets a
+   * A cancelled picker says nothing, you closed it. Everything else gets a
    * line in the conversation, because a silent failure here looks exactly like
    * a button that does not work, and this is the primary button of the whole
    * flow.
@@ -530,7 +530,7 @@ export default function ChatScreen() {
         mk(
           'aria',
           picked.status === 'unavailable'
-            ? "I can't open files on this device — paste the brief in and I'll read that instead."
+            ? "I can't open files on this device, paste the brief in and I'll read that instead."
             : `${picked.message}. Paste it in and I'll read that instead.`,
         ),
       );
@@ -556,7 +556,7 @@ export default function ChatScreen() {
         subject: `Question about ${flowTitle(flow)}`,
         body: tutorQuestion([slot], flowTitle(flow)),
       });
-      addChatMessage(mk('aria', "I've written the question — it's in your mail app, ready to send."));
+      addChatMessage(mk('aria', "I've written the question, it's in your mail app, ready to send."));
       return;
     }
     if (action === 'upload-handbook') {
@@ -573,8 +573,8 @@ export default function ChatScreen() {
    *
    * Two different jobs behind one button. An assignment has no steps until the
    * model breaks the brief down, and then they are dated backwards from the
-   * deadline. A project already has its milestones and its dates — they were
-   * the last question — so there is nothing to generate and the plan is what
+   * deadline. A project already has its milestones and its dates, they were
+   * the last question, so there is nothing to generate and the plan is what
    * was already decided, in order.
    */
   async function buildWorkPlan() {
@@ -656,7 +656,7 @@ export default function ChatScreen() {
           ? {
               ...f,
               // The confidence is computed from what Aria actually had, not
-              // claimed by the model about its own reading — see the note at
+              // claimed by the model about its own reading, see the note at
               // `reflectConfidence`.
               reflect: { text: res.message, confidence: reflectConfidence(f) },
             }
@@ -803,7 +803,7 @@ export default function ChatScreen() {
      *
      * `addSubtasks` takes titles, which loses the two things that make a work
      * step different from a checklist item: the day it was meant to happen, and
-     * what forces it. Both are needed later — a step with no date can never be
+     * what forces it. Both are needed later, a step with no date can never be
      * seen to have slipped, and a milestone with nothing forcing it is the one
      * that will. So work goes in through `addTask`'s own subtask argument with
      * the metadata attached, and everything else keeps the simple path.
@@ -825,7 +825,7 @@ export default function ChatScreen() {
         : undefined,
     });
     // The plan becomes the task's checklist, and everything Aria worked out
-    // becomes sections on it — so the work survives the conversation.
+    // becomes sections on it, so the work survives the conversation.
     if (!steps.length && flow.checklist?.length) addSubtasks(id, flow.checklist);
     const doc = flowDocument(flow);
     if (doc) addDraftSection(id, { title: 'Worked out with Aria', content: doc });
@@ -851,7 +851,7 @@ export default function ChatScreen() {
    * The conversation is persisted; the flow is not. So closing chat part-way
    * through a birthday and coming back left Aria's last message reading
    * "Who's this birthday for?" with no panel under it and no category
-   * selected — which looks exactly like the app having chosen birthday by
+   * selected, which looks exactly like the app having chosen birthday by
    * itself and then frozen.
    *
    * Rather than persist the whole flow, Aria says the true thing: that one
@@ -906,8 +906,8 @@ export default function ChatScreen() {
     /*
      * A typed answer to a question Aria just asked belongs to the flow.
      *
-     * These steps have no input of their own any more — the composer is the
-     * input — so what gets typed here is the answer, not a new subject for the
+     * These steps have no input of their own any more, the composer is the
+     * input, so what gets typed here is the answer, not a new subject for the
      * model to reply to. Sending it on would have Aria answer "History essay"
      * as though it were a question.
      */
@@ -915,7 +915,7 @@ export default function ChatScreen() {
      * "I know this" made the composer answer one field of the brief.
      *
      * Checked before the step router below, because the step is still
-     * `extraction` — the difference is that a gap is waiting for this line, and
+     * `extraction`, the difference is that a gap is waiting for this line, and
      * it is the most recent thing Aria asked. Recorded at high confidence: the
      * student is the source now, not a model reading a PDF.
      */
@@ -959,9 +959,9 @@ export default function ChatScreen() {
     /*
      * Saving is answered here, not by the model.
      *
-     * It has to work with the API unreachable — which is the exact moment the
+     * It has to work with the API unreachable, which is the exact moment the
      * scripted fallback would otherwise answer "save this" with something
-     * plausible and do nothing — and it should feel instant rather than like
+     * plausible and do nothing, and it should feel instant rather than like
      * waiting for a reply.
      */
     if (lastWork.current) {
@@ -986,7 +986,7 @@ export default function ChatScreen() {
     const res = await requestAssistant(trimmed, demoDate, history, focus ?? undefined, profileName, profileContext);
 
     setSending(false);
-    // Only for things Aria genuinely can't do — booking, ordering, paying.
+    // Only for things Aria genuinely can't do, booking, ordering, paying.
     // Questions are answered by the model; intercepting those was the bug this
     // replaced. And only when nothing was captured: if a task came back, Aria
     // understood the message fine and the notice would just be in the way.
@@ -1060,7 +1060,7 @@ export default function ChatScreen() {
             ) : (
             <View key={m.id} className="gap-2">
               <AriaBubble from={m.from}>{m.text}</AriaBubble>
-              {/* Which one answered — development only.
+              {/* Which one answered, development only.
                   The scripted fallback is written to read like a real reply, so
                   there is otherwise nothing to tell them apart. That is what let
                   a dead API key survive weeks of testing: every response looked
@@ -1078,7 +1078,7 @@ export default function ChatScreen() {
                        * Tapping creates it, here.
                        *
                        * This used to replace the chat with the create form,
-                       * pre-filled — which meant a task described in a sentence
+                       * pre-filled, which meant a task described in a sentence
                        * still had to be confirmed on a screen full of fields,
                        * and the conversation was closed to do it. Aria has
                        * everything it needs; the point of saying it out loud is
@@ -1111,7 +1111,7 @@ export default function ChatScreen() {
                       onLongPress={() => {
                         hapticSelect();
                         // Replace (not push) so the create modal opens in the chat's
-                        // place — iOS won't stack a modal on top of a modal.
+                        // place, iOS won't stack a modal on top of a modal.
                         router.replace(createHref(t) as Href);
                       }}
                       className="ml-10 flex-row items-center gap-2.5 rounded-2xl border border-accent/30 bg-surface p-3 active:opacity-70">
@@ -1180,7 +1180,7 @@ export default function ChatScreen() {
 
               These were docked above the composer, which put Aria's question at
               the top of the screen and its answers at the bottom with the whole
-              transcript in between — one exchange split in half and reading as
+              transcript in between, one exchange split in half and reading as
               two unrelated things. Rendering them here, straight after the
               message that asked, makes the question and its answers a single
               turn. The scroll-to-end below keeps them in view.
@@ -1230,7 +1230,7 @@ export default function ChatScreen() {
                    * `reopen` rather than deleting the one mark here.
                    *
                    * Changing the handling method changes which questions exist
-                   * at all, so its dependents have to be reopened with it —
+                   * at all, so its dependents have to be reopened with it , 
                    * that rule lives in lib/task-flow.ts, where `check:flow` can
                    * see it, and not in two hand-rolled copies on this screen.
                    */
@@ -1259,7 +1259,7 @@ export default function ChatScreen() {
           ) : null}
         </ScrollView>
 
-        {/* Category focus chips — tell Aria what to focus on */}
+        {/* Category focus chips, tell Aria what to focus on */}
         <View className="border-t border-border pt-2">
           <ScrollView
             horizontal

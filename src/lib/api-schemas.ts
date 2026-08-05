@@ -8,7 +8,7 @@ import { z } from 'zod';
  * actual check.
  *
  * The length caps matter as much as the types. Every one of these strings is
- * interpolated into a prompt, so an unbounded string is an unbounded bill — a
+ * interpolated into a prompt, so an unbounded string is an unbounded bill, a
  * single multi-megabyte body would otherwise cost more than a day of honest use.
  */
 
@@ -85,7 +85,7 @@ export const AssistantSchema = z.object({
  * Who the work is for.
  *
  * Every field is capped. These land inside a system prompt, so an uncapped
- * string here is an instruction-injection surface as much as a size one — the
+ * string here is an instruction-injection surface as much as a size one, the
  * limits are small enough that nothing useful fits besides an actual answer.
  */
 
@@ -104,7 +104,7 @@ const BriefFieldSchema = z.object({ value: z.string().max(600), confidence: Conf
  *
  * `known` carries the last extraction back to the server when a second document
  * is uploaded to fill gaps, so it is parsed with the same shape it was produced
- * with — a client is a client even when the data started here.
+ * with, a client is a client even when the data started here.
  */
 export const BriefFactsSchema = z.object({
   deliverable: BriefFieldSchema.optional(),
@@ -161,13 +161,13 @@ export const GuideSchema = z.object({
  * A single header line, with no way to start another.
  *
  * CR and LF are how you smuggle extra headers through a field that ends up in
- * one — a `subject` of "Hi\nBcc: someone@else" is the whole trick. `to` and
+ * one, a `subject` of "Hi\nBcc: someone@else" is the whole trick. `to` and
  * `replyTo` already reject newlines (the EMAIL regex in the route excludes all
  * whitespace, and `.email()` rejects them outright), but `subject` was
  * unconstrained and inconsistent with them.
  *
  * Resend takes JSON and builds the MIME itself, so this is very unlikely to be
- * exploitable through that provider — it is here so the guarantee holds at the
+ * exploitable through that provider, it is here so the guarantee holds at the
  * boundary rather than depending on how a third party assembles headers.
  */
 const headerSafe = z.string().refine((s) => !/[\r\n]/.test(s), {
@@ -189,7 +189,7 @@ export const SendEmailSchema = z.object({
  * Ceiling on a request body, enforced before it is parsed.
  *
  * The schemas above cap every field, but only once the body is already an
- * object in memory — so `request.json()` would happily buffer and parse a
+ * object in memory, so `request.json()` would happily buffer and parse a
  * multi-megabyte payload and only then reject it. The caps stopped an unbounded
  * *bill*; this stops an unbounded *allocation*, which is a cheaper attack
  * because one request does the damage.
@@ -203,7 +203,7 @@ export const SendEmailSchema = z.object({
  * still comfortably inside its documented limit.
  *
  * A 64KB cap looks generous against the character counts and silently rejects
- * that request — an outage visible only to people who don't write in English.
+ * that request, an outage visible only to people who don't write in English.
  * 256KB clears the real maximum with room to spare and still bounds the
  * allocation to something a server shrugs off.
  *
@@ -217,7 +217,7 @@ export const MAX_BODY_BYTES = 256 * 1024;
  * The one exception, and it is named so it stays one.
  *
  * A brief arrives as a PDF or a photo of a handout, and there is no way to read
- * one on the device — so the bytes themselves have to reach the model. Base64
+ * one on the device, so the bytes themselves have to reach the model. Base64
  * inflates a file by a third, so the 6MB the picker accepts
  * (`MAX_BRIEF_BYTES` in lib/documents.ts) lands here at about 8MB.
  *
@@ -265,7 +265,7 @@ export async function parseBody<T extends z.ZodTypeAny>(
 /**
  * Bytes, not UTF-16 code units.
  *
- * `String.length` undercounts anything outside the BMP — an emoji-padded body
+ * `String.length` undercounts anything outside the BMP, an emoji-padded body
  * would measure at half its real size and slip past a length-based cap.
  */
 function byteLength(text: string): number {

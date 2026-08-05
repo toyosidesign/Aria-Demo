@@ -3,7 +3,7 @@
 ## Controls to not accidentally remove
 
 - **RLS is the only thing authorizing database access from the app.** There is no
-  server-side DB layer — the app talks to Supabase with the anon key and every
+  server-side DB layer, the app talks to Supabase with the anon key and every
   table's policy does the work. If you add a table, it needs `enable row level
   security` plus a policy with **both** `using` and `with check`. Without
   `with check`, a client can insert rows owned by someone else. See
@@ -27,7 +27,7 @@ security model. This section is the reasoning; do not undo it by accident, and
 do not widen it casually.
 
 **Why there was no alternative.** Aria could not act while the app was closed.
-`runAutomation` was called from exactly one place — a *screen* — so an email
+`runAutomation` was called from exactly one place, a *screen*, so an email
 scheduled for Friday sat on the device until the student opened the app, which
 is the moment they did not need an assistant. Sending it without a device means
 a scheduled job; a scheduled job has no user session; with no session
@@ -39,13 +39,13 @@ Edge Function's own environment (`SUPABASE_SERVICE_ROLE_KEY`, injected by the
 platform). It is never written to a file, never in `.env.local`, never in the
 repo, and never sent to a client. Expo compiles `EXPO_PUBLIC_*` into the app
 bundle, so that prefix is the one mistake that would turn "a key on a server"
-into "RLS is off for everyone" — the suite fails if a service_role key ever
+into "RLS is off for everyone", the suite fails if a service_role key ever
 appears under `src/`, or under an `EXPO_PUBLIC_` name in any env file.
 
 **What bounds it.**
 
 - One job. The function sends email automations that are due and does nothing
-  else. It has no other entry point and takes no input — the request body is
+  else. It has no other entry point and takes no input, the request body is
   ignored entirely, so there is no parameter for a caller to steer it with.
 - It is not reachable by app users. Supabase's `verify_jwt` would accept the
   anon key, which ships inside the bundle, so "has a valid JWT" is a property
@@ -60,13 +60,13 @@ appears under `src/`, or under an `EXPO_PUBLIC_` name in any env file.
   same conditional update (`status = 'sending' where status = 'scheduled'`)
   before sending, and send only if a row comes back. The update is the lock.
   Reasoned through in full at the foot of `supabase/migrations/003_automations.sql`.
-  A phone that cannot reach Supabase to make that claim does not send — the mail
+  A phone that cannot reach Supabase to make that claim does not send, the mail
   route is a different host, so an unreachable database is not evidence that the
   send would have failed.
 - A run that dies mid-send marks the row failed, never sent, and never retries
   it. A duplicate birthday email is a worse outcome than a late one, and
   claiming to have sent something it cannot confirm is worse than both.
-- It reports counts. No address, subject or body reaches a log or the response —
+- It reports counts. No address, subject or body reaches a log or the response , 
   the response is written into a `pg_net` table, which is not a place for who a
   student is emailing.
 
@@ -82,7 +82,7 @@ package in each dependency chain. Both are build-time only, neither is
 reachable from the shipped app, and **both were investigated and deliberately
 not forced** because the only available fix breaks the build:
 
-### `brace-expansion` — DoS via unbounded expansion (HIGH, GHSA range `<=5.0.7`)
+### `brace-expansion`, DoS via unbounded expansion (HIGH, GHSA range `<=5.0.7`)
 
 Reached via `minimatch@3` (under `glob@7`, `test-exclude`) and `@expo/cli`'s
 bundled `minimatch`. Not fixable:
@@ -102,7 +102,7 @@ bundled `minimatch`. Not fixable:
 Exposure: expanding a hostile glob pattern. Patterns here come from Expo config
 and the local file tree, never from user input, and never at runtime.
 
-### `uuid` — missing buffer bounds check in v3/v5/v6 (MODERATE, `<11.1.1`)
+### `uuid`, missing buffer bounds check in v3/v5/v6 (MODERATE, `<11.1.1`)
 
 Reached only via `expo` → `@expo/config-plugins` → `xcode@3.0.1`. Not worth
 forcing:
@@ -113,16 +113,16 @@ forcing:
 - `uuid@7 → 11` is four majors and would likely break `pbxproj` generation
   during `expo prebuild`.
 
-**Re-check both when upgrading the Expo SDK** — the fix belongs upstream. What
+**Re-check both when upgrading the Expo SDK**, the fix belongs upstream. What
 was fixed rather than accepted: three `postcss` advisories (two HIGH path
 traversals plus an XSS), pinned forward via the `overrides` block in
 `package.json`.
 
-## Not verifiable from code — check these in the Supabase dashboard
+## Not verifiable from code, check these in the Supabase dashboard
 
 - **OTP expiry** kept short for the password reset flow.
 
-### Email confirmation — deliberately OFF
+### Email confirmation, deliberately OFF
 
 Signup does not require a confirmed address. That is a product decision, and it
 has one security consequence worth stating plainly: **creating an account costs
@@ -143,7 +143,7 @@ free accounts spending; setting the env var without the dashboard setting is
 inert at best. The gate is env-driven rather than always-on for a reason: it
 tests `email_confirmed_at`, a field this app does not control, so an always-on
 check would 401 every real user if a future GoTrue stopped stamping it under
-autoconfirm — and the failure would look like Aria quietly serving scripted text.
+autoconfirm, and the failure would look like Aria quietly serving scripted text.
 
 Check the dashboard setting without opening it:
 ```bash
@@ -153,7 +153,7 @@ curl -s "$EXPO_PUBLIC_SUPABASE_URL/auth/v1/settings" \
 # false = confirmation ON  → also set ARIA_REQUIRE_CONFIRMED_EMAIL=1
 ```
 
-### CAPTCHA — deliberately OFF, do not enable without client work
+### CAPTCHA, deliberately OFF, do not enable without client work
 
 Enabling Bot and Abuse Protection **breaks sign-in, sign-up and password reset
 immediately**. Supabase enforces it inside GoTrue, so once it is on every auth
@@ -164,7 +164,7 @@ supabase.auth.signInWithPassword({ email, password, options: { captchaToken } })
 ```
 
 It is also a poor fit here. hCaptcha and Turnstile are web widgets, so a React
-Native integration means adding a WebView — and this app deliberately has none,
+Native integration means adding a WebView, and this app deliberately has none,
 which is why there is no HTML parser anywhere in the render path and no
 embedded browser context to attack. That is worth more than the increment
 CAPTCHA would add, because the threat it targets is already priced in three
@@ -174,7 +174,7 @@ per-IP auth rate limits throttle attempts, and the global ceiling in
 
 Revisit only on evidence of real abuse (unexplained `auth.users` growth, or
 Anthropic/Resend usage outpacing real users), or if a genuine browser sign-in
-surface is added — there a captcha is native rather than a WebView bolt-on. For
+surface is added, there a captcha is native rather than a WebView bolt-on. For
 native apps the stronger equivalent is App Attest / Play Integrity, which prove
 the request came from your unmodified app rather than that a human clicked a box;
 Supabase Auth does not consume either today.
@@ -186,20 +186,20 @@ instance and reset on deploy. This is the one checklist item left deliberately
 open, because the obvious fix makes it worse: the current code is synchronous,
 which means `peek` and `record` cannot interleave and the ceiling is exact.
 Awaiting a Redis call between them lets N concurrent requests all observe
-"under the limit" and all record a hit — overshooting by up to N, exactly under
+"under the limit" and all record a hit, overshooting by up to N, exactly under
 the load an attacker generates. If you move it, make it atomic (one Lua `EVAL`
 round trip that tests and increments together) and fail back onto the in-process
 store when Redis is unreachable. There is a worked sketch in the file header.
 
 **Deployment invariant for the web output.** `expo export -p web` produces
 `client/` and `server/`. Serve `client/` statically and run `server/` as
-functions — never serve `server/` as static assets. The client bundle is clean
+functions, never serve `server/` as static assets. The client bundle is clean
 (verified: zero source maps, zero secrets, no server-only env names), but
 `server/_expo/functions/api/*.js.map` contains the full API route source.
 
 **The global ceiling trades cost risk for availability risk.** A shared budget
 means one caller's spending can refuse another's request. That is the right way
-round — a bill cannot be undone, an hour of 429s can — but it is a real
+round, a bill cannot be undone, an hour of 429s can, but it is a real
 consequence. The per-user ceiling is ~6% of the global one, so no single account
 can starve the rest; it takes ~17 confirmed accounts. Tune with
 `ARIA_AI_GLOBAL_HOURLY` / `ARIA_MAIL_GLOBAL_HOURLY` as traffic grows: a ceiling
@@ -216,7 +216,7 @@ the largest body the zod schemas permit *in bytes*, which is not what the
 character caps suggest: `.max()` counts UTF-16 units, the wire carries UTF-8, and
 one CJK character is 1 unit but 3 bytes. `AssistantSchema`'s maximum is ~128KB
 for a chat in Japanese. A 64KB cap looks generous and silently breaks those
-users. `scripts/security-check/offline.ts` asserts the invariant — if you raise a
+users. `scripts/security-check/offline.ts` asserts the invariant, if you raise a
 field cap, that test tells you.
 
 ## Running the checks
@@ -227,6 +227,6 @@ npm run security-check:live   # 11 checks against a running dev server
 ```
 
 The live suite needs `npx expo start --port 8099` first. It exists mainly to
-prove Expo Router honours `export const POST = protectedRoute(...)` — if it only
+prove Expo Router honours `export const POST = protectedRoute(...)`, if it only
 recognised `export async function POST`, all four routes would 404 and the app
 would be broken rather than protected.

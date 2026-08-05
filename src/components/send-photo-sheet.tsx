@@ -25,7 +25,7 @@ type Stage = 'choose' | 'sending' | 'confirm';
  * listing them before that exists would promise a route Aria can't take.
  *
  * The picture still leaves through the share sheet, because no URL scheme can
- * carry an attachment — which is also why the message is composed into the
+ * carry an attachment, which is also why the message is composed into the
  * image rather than passed alongside it.
  */
 export function SendPhotoSheet({
@@ -68,7 +68,7 @@ export function SendPhotoSheet({
     setStage('confirm');
   }
 
-  /** Aria can't see whether it went out, so it asks — then carries you on. */
+  /** Aria can't see whether it went out, so it asks, then carries you on. */
   function confirmShared() {
     hapticSuccess();
     const next = selectNextDue(tasks, demoDate, task.id);
@@ -108,7 +108,7 @@ export function SendPhotoSheet({
                 </Text>
                 <View className="gap-2">
                   <Button title="Shared it" block onPress={confirmShared} />
-                  {/* Back to the options, not out of the sheet — nothing has
+                  {/* Back to the options, not out of the sheet, nothing has
                       been posted, so the task is untouched and trying another
                       place is one tap away. */}
                   <Button

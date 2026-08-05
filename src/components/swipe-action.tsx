@@ -16,7 +16,7 @@ const BUTTON = 50;
 /**
  * A single revealed swipe action, matching the round buttons iOS Messages
  * slides in behind a row: a solid circle with a white glyph and no caption,
- * scaling up as the row is dragged. Tapping it commits — the swipe only
+ * scaling up as the row is dragged. Tapping it commits, the swipe only
  * reveals, so a stray drag never performs anything.
  */
 export function SwipeAction({
@@ -29,7 +29,7 @@ export function SwipeAction({
   progress: SharedValue<number>;
   color: string;
   icon: LucideIcon;
-  /** Accessibility name — deliberately not drawn, iOS shows the glyph alone. */
+  /** Accessibility name, deliberately not drawn, iOS shows the glyph alone. */
   label: string;
   onPress: () => void;
 }) {

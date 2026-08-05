@@ -25,7 +25,7 @@ const SETTINGS_DEFAULTS: Settings = {
 };
 
 // ---------------------------------------------------------------------------
-// Current user — set by the auth layer so writes know the owner.
+// Current user, set by the auth layer so writes know the owner.
 // ---------------------------------------------------------------------------
 let currentUserId: string | null = null;
 export function setSyncUser(id: string | null) {
@@ -210,7 +210,7 @@ function rowToAutomation(r: AutomationRow): Automation {
     toPhone: r.to_phone ?? undefined,
     subject: r.subject ?? undefined,
     body: r.body,
-    // 'sending' is a database-only state — the claim marker that stops the cron
+    // 'sending' is a database-only state, the claim marker that stops the cron
     // and the device from both sending the same email. It has no app-side
     // meaning, and the honest reading of "somebody is mid-send and it is not
     // confirmed yet" is the state it came from. The device cannot act on it
@@ -248,14 +248,14 @@ export function profileToRow(
     level: p.level ?? null,
     interests: p.interests ?? [],
     explain_style: p.explainStyle ?? null,
-    // Written so the column is not left stale, never read back — see rowToProfile.
+    // Written so the column is not left stale, never read back, see rowToProfile.
     theme: settings.theme,
     /*
      * Written as false, never read.
      *
      * The app has no biometric lock any more. The column still exists on
-     * `profiles` — dropping it is a migration against a live database for no
-     * benefit — so it is pinned rather than left carrying whatever the last
+     * `profiles`, dropping it is a migration against a live database for no
+     * benefit, so it is pinned rather than left carrying whatever the last
      * build wrote, which would otherwise sit there looking like a live setting.
      */
     biometric_lock: false,
@@ -285,13 +285,13 @@ export function profileToRow(
  * over the local values.
  *
  * `theme` is deliberately **not** among them. Appearance is a property of the
- * device, not of the account — a phone and a tablet can reasonably want
+ * device, not of the account, a phone and a tablet can reasonably want
  * different ones, and the person who set Charcoal on this handset did not ask
  * for it to follow them elsewhere.
  *
  * It also could not work as a synced value here. The column is declared
  * `default 'system'`, so the row the signup trigger creates already says
- * 'system' — never null, so no "is it set?" test can tell a real preference
+ * 'system', never null, so no "is it set?" test can tell a real preference
  * from a column default. Every launch it overwrote the local choice and the
  * app came back on whatever the phone was set to.
  */
@@ -314,8 +314,8 @@ function rowToProfile(r: ProfileRow): {
       avatarUri: r.avatar_url ?? undefined,
       studying: r.studying ?? undefined,
       level: r.level ?? undefined,
-      // An absent column and an empty list mean the same thing here — nothing
-      // was chosen — so both collapse to undefined rather than [] vs null.
+      // An absent column and an empty list mean the same thing here, nothing
+      // was chosen, so both collapse to undefined rather than [] vs null.
       interests: r.interests?.length ? r.interests : undefined,
       explainStyle: (r.explain_style as Profile['explainStyle']) ?? undefined,
     },
@@ -325,7 +325,7 @@ function rowToProfile(r: ProfileRow): {
 }
 
 // ---------------------------------------------------------------------------
-// Offline outbox — failed writes are queued and retried on reconnect/focus.
+// Offline outbox, failed writes are queued and retried on reconnect/focus.
 // ---------------------------------------------------------------------------
 type Op = (
   | { table: 'tasks'; kind: 'upsert'; row: TaskRow }
@@ -337,8 +337,8 @@ type Op = (
    * A status move, expressed as a *conditional* update rather than an upsert.
    *
    * An upsert here would be a resend waiting to happen. The device's copy of an
-   * automation can easily be behind the server's — the cron sends at 09:00 and
-   * writes 'sent', the phone was asleep and still says 'scheduled' — and a blind
+   * automation can easily be behind the server's, the cron sends at 09:00 and
+   * writes 'sent', the phone was asleep and still says 'scheduled', and a blind
    * upsert from that stale copy would put the row back to 'scheduled' for the
    * cron to find and send a second time. `from` names the states the move is
    * legal from, so a write that arrives after the fact matches nothing and is
@@ -414,7 +414,7 @@ async function runOp(op: Op): Promise<boolean> {
        * The one write whose failure is invisible.
        *
        * Everything else here degrades to the offline outbox and retries, which
-       * is right — but an automation that never reaches the server is one the
+       * is right, but an automation that never reaches the server is one the
        * cron can never send, and nothing on the device looks wrong. Logging it
        * in development turns a silent no-op into something findable in the
        * Metro output.
@@ -511,7 +511,7 @@ export function upsertAutomation(automation: Automation) {
      *
      * Worth saying out loud in development. The app has its own `signedIn`
      * flag, and it is possible to look signed in while Supabase holds no
-     * session — in which case every automation stays on the phone and the
+     * session, in which case every automation stays on the phone and the
      * scheduler has nothing to send, with nothing on screen to suggest it.
      */
     if (__DEV__) console.error('[aria] automation not synced: no Supabase session (currentUserId is null)');
@@ -535,7 +535,7 @@ export function cancelAutomationRow(id: string) {
   });
 }
 
-/** It ran, one way or another — record how it went. */
+/** It ran, one way or another, record how it went. */
 export function settleAutomationRow(id: string, status: AutoStatus, error?: string) {
   void write({
     table: 'automations',
@@ -562,19 +562,19 @@ export type ClaimResult =
 /**
  * Take ownership of an automation before running it, so the cron cannot also.
  *
- * The conditional update is the lock — see the long note in
+ * The conditional update is the lock, see the long note in
  * `supabase/migrations/003_automations.sql`. A row comes back only to whoever
  * actually moved it out of 'scheduled'.
  *
  * The two negative answers are deliberately different, and collapsing them was
  * a bug in the first version of this:
  *
- *   · `unavailable` — there is no server. Supabase isn't configured, or nobody
+ *   · `unavailable`, there is no server. Supabase isn't configured, or nobody
  *     is signed in, or the automation was scheduled offline and has no row yet.
  *     No cron can be running against data that isn't there, so the device is
  *     the only candidate and proceeds. The demo build lives here permanently.
  *
- *   · `unreachable` — there *is* a server and we couldn't talk to it, so who
+ *   · `unreachable`, there *is* a server and we couldn't talk to it, so who
  *     owns this row is simply unknown. The caller must not send. Note that the
  *     mail route is a different host from Supabase: "Supabase is unreachable"
  *     does not imply "the send would fail anyway", and a cron tick landing in
@@ -595,8 +595,8 @@ export async function claimAutomation(id: string): Promise<ClaimResult> {
     /*
      * Nothing matched, which is two very different situations.
      *
-     * Either the row is there and somebody already has it — the cron sent this
-     * a moment ago — or there is no row at all, because it was scheduled while
+     * Either the row is there and somebody already has it, the cron sent this
+     * a moment ago, or there is no row at all, because it was scheduled while
      * offline and the outbox hasn't drained yet. Reading the second as `taken`
      * would mean an automation created on a plane never runs anywhere: the
      * device refuses because it thinks the server has it, and the server has
@@ -655,7 +655,7 @@ export async function replaceAllTasks(tasks: Task[]) {
  * And for automations, on a reset or a clear-out.
  *
  * Wiping the local list without this would leave the cron holding rows nobody
- * can see — the student clears their data and still gets an email on Friday
+ * can see, the student clears their data and still gets an email on Friday
  * from a task that no longer exists anywhere in the app.
  */
 export async function replaceAllAutomations(automations: Automation[]) {
@@ -674,7 +674,7 @@ export async function replaceAllAutomations(automations: Automation[]) {
 /**
  * The same for contacts.
  *
- * Needed because clearing the demo out has to clear the sample *people* too —
+ * Needed because clearing the demo out has to clear the sample *people* too , 
  * deleting the tasks and leaving Jane and Sam in the contact list is a
  * half-finished fresh start.
  */
@@ -689,10 +689,10 @@ export async function replaceAllContacts(contacts: Contact[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Hydrate — pull the signed-in user's data from Supabase.
+// Hydrate, pull the signed-in user's data from Supabase.
 // ---------------------------------------------------------------------------
 export interface HydrateResult {
-  /** Null when the user has no profile row yet — keep whatever is local. */
+  /** Null when the user has no profile row yet, keep whatever is local. */
   profile: Profile | null;
   /** Only the settings the remote row actually sets. See `rowToProfile`. */
   settings: Partial<Settings> | null;
@@ -738,7 +738,7 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
 
     // Supabase reports failures as { data: null, error } rather than throwing.
     // A missing table, an unmigrated column or a denied policy must read as
-    // "couldn't reach the data", never as "the user has none" — otherwise
+    // "couldn't reach the data", never as "the user has none", otherwise
     // hydrate would treat it as an empty account and wipe the local cache.
     if (tasksRes.error || contactsRes.error) return null;
 
@@ -751,7 +751,7 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
      * app on an un-migrated project, so the error degrades to "no automations
      * synced" and the device keeps its local list.
      *
-     * It degrades to the *local* list, never to an empty one — see how hydrate
+     * It degrades to the *local* list, never to an empty one, see how hydrate
      * merges this. An empty result must not be read as "this account has none".
      */
     const automations = automationsRes.error

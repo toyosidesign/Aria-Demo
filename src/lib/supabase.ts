@@ -34,7 +34,7 @@ if (!isSupabaseConfigured && !__DEV__) {
 
 // This module is also evaluated in Node during Expo Router's server render
 // (the app uses server output for the /api routes). There, AsyncStorage's web
-// path touches `window` and crashes — so on the server we skip storage and
+// path touches `window` and crashes, so on the server we skip storage and
 // session persistence entirely (Supabase is never used server-side anyway).
 const isServerRender = Platform.OS === 'web' && typeof window === 'undefined';
 
@@ -42,7 +42,7 @@ const isServerRender = Platform.OS === 'web' && typeof window === 'undefined';
  * Web exists to host the /api routes, not to sign people in.
  *
  * `secureSessionStore` falls back to AsyncStorage off-mobile, and on
- * react-native-web that is localStorage — plaintext, readable by any script on
+ * react-native-web that is localStorage, plaintext, readable by any script on
  * the origin, and persistent across tabs. A refresh token is the identity RLS
  * trusts, so one read there is an account takeover that outlives the session.
  *
@@ -50,7 +50,7 @@ const isServerRender = Platform.OS === 'web' && typeof window === 'undefined';
  * written to disk. The cost is re-authenticating after a refresh, which is the
  * right trade for a surface that is not the product. If browser sign-in ever
  * becomes a real feature, this needs server-set httpOnly cookies via
- * @supabase/ssr — not a different client-side store, because every one of them
+ * @supabase/ssr, not a different client-side store, because every one of them
  * is reachable from script.
  */
 const isBrowser = Platform.OS === 'web' && typeof window !== 'undefined';
@@ -68,7 +68,7 @@ export const supabase = createClient(
           // token is the identity RLS trusts, so it should not sit readable on
           // disk. See lib/secure-session-store.ts for the migration.
           //
-          // On web there is no such store, so nothing is persisted at all —
+          // On web there is no such store, so nothing is persisted at all , 
           // `storage: undefined` keeps the session in memory. See `isBrowser`.
           storage: isBrowser ? undefined : secureSessionStore,
           autoRefreshToken: true,

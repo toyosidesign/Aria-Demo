@@ -63,7 +63,7 @@ export default function RootLayout() {
    * jolt on the very first impression. The app already waits there for
    * hydration, so this costs nothing extra.
    *
-   * A load *failure* is deliberately treated as "carry on" — text falls back to
+   * A load *failure* is deliberately treated as "carry on", text falls back to
    * the system sans, which is an ordinary-looking app rather than a broken one.
    */
   const [fontsLoaded, fontError] = useFonts({
@@ -87,7 +87,7 @@ export default function RootLayout() {
   const [minElapsed, setMinElapsed] = useState(false);
 
   useEffect(() => {
-    // Not gated on `hydrated` — Aria's loading screen takes over from here and
+    // Not gated on `hydrated`, Aria's loading screen takes over from here and
     // matches the splash pixel for pixel, so there's nothing to wait for.
     SplashScreen.hideAsync().catch(() => {
       /* already hidden */
@@ -121,7 +121,7 @@ export default function RootLayout() {
         await useAriaStore.getState().hydrate(session.user.id);
       }
       if (__DEV__ && !session?.user) {
-        console.error('[aria] no Supabase session at startup — nothing will sync to the server');
+        console.error('[aria] no Supabase session at startup, nothing will sync to the server');
       }
       // No session at startup does *not* mean signed out. An expired token, a
       // refresh that hasn't finished, or no network for a moment all land here,
@@ -164,7 +164,7 @@ export default function RootLayout() {
    *
    * Also drives nativewind's own light/dark flag, so `dark:` utilities and the
    * navigation chrome still agree with a theme that is neither plain light nor
-   * plain dark — "Cream" is a light theme, "Charcoal" a dark one.
+   * plain dark, "Cream" is a light theme, "Charcoal" a dark one.
    */
   const theme = resolveTheme(themePref, deviceScheme === 'dark');
 

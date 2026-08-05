@@ -12,11 +12,11 @@ const textVariants = cva('font-sans text-ink', {
     //
     // The headings sit between where they started and a first, too-large pass:
     // 32px titles overwhelmed the screens they sat on. Body and small are back
-    // at their original sizes — the readability problem on Settings and Profile
+    // at their original sizes, the readability problem on Settings and Profile
     // was descriptions being set in `caption`, not the scale itself, and that's
     // fixed by using `small` there instead.
     // Inter throughout, with weight picked by family (`font-strong`,
-    // `font-heavy`) rather than by `font-strong`/`font-heavy` — see the note
+    // `font-heavy`) rather than by `font-strong`/`font-heavy`, see the note
     // in tailwind.config.js for why the weight utilities are the wrong tool
     // once a custom font is loaded.
     //

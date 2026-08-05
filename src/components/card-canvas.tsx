@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { cardTemplate } from '@/lib/cards';
 
-/** Fixed pixel size — this is captured to an image, not laid out responsively. */
+/** Fixed pixel size, this is captured to an image, not laid out responsively. */
 export const CARD_WIDTH = 340;
 
 /**

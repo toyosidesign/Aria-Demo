@@ -46,6 +46,23 @@ import { useAriaStore, type WorkRole } from '@/store/aria-store';
  * was answered, which has to read as Aria knowing nothing rather than as a
  * half-built sentence about a person who does not exist.
  */
+/**
+ * The day the tour jumps to: the soonest one with something Aria can offer help
+ * on, and never the day you are already standing on.
+ *
+ * The rule lives in `nextTourDate` so `check:plan` can hold it, this shipped
+ * once as "today or later", which resolved to today (three seeds fall on the
+ * current day), set the date it was already on, and left the switch flicking
+ * back the instant it was touched.
+ */
+function tourDateNow(): string | undefined {
+  const { tasks } = useAriaStore.getState();
+  return nextTourDate(
+    tasks.filter((t) => t.status === 'todo' && ariaActionFor(t)).map((t) => t.date),
+    realToday(),
+  );
+}
+
 function describeContext(role: WorkRole | null, field: string, level: string): string {
   const f = field.trim();
   if (role === 'employed') return f ? `Works in ${f}` : 'Employed';
@@ -81,7 +98,7 @@ const FEATURES: { Icon: LucideIcon; title: string; body: string }[] = [
  * The option lists.
  *
  * Deliberately short. A chip list long enough to be exhaustive is one nobody
- * reads — these cover the common cases, and the questions that can't be closed
+ * reads, these cover the common cases, and the questions that can't be closed
  * sets take a typed answer as well.
  */
 const SUBJECTS = [
@@ -97,7 +114,7 @@ const LEVELS = ['1st year', '2nd year', '3rd year', 'Final year', 'Postgrad'] as
  *
  * It used to be "What are you studying?", which answers itself inside the
  * question: someone employed, or running their own thing, had to either lie or
- * skip — and every prompt afterwards addressed them as a student, because that
+ * skip, and every prompt afterwards addressed them as a student, because that
  * was the only shape the profile had.
  *
  * The three lines underneath are what actually distinguishes them, and they are
@@ -118,7 +135,7 @@ const AREAS = [
   'Finance', 'People & HR', 'Legal', 'Healthcare', 'Education', 'Research',
 ] as const;
 
-/** And for someone running their own thing — what they run, not what they do. */
+/** And for someone running their own thing, what they run, not what they do. */
 const VENTURES = [
   'Freelance', 'Consulting', 'An agency or studio', 'A startup',
   'A shop', 'Creator work', 'A trade or service', 'A side project',
@@ -130,7 +147,7 @@ const VENTURES = [
  * Deliberately four and not the whole Settings screen. Each one changes
  * something a person would otherwise be surprised by: whether Aria speaks up on
  * its own, whether the phone makes a sound at the right moment, whether the app
- * opens to anyone holding the phone, and — on Pro — whether things go out
+ * opens to anyone holding the phone, and, on Pro, whether things go out
  * without a final tap.
  */
 const ESSENTIALS = [
@@ -150,7 +167,7 @@ const ESSENTIALS = [
  * How a send actually happens, which is the one thing Free and Pro differ on.
  *
  * Asked during onboarding rather than discovered at the moment something needs
- * to go out. The difference is not a feature list — it is who presses send —
+ * to go out. The difference is not a feature list, it is who presses send , 
  * and someone who thinks Aria will handle it and then finds an unsent draft on
  * the morning of a deadline has been misled by the setup, not by the tier.
  *
@@ -162,7 +179,7 @@ const PLANS = [
   {
     value: 'free' as const,
     label: 'Free',
-    line: 'I prepare it — the email written, the document attached — and you tap send.',
+    line: 'I write it, attach the document, and you tap send.',
     note: 'Nothing leaves without you.',
   },
   {
@@ -194,7 +211,7 @@ const PLANS = [
  * who has not seen the app work.
  */
 const LAST_STEP = 4;
-/** The payoff after the last question — not a question, so not in the progress bar. */
+/** The payoff after the last question, not a question, so not in the progress bar. */
 const CELEBRATE = 5;
 
 export default function WelcomeScreen() {
@@ -209,7 +226,7 @@ export default function WelcomeScreen() {
   /*
    * Everything starts empty and stays optional.
    *
-   * The profile ships with a demo persona — psychology sophomore, plays
+   * The profile ships with a demo persona, psychology sophomore, plays
    * basketball. Pre-filling from it would put words in a new student's mouth,
    * and because these values feed Aria's prompts, Aria would then address
    * someone using facts they never gave.
@@ -218,36 +235,31 @@ export default function WelcomeScreen() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [otherSubject, setOtherSubject] = useState('');
   const [levels, setLevels] = useState<string[]>([]);
-  /** Free or Pro — who taps send. Defaults to the one that exists today. */
+  /** Free or Pro, who taps send. Defaults to the one that exists today. */
   const [plan, setPlan] = useState<'free' | 'pro'>('free');
 
   const settings = useAriaStore((s) => s.settings);
   const setSetting = useAriaStore((s) => s.setSetting);
   const demoDate = useAriaStore((s) => s.demoDate);
   const setDemoDate = useAriaStore((s) => s.setDemoDate);
+  const setSampleData = useAriaStore((s) => s.setSampleData);
+  /*
+   * Whether the samples are actually there, which is what the switch is about.
+   *
+   * Read from the data rather than from the simulated date. The switch used to
+   * show the date state, so somebody who never touched it still arrived to a
+   * planner full of Jane's birthday and a chemistry lab report: the tasks were
+   * seeded regardless and the control had nothing to do with them.
+   */
+  const hasSamples = useAriaStore((s) => s.tasks.some((t) => t.id.startsWith('seed-')));
+
+  const studying = otherSubject.trim() || subjects[0] || '';
+  const level = levels[0] ?? '';
   // The theme actually on screen, whether that came from a pick or from the
-  // device — the same distinction the Settings screen draws.
+  // device, the same distinction the Settings screen draws.
   const activeTheme = useTheme();
   const matchingDevice = settings.theme === 'system';
   const simulating = demoDate !== realToday();
-  /*
-   * The day the tour jumps to: the soonest one with something Aria can offer
-   * help on, and never the day you are already standing on.
-   *
-   * The rule lives in `nextTourDate` so `check:plan` can hold it — this line
-   * shipped once as "today or later", which resolved to today (three seeds fall
-   * on the current day), set the date it was already on, and left the switch
-   * flicking back the instant it was touched.
-   */
-  const tourDate = useAriaStore((s) =>
-    nextTourDate(
-      s.tasks.filter((t) => t.status === 'todo' && ariaActionFor(t)).map((t) => t.date),
-      realToday(),
-    ),
-  );
-  const studying = otherSubject.trim() || subjects[0] || '';
-  const level = levels[0] ?? '';
-
   /**
    * A halo behind the avatar on the last screen.
    *
@@ -272,7 +284,7 @@ export default function WelcomeScreen() {
   /**
    * What Aria will now do, in their own terms.
    *
-   * Built from the actual answers rather than being fixed copy — the point of
+   * Built from the actual answers rather than being fixed copy, the point of
    * this screen is showing that the four questions changed something. A student
    * who skipped everything gets the generic lines instead of a screen making
    * claims about a person it knows nothing about.
@@ -282,7 +294,7 @@ export default function WelcomeScreen() {
      * The field only reads as an adjective for two of the three roles.
      *
      * "Your Law work" and "your Design work" are both sentences a person would
-     * say. "Your A startup work" is not — a venture is a thing you run, not a
+     * say. "Your A startup work" is not, a venture is a thing you run, not a
      * subject your work is in, so that branch says what it is instead of
      * splicing the answer into the middle of a phrase.
      */
@@ -296,7 +308,7 @@ export default function WelcomeScreen() {
      * The promise now matches the answer they just gave.
      *
      * "Nothing gets sent without your OK" was the only line here, and on Pro it
-     * would be false the first time the scheduler sends something at 9am — the
+     * would be false the first time the scheduler sends something at 9am, the
      * approval happens once, at the review, rather than at the send. Saying the
      * wrong one of these is worse than saying neither.
      */
@@ -317,7 +329,7 @@ export default function WelcomeScreen() {
 
   function saveAnswers() {
     /*
-     * Written whether or not anything was answered — that's the point.
+     * Written whether or not anything was answered, that's the point.
      *
      * Skipping has to *clear* the demo persona, not leave it standing. A
      * student who skipped every question would otherwise get drafts pitched at
@@ -336,13 +348,13 @@ export default function WelcomeScreen() {
        *
        * Onboarding no longer asks what you're into, and the seeded demo persona
        * lists basketball and music. Skipping the write would leave a brand-new
-       * account carrying someone else's hobbies into every prompt — Aria
+       * account carrying someone else's hobbies into every prompt, Aria
        * explaining projectile motion through a jump shot to a person who never
        * mentioned basketball. Not asked has to mean not known.
        */
       interests: [],
       // The one-line description the drafting prompts already read. Composed
-      // from the structured answers, and phrased per role — "2nd year studying
+      // from the structured answers, and phrased per role, "2nd year studying
       // Law" and "Running my own thing: an agency" are not the same sentence,
       // and Aria writes differently to each.
       context: describeContext(role, studying, level),
@@ -351,7 +363,7 @@ export default function WelcomeScreen() {
      * Pro is open now, so choosing it turns it on.
      *
      * `setPro` writes `profiles.pro`, the column the Edge Function reads before
-     * sending on somebody's behalf — so this is the entitlement itself rather
+     * sending on somebody's behalf, so this is the entitlement itself rather
      * than a preference about one.
      *
      * It is deliberately not the same as agreeing to autonomous sending. That
@@ -370,7 +382,7 @@ export default function WelcomeScreen() {
     /*
      * `completeOnboarding` last, and only here.
      *
-     * It flips `onboarded`, which the auth gate watches — the moment it's true
+     * It flips `onboarded`, which the auth gate watches, the moment it's true
      * this screen is redirected away. Calling it with the answers would have
      * meant the celebration never rendered at all.
      */
@@ -399,7 +411,7 @@ export default function WelcomeScreen() {
 
   return (
     <Screen padded edges={['top', 'bottom']}>
-      {/* Back and progress disappear on the last screen — there's nothing left
+      {/* Back and progress disappear on the last screen, there's nothing left
           to go back to, and a progress bar on a "you're done" screen is a
           contradiction. */}
       <View className="flex-row items-center gap-3" style={{ height: 44 }}>
@@ -479,7 +491,7 @@ export default function WelcomeScreen() {
                        *
                        * "3rd year" is not an answer to "what's your area", and
                        * carrying it across would put a student's year on a
-                       * freelancer's profile — where `describeLearner` would
+                       * freelancer's profile, where `describeLearner` would
                        * read it back as fact.
                        */
                       if (role !== r.value) {
@@ -508,7 +520,7 @@ export default function WelcomeScreen() {
         ) : null}
 
         {/*
-          One screen, three questions — whichever one their answer earned.
+          One screen, three questions, whichever one their answer earned.
 
           A student gets the year, because it sets how deep an explanation goes;
           the other two get their field, because that is what makes a breakdown
@@ -565,7 +577,7 @@ export default function WelcomeScreen() {
         {/* Nothing picked at step 1, so there is no follow-up to ask. Said out
             loud rather than shown as an empty screen. */}
         {step === 2 && !role ? (
-          <Step title="Nothing to ask yet" blurb="Go back and pick one, or carry on — none of this is required.">
+          <Step title="Nothing to ask yet" blurb="Go back and pick one, or carry on. None of this is required.">
             <View />
           </Step>
         ) : null}
@@ -595,7 +607,7 @@ export default function WelcomeScreen() {
                       </Text>
                       {p.value === 'pro' ? (
                         /* `rounded-md`, because it is a label rather than a
-                           control. Shape is the affordance — see badge.tsx. */
+                           control. Shape is the affordance, see badge.tsx. */
                         <View className="rounded-md bg-accent-soft px-2 py-0.5">
                           <Text variant="caption" tone="accent" className="font-strong">
                             Available
@@ -635,7 +647,7 @@ export default function WelcomeScreen() {
           something immediately.
 
           Each switch is applied the moment it is tapped rather than saved at
-          the end, because these are the real settings — the same store, the
+          the end, because these are the real settings, the same store, the
           same toggles as the Settings screen. A copy that had to be committed
           later is a copy that can disagree with what the switch was showing.
         */}
@@ -678,7 +690,7 @@ export default function WelcomeScreen() {
 
                 It is the setting people look for first and the one they change
                 on day one, and it is the only one here whose effect is visible
-                the instant it is tapped — the screen you are standing on
+                the instant it is tapped, the screen you are standing on
                 changes colour. "Match my device" is a rule about when to
                 switch rather than a colour, so it stays a switch above the
                 swatches, exactly as Settings has it.
@@ -716,44 +728,55 @@ export default function WelcomeScreen() {
                 this, the first run is an empty list and a promise. Jumping the
                 date is the one control that makes the app demonstrate itself,
                 so it belongs where someone is already deciding how the app
-                should behave — and it is a switch, not a surprise.
+                should behave, and it is a switch, not a surprise.
               */}
-              {tourDate ? (
               <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
                 <View className="flex-row items-center gap-3">
                   <View className="flex-1 gap-1">
                     <Text className="font-strong">Show me around with sample tasks</Text>
                     <Text variant="small" tone="muted">
-                      {simulating
-                        ? `Pretending it's ${formatLong(demoDate)}, where something is waiting.`
-                        : 'Jump to a day where a task is due, so you can see Aria offer to help.'}
+                      {hasSamples
+                        ? simulating
+                          ? `A week of examples, and it's ${formatLong(demoDate)} so you can watch Aria offer to help.`
+                          : 'A week of examples to look through. Turn this off to start with an empty planner.'
+                        : 'Start empty, with only what you add yourself.'}
                     </Text>
                   </View>
                   <Switch
-                    value={simulating}
+                    value={hasSamples}
                     onValueChange={(on) => {
                       hapticSelect();
                       /*
-                       * Reversible in one tap, both ways.
+                       * The switch owns the data, and the date follows it.
                        *
-                       * `setDemoDate` moves the simulated day; turning it off
-                       * puts the real one back rather than leaving someone in a
-                       * pretend week they cannot find the exit from. The banner
-                       * on Today and Calendar says which day they are on.
+                       * On restores the samples and moves to a day something is
+                       * waiting, which is the only way to see Aria act. Off
+                       * takes them away and puts the real date back, so nobody
+                       * is left in a pretend week with an empty planner and no
+                       * visible way out. Anything they made themselves survives
+                       * both directions.
                        */
-                      setDemoDate(on && tourDate ? tourDate : realToday());
+                      setSampleData(on);
+                      /*
+                       * Read back *after* the restore, not before.
+                       *
+                       * The day to jump to is chosen from the tasks that exist,
+                       * and turning the switch on is what makes them exist , 
+                       * computing it from the render's snapshot would pick from
+                       * the empty list and jump nowhere.
+                       */
+                      setDemoDate(on ? (tourDateNow() ?? realToday()) : realToday());
                     }}
                   />
                 </View>
               </View>
-              ) : null}
 
               {/*
                 Shown only to someone who chose Pro, and it is a real switch.
 
                 This is what the whole ordering exists for. It is the second
-                half of the previous question — Pro is permission to send
-                without you, this is the decision to actually do it — and the
+                half of the previous question, Pro is permission to send
+                without you, this is the decision to actually do it, and the
                 two are deliberately separate: `autoSendEnabled` requires both,
                 so an upgrade on its own never mails anybody.
 
@@ -795,7 +818,7 @@ export default function WelcomeScreen() {
         {step === CELEBRATE ? (
           <View className="flex-1 items-center justify-center gap-8 py-6">
             <View className="items-center justify-center" style={{ height: 120, width: 120 }}>
-              {/* The halo sits behind and is purely decorative — no text, no
+              {/* The halo sits behind and is purely decorative, no text, no
                   control, nothing a screen reader needs to announce. */}
               <Animated.View
                 pointerEvents="none"
@@ -821,7 +844,7 @@ export default function WelcomeScreen() {
             </Animated.View>
 
             {/* Staggered so they're read one at a time rather than arriving as
-                a block — the whole point is that each line is specific to them. */}
+                a block, the whole point is that each line is specific to them. */}
             <View className="gap-4 self-stretch px-2">
               {highlights.map((h, i) => (
                 <Animated.View
@@ -831,13 +854,13 @@ export default function WelcomeScreen() {
                   {/* A bare icon in a box exactly one line tall.
                       Two things were wrong before. The icon sat in a 40px
                       square while the first text line is 24px, so `items-start`
-                      put its centre 8px below the line it belongs to — the
+                      put its centre 8px below the line it belongs to, the
                       lower the icon, the more it looked like it belonged to the
                       second line. Matching the box to `leading-6` centres it on
                       the first line at any text size.
                       And the filled accent-soft container was the same
                       treatment StatusBadge and PriorityBadge use. Those mean
-                      something — late, due, high priority — so wearing their
+                      something, late, due, high priority, so wearing their
                       look for decoration reads as a status that isn't there. */}
                   <View style={{ height: 24 }} className="w-5 items-center justify-center">
                     <h.Icon size={18} color={c.accent} strokeWidth={2} />

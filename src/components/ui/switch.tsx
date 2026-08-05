@@ -12,7 +12,7 @@ export function Switch({
   /**
    * Shown, and not operable yet.
    *
-   * For a setting that exists but is not available to this account — the Pro
+   * For a setting that exists but is not available to this account, the Pro
    * send switch during onboarding. Drawing it greyed says what Pro will change
    * at the moment someone is deciding about it, where hiding it would leave
    * them to find out later.

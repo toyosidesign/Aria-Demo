@@ -41,8 +41,8 @@ export function phoneContactsAvailable(): boolean {
 /**
  * Why no contact came back, when none did.
  *
- * The picker used to answer `null` to every question — cancelled, denied,
- * unavailable, nameless — and every caller treated all four as "they changed
+ * The picker used to answer `null` to every question, cancelled, denied,
+ * unavailable, nameless, and every caller treated all four as "they changed
  * their mind" and left the form untouched. On Android, where the picker needs
  * `READ_CONTACTS`, that made a refused permission look exactly like a dead
  * button: tap, nothing, tap again, still nothing, no way to find out why.
@@ -77,7 +77,7 @@ export async function pickPhoneContactResult(): Promise<ContactPick> {
      *
      * `presentContactPickerAsync` needs `READ_CONTACTS` there and nothing in
      * the app had ever requested it, so the picker failed before it opened. iOS
-     * needs no permission for this picker at all — the whole point of it — so
+     * needs no permission for this picker at all, the whole point of it, so
      * prompting there would be asking for access Aria does not use.
      */
     if (Platform.OS === 'android') {
@@ -111,8 +111,8 @@ export async function pickPhoneContactResult(): Promise<ContactPick> {
 /**
  * The chosen person, or null.
  *
- * Kept for callers that have somewhere of their own to explain a failure —
- * they use `pickPhoneContactResult` — and for those that do not, which is why
+ * Kept for callers that have somewhere of their own to explain a failure , 
+ * they use `pickPhoneContactResult`, and for those that do not, which is why
  * this one still toasts. Silence was the bug.
  */
 export async function pickPhoneContact(): Promise<PickedContact | null> {

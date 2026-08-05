@@ -7,7 +7,7 @@
  * already gone, more steps than days, and a week where every useful day is
  * already spoken for.
  *
- * Pure module, no React — `lib/plan.ts` has no imports beyond date-fns for
+ * Pure module, no React, `lib/plan.ts` has no imports beyond date-fns for
  * exactly this reason.
  */
 
@@ -74,7 +74,7 @@ test('the run-up to the deadline is reserved first, and is visible', () => {
   /*
    * The buffer covers printing, uploading, a portal that rejects the file type,
    * and a submission page that will not load. Reserved before any work is
-   * placed so an overrunning plan eats its own steps rather than the run-up —
+   * placed so an overrunning plan eats its own steps rather than the run-up , 
    * and drawn as a row, because reserved time nobody can see gets booked over.
    */
   const plan = planBackwards({ deadline: '2026-09-30', today: '2026-09-01', steps: STEPS });
@@ -95,7 +95,7 @@ test('the buffer shrinks with the time available, and disappears when there is n
   assert.equal(bufferFor(1), 0);
 });
 
-test('the first step is where the answer is — when work has to start', () => {
+test('the first step is where the answer is, when work has to start', () => {
   /*
    * The whole reason for planning backwards. Forwards planning answers "what
    * shall I do first", which is not the question a deadline asks.
@@ -122,7 +122,7 @@ test('time is shared out by what the work is marked on', () => {
   const [argument, presentation] = weighted.steps.filter((s) => !s.buffer);
   /*
    * A step's share is the stretch that ends on its due date, so the first one
-   * is measured from today rather than from `startsOn` — `startsOn` *is* the
+   * is measured from today rather than from `startsOn`, `startsOn` *is* the
    * first step's due date, and measuring from it would report nought days for
    * whichever step got the most of them.
    */
@@ -254,7 +254,7 @@ test('the tour never picks the day you are already on', () => {
 
 test('it takes the soonest of them, whatever order they arrive in', () => {
   // The store hands over task dates unsorted, and the nearest one is the one
-  // worth seeing — a tour that opens three weeks out demonstrates nothing today.
+  // worth seeing, a tour that opens three weeks out demonstrates nothing today.
   assert.equal(
     nextTourDate(['2026-09-30', '2026-09-12', '2026-09-21'], '2026-09-10'),
     '2026-09-12',
@@ -288,7 +288,7 @@ test('the local reader finds what is unambiguous and claims low confidence', () 
 test('it refuses to guess a date it cannot resolve', () => {
   /*
    * The one mistake this must not make. "Week 9" means nothing without a term
-   * calendar, and a wrong deadline is the failure that costs a grade — so it
+   * calendar, and a wrong deadline is the failure that costs a grade, so it
    * stays a gap, and the card offers to ask the tutor.
    */
   const facts = localBrief({ today: '2026-09-01', text: 'Submit by the end of week 9.' });

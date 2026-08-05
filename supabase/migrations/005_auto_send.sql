@@ -9,7 +9,7 @@
 -- src/lib/sync.ts): appearance is a property of a handset, and nothing
 -- server-side ever needs to know it. This is the opposite case.
 --
--- Default false. Sending on someone's behalf unasked is a thing to opt into —
+-- Default false. Sending on someone's behalf unasked is a thing to opt into , 
 -- defaulting it true would mean the first a student hears of the feature is an
 -- email their contact already received.
 --

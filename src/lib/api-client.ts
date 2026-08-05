@@ -30,19 +30,19 @@ export async function apiHeaders(): Promise<Record<string, string>> {
  *
  * A relative URL only resolves where there is a document to resolve it against.
  * On web that is the page; in React Native there is no origin at all, so
- * `fetch('/api/draft')` throws before it reaches the network — and every caller
+ * `fetch('/api/draft')` throws before it reaches the network, and every caller
  * here catches and falls back to its scripted path. The result is an app that
  * looks like it is working: chat replies, drafts appear, subtasks generate,
  * none of it from the model. On a device, *every* AI route was doing this.
  *
- * That is the project's standing failure mode wearing a different hat — see the
- * silent-degradation note in HANDOFF.md — and it is why a draft that "didn't
+ * That is the project's standing failure mode wearing a different hat, see the
+ * silent-degradation note in HANDOFF.md, and it is why a draft that "didn't
  * work" still produced text.
  *
  * In development the origin is the machine running Metro, which Expo already
  * knows: `hostUri` is the same `host:port` the bundle was fetched from, so it
  * follows the dev server across networks without anything being configured.
- * In a release build there is no Metro, so it must be stated —
+ * In a release build there is no Metro, so it must be stated , 
  * `EXPO_PUBLIC_API_URL` is that statement.
  */
 export function apiUrl(path: string): string {

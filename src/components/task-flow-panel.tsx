@@ -102,7 +102,7 @@ export function TaskFlowPanel({
    * didn't appear.
    *
    * Re-syncing with an effect would have fixed the display and left a worse
-   * bug behind — typed text would diverge from `draft.message`, and the tone
+   * bug behind, typed text would diverge from `draft.message`, and the tone
    * buttons send `previousDraft: flow.message`, so "Warmer" would have
    * rewritten a stale draft instead of what was on screen. One owner removes
    * both faults.
@@ -118,7 +118,7 @@ export function TaskFlowPanel({
    * Grouped rather than spread across a dozen more props: an assignment's steps
    * upload files, call the model twice and rebuild a plan, and threading each
    * of those through this signature individually would make the occasion steps
-   * — which need none of it — harder to read for no benefit.
+   *, which need none of it, harder to read for no benefit.
    */
   work?: Omit<WorkHandlers, 'onAnswer' | 'onEdit' | 'onAccept' | 'onCancel' | 'busy'>;
   /** Guide plumbing: pick a focus, choose a direction, ask again, close. */
@@ -144,7 +144,7 @@ export function TaskFlowPanel({
    * ── The work steps ────────────────────────────────────────────────────────
    *
    * Routed out to `work-panels.tsx` and handed one object of callbacks. This
-   * panel decides *which* card, and nothing about what any of them contain —
+   * panel decides *which* card, and nothing about what any of them contain , 
    * the same division that keeps the occasion steps readable.
    */
   if (work && guide) {
@@ -274,7 +274,7 @@ export function TaskFlowPanel({
      * This used to lead with pills of saved contacts, which guessed at the
      * answer and made picking the *real* contact the fallback option. It also
      * meant a name could be captured with no phone or email behind it, so the
-     * flow then had to ask for the contact separately — two questions for one
+     * flow then had to ask for the contact separately, two questions for one
      * fact. Choosing from the phone's own list answers both at once.
      */
     return (
@@ -293,7 +293,7 @@ export function TaskFlowPanel({
                *
                * It used to mark that step done, which was right when a contact
                * was a nice-to-have. Now the method decides what is actually
-               * needed — a text with no number is not a text — so the contact
+               * needed, a text with no number is not a text, so the contact
                * step still runs and confirms what was picked, collapsed to a
                * summary because the fields it would show are already filled.
                */
@@ -378,7 +378,7 @@ export function TaskFlowPanel({
      *
      * "Every year" is the whole question for a birthday and the common answer
      * for an event, so it is a button rather than the fifth row of a list. The
-     * other intervals are the same set the create form offers — one vocabulary
+     * other intervals are the same set the create form offers, one vocabulary
      * for repeats across the app, from `REPEAT_OPTIONS`.
      */
     const others = REPEAT_OPTIONS.filter((o) => o.value !== 'yearly');
@@ -413,7 +413,7 @@ export function TaskFlowPanel({
      *
      * This replaced a three-way card / message / reminder question that made
      * Aria guess the channel from whichever detail the contact happened to
-     * carry. Each of these decides what gets asked next — which is why they are
+     * carry. Each of these decides what gets asked next, which is why they are
      * whole rows rather than pills: it is the most consequential tap in the
      * flow.
      */
@@ -452,7 +452,7 @@ export function TaskFlowPanel({
     /*
      * Cards shown as cards.
      *
-     * A list of names — Balloons, Confetti, Make a wish — asks the student to
+     * A list of names, Balloons, Confetti, Make a wish, asks the student to
      * imagine each one. The templates already carry their own art and tint, so
      * the picker can just draw them and the choice becomes a glance.
      */
@@ -557,7 +557,7 @@ export function TaskFlowPanel({
               number never arrived, so the task saves as a reminder. Better said
               here than discovered on Today. */}
           {draft.handling && !contactSatisfied(draft) ? (
-            <Row label="No contact for that — saving it as a reminder" />
+            <Row label="No contact for that, so it saves as a reminder" />
           ) : null}
         </View>
         {draft.message ? (
@@ -600,8 +600,8 @@ export function TaskFlowPanel({
  * The same `ContactField` the create form uses, for the rule in HANDOFF §4:
  * choose someone from your contacts and the fields it filled disappear, leaving
  * the person and a way to clear them. A field reappearing after that means the
- * contact genuinely lacks a detail this method needs — a text to someone with
- * no number — and the field says which.
+ * contact genuinely lacks a detail this method needs, a text to someone with
+ * no number, and the field says which.
  *
  * Local state, committed on the button. Editing straight into the draft would
  * put a half-typed number through `nextStep` on every keystroke.
@@ -659,7 +659,7 @@ function ContactStep({
       {/*
         A way out that isn't a dead end.
 
-        Required means required — there is no texting someone with no number —
+        Required means required, there is no texting someone with no number , 
         so without this, a student who doesn't have the detail is stuck on a
         question they cannot answer, in a flow with no back button. This is the
         sixth answer to "How should Aria handle it?", offered where it is needed.

@@ -1,5 +1,5 @@
 /**
- * RFC-4122 v4 UUID (Math.random-based — no native crypto dependency, so it
+ * RFC-4122 v4 UUID (Math.random-based, no native crypto dependency, so it
  * works everywhere incl. Expo Go). Used for ids that map to Postgres `uuid`
  * columns, generated client-side for optimistic local-first writes.
  */

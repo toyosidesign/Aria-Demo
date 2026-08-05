@@ -3,14 +3,14 @@
  *
  * Deliberately its own module with no imports. It used to live in lib/send.ts,
  * which pulls in react-native and expo-clipboard, so the logic could not be
- * tested outside a native runtime — and this is exactly the kind of pure string
+ * tested outside a native runtime, and this is exactly the kind of pure string
  * handling that wants asserting directly.
  */
 
 /**
  * Collapse anything that would break a single-line field.
  *
- * A subject *is* one header line, so a line break in it is never meaningful —
+ * A subject *is* one header line, so a line break in it is never meaningful , 
  * but a task title can contain one (pasted, or written by the model), and
  * `.trim()` only touches the ends. Left alone that newline reaches
  * SendEmailSchema, which refuses it, and the send fails with a 400 the user

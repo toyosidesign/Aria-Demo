@@ -45,7 +45,7 @@ export default function SupportScreen() {
    * Send it from the server so feedback actually arrives.
    *
    * A `mailto:` hand-off only opened the user's mail app and left the sending
-   * to them — anything they didn't finish was silently lost, and it failed
+   * to them, anything they didn't finish was silently lost, and it failed
    * outright on a device with no mail account. Opening the composer is kept
    * only as the fallback for when no provider is configured.
    */
@@ -75,7 +75,7 @@ export default function SupportScreen() {
         showToast(result.error ?? "Couldn't send that just now", 'trash');
         return;
       }
-      // No mail provider set up — fall back to the user's own mail app.
+      // No mail provider set up, fall back to the user's own mail app.
       await openMailApp(subject, body);
     } catch {
       await openMailApp(subject, body);

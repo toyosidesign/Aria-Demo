@@ -86,7 +86,7 @@ export function detectSmallTalk(message: string): string | null {
  * What Aria says when asked to do something it genuinely cannot.
  *
  * This used to also claim Aria couldn't hold a conversation. That was true when
- * no API key was configured — the local parser answered everything, and its
+ * no API key was configured, the local parser answered everything, and its
  * conversational replies were thin. With a model behind it the claim became
  * false, and the notice started replacing real answers with an apology for not
  * being able to give one.
@@ -149,12 +149,12 @@ export function wantsRealWorldAction(message: string): boolean {
   /*
    * A question is no longer a trigger.
    *
-   * It used to be — any "how do I write a lab report?" got the limits notice
+   * It used to be, any "how do I write a lab report?" got the limits notice
    * rather than an answer, because without a model there was no answer to give.
    * There is one now, and intercepting it is the bug: a student asking for help
    * with their work is the entire point of the product.
    *
-   * What's left is what Aria still genuinely cannot do — reach out and
+   * What's left is what Aria still genuinely cannot do, reach out and
    * *transact*. Booking, ordering, paying, browsing the live web. Promising
    * those would be a lie; refusing to explain something is just a waste.
    */
@@ -163,7 +163,7 @@ export function wantsRealWorldAction(message: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Local heuristic fallback — good enough to demo offline / without a key.
+// Local heuristic fallback, good enough to demo offline / without a key.
 // ---------------------------------------------------------------------------
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];

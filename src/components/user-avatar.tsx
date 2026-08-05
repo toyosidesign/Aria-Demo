@@ -5,7 +5,7 @@ import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 
 /**
- * Maya's own face — her picture when she's set one, a neutral avatar when she
+ * Maya's own face, her picture when she's set one, a neutral avatar when she
  * hasn't. `solid` matches the filled accent disc used in the Today header.
  */
 export function UserAvatar({

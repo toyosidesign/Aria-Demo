@@ -7,7 +7,7 @@ import { showToast } from '@/lib/toast';
  * Turning a rendered card into a picture and handing it to the share sheet.
  *
  * Both modules are native-only and lazy-required, matching how notifications
- * and contacts are handled — importing them during the web/Node server render
+ * and contacts are handled, importing them during the web/Node server render
  * would crash it.
  */
 
@@ -43,7 +43,7 @@ export function cardSharingAvailable(): boolean {
 /**
  * Snapshot the given card view and open the share sheet with it.
  *
- * The recipient is chosen in the share sheet rather than by Aria — that's the
+ * The recipient is chosen in the share sheet rather than by Aria, that's the
  * cost of sending a real image instead of text, since no `mailto:` or `sms:`
  * link can carry an attachment.
  */

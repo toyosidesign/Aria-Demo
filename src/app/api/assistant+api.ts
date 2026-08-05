@@ -44,7 +44,7 @@ Rules:
 - reply: one or two short, warm sentences describing the task you've prepared for ${me} to review. Do NOT say it's already added. Mention the day naturally ("for Friday"). If it isn't a task, just answer helpfully.
 - If the message contains no task to create, return an empty tasks array.
 - Do NOT invent tasks ${me} didn't ask for.
-- In the reply text, do not use em dashes (—) or hyphens as separators; use commas, periods, or colons instead.`;
+- In the reply text, do not use em dashes or long hyphens as separators; use commas, periods, or colons instead.`;
 };
 
 const SCHEMA = {
@@ -92,7 +92,7 @@ function extractText(msg: Anthropic.Message): string {
 
 // `history` is echoed into `messages`, so an unvalidated `role` reached the SDK
 // verbatim. AssistantSchema pins it to user/assistant and caps the length, and
-// the wrapper guarantees it ran — see lib/api-auth.ts.
+// the wrapper guarantees it ran, see lib/api-auth.ts.
 export const POST = protectedRoute(AssistantSchema, limitAi, async (body) => {
   const focus = body.focus as TaskKind | undefined;
 

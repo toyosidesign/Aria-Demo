@@ -30,7 +30,7 @@ const EMAIL = /^[^\s@,;:<>"]+@[^\s@,;:<>"]+\.[^\s@,;:<>"]+$/;
 export interface SendEmailResponse {
   /** True only when the message was actually accepted for delivery. */
   sent: boolean;
-  /** False when no provider is set up — the caller should hand off instead. */
+  /** False when no provider is set up, the caller should hand off instead. */
   configured: boolean;
   error?: string;
 }
@@ -39,7 +39,7 @@ const ok = (payload: SendEmailResponse) => Response.json(payload);
 
 // Unauthenticated, this route was an open relay: it signs mail with the app's own
 // verified domain, so anyone with the URL could send phishing that passes SPF and
-// DKIM as us. The wrapper authenticates and meters before any of that — and the
+// DKIM as us. The wrapper authenticates and meters before any of that, and the
 // mail quota is the tighter one, because this is the costliest thing to abuse.
 export const POST = protectedRoute(SendEmailSchema, limitMail, async (body) => {
   const key = process.env.RESEND_API_KEY;

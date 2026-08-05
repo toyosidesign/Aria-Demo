@@ -21,7 +21,7 @@ export function isStrongPassword(pw: string) {
   return PASSWORD_RULES.every((r) => r.test(pw));
 }
 
-/** Live checklist of password requirements — each row turns green when met. */
+/** Live checklist of password requirements, each row turns green when met. */
 export function PasswordCriteria({ password }: { password: string }) {
   const c = useColors();
   return (

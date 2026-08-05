@@ -3,7 +3,7 @@
  *
  * The security tests import the real source files rather than copies, so they
  * cannot drift from what ships. Those files import each other as `@/lib/...`,
- * which Metro resolves but bare node does not — hence this hook. Node 22.6+
+ * which Metro resolves but bare node does not, hence this hook. Node 22.6+
  * strips the type annotations itself, so no build step is involved.
  */
 

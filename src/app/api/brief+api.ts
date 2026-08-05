@@ -17,8 +17,8 @@ import { limitAi } from '@/lib/rate-limit';
  *
  * The instruction that matters most is the one about omission: a field it
  * cannot find must be left out rather than filled with something plausible. The
- * app has a good answer for a missing fact — the gap buttons on the extraction
- * card — and no answer at all for a confident wrong one.
+ * app has a good answer for a missing fact, the gap buttons on the extraction
+ * card, and no answer at all for a confident wrong one.
  */
 
 const SYSTEM = `You read assignment briefs and coursework specifications and extract only what is actually written in them.
@@ -87,7 +87,7 @@ function extractText(msg: Anthropic.Message): string {
 /**
  * The brief itself, as whatever kind of block it is.
  *
- * A PDF goes as a document block so the model reads the real layout — tables of
+ * A PDF goes as a document block so the model reads the real layout, tables of
  * criteria are the part that matters and the part that survives plain-text
  * extraction worst. A photo of a handout goes as an image. Text goes as text,
  * which is cheaper than both and is what a paste gives us.
@@ -137,7 +137,7 @@ export const POST = protectedRoute(
   BriefSchema,
   limitAi,
   async (body) => {
-    // Nothing to read is not an error — the card renders five gaps, each with
+    // Nothing to read is not an error, the card renders five gaps, each with
     // its own way forward, which is a usable screen.
     if (!process.env.ANTHROPIC_API_KEY) {
       return Response.json({ facts: localBrief(body), fallback: true });
@@ -169,7 +169,7 @@ export const POST = protectedRoute(
       }
       return Response.json({ facts, title, fallback: false });
     } catch (err) {
-      // The brief itself never reaches the log — it is someone's coursework,
+      // The brief itself never reaches the log, it is someone's coursework,
       // and the failure is about the call, not the contents.
       console.error('[aria] brief: Claude call failed, using local reader:', err);
       return Response.json({ facts: localBrief(body), fallback: true });

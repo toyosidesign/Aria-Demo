@@ -59,7 +59,7 @@ export default function TodayScreen() {
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
   const [deferred, setDeferred] = useState<{ id: string; title: string } | null>(null);
 
-  // "Not now" on an offer moves the task to tomorrow so it isn't lost — but
+  // "Not now" on an offer moves the task to tomorrow so it isn't lost, but
   // tomorrow is a guess, so the confirmation offers a proper day and time too.
   function defer(task: Task) {
     // Silent: the banner below is the feedback, and "rescheduled" isn't true
@@ -122,7 +122,7 @@ export default function TodayScreen() {
         <View>
           {/* One line, always. "Good afternoon, Oluwatobiloba" wraps at 29px on
               a normal phone, and the second line reads as an indent rather than
-              as a continuation. Shrinking beats truncating here — a greeting
+              as a continuation. Shrinking beats truncating here, a greeting
               that clips someone's name is worse than one set a little smaller. */}
           <Text variant="title" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {greeting()}, {firstName}
@@ -132,7 +132,7 @@ export default function TodayScreen() {
           </Text>
         </View>
 
-        {/* Overloaded week — first thing under the greeting.
+        {/* Overloaded week, first thing under the greeting.
             This is the one card that changes what you do with your day, and
             it used to sit below Today and Coming up, where it was reached only
             by scrolling past the very tasks it is warning about. */}
@@ -168,7 +168,7 @@ export default function TodayScreen() {
             someone has already done. Answered either way, it doesn't return. */}
         {showDemoInvite ? <DemoInviteCard /> : null}
 
-        {/* "Not now" confirmation — moved to tomorrow, with a way to pick properly */}
+        {/* "Not now" confirmation, moved to tomorrow, with a way to pick properly */}
         {deferred ? (
           <Animated.View
             entering={FadeIn.duration(250)}
@@ -206,7 +206,7 @@ export default function TodayScreen() {
           </Animated.View>
         ) : null}
 
-        {/* Today — warm welcome for a fresh account, otherwise the day's tasks */}
+        {/* Today, warm welcome for a fresh account, otherwise the day's tasks */}
         {hasNoTasks ? (
           <Animated.View
             entering={FadeIn.duration(300)}
@@ -219,7 +219,7 @@ export default function TodayScreen() {
             </View>
             {/* `small` + muted, not body + ink. At 16px in the same tone as the
                 heading above it, four lines of explanation outweighed the thing
-                it was explaining — the two read as one undifferentiated block. */}
+                it was explaining, the two read as one undifferentiated block. */}
             <Text variant="small" tone="muted" className="leading-5">
               You don&apos;t have anything scheduled yet. Tell me what&apos;s on your plate: a
               class, a birthday, an assignment, anything, and I&apos;ll set it up. Or add one
@@ -256,7 +256,7 @@ export default function TodayScreen() {
                 // Aria's offer, and still draggable.
                 //
                 // This branch used to return a bare AriaTodayCard, which has no
-                // gesture on it — so on the screen where most tasks land here,
+                // gesture on it, so on the screen where most tasks land here,
                 // "drag to complete" quietly did nothing. It read as an
                 // intermittent bug because the cards that do swipe (a fired
                 // reminder below, anything under Coming up) sit right beside
@@ -356,8 +356,8 @@ export default function TodayScreen() {
             the theme controls in both light and dark. */}
         {/* Stacked, not a row.
 
-            Side by side, the sentence is wider than any phone — it wraps to two
-            lines at every size — and `items-center` then floated the sparkle
+            Side by side, the sentence is wider than any phone, it wraps to two
+            lines at every size, and `items-center` then floated the sparkle
             against the middle of a two-line block, which reads as a layout bug.
             Above the text it can't clip, can't wrap oddly, and stays balanced at
             any width or accessibility text size. */}

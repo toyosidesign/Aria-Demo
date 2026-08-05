@@ -13,7 +13,7 @@ import { limitAi } from '@/lib/rate-limit';
  * ── The two prompts, and why they are different ─────────────────────────────
  *
  * A student is being marked. So the assignment guide gives angles, the
- * questions each angle has to answer, and where the rubric rewards it — and it
+ * questions each angle has to answer, and where the rubric rewards it, and it
  * does not write the argument, because the argument is the thing being
  * assessed. That is not a hedge about liability, it is what makes the output
  * useful: an essay handed to someone who has to defend it in a viva is worse
@@ -31,7 +31,7 @@ const SHARED = `You are Aria. You return options, not prose.
 Every direction must include:
 - title: the direction itself, one line, concrete
 - needs: what taking it would require (sources, access, a decision, a tool)
-- costs: what it would cost — time, risk, or what it rules out
+- costs: what it would cost, time, risk, or what it rules out
 
 Rules:
 - 3 or 4 directions. Genuinely different from each other, not one idea in three costumes.

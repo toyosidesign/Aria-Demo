@@ -20,7 +20,7 @@ export function MonthCalendar({
   const demoDate = useAriaStore((s) => s.demoDate);
   const [cursor, setCursor] = useState(() => parseISO(value || demoDate));
   const weeks = monthWeeks(cursor);
-  // The real date, never the simulated one — a date picker that rings the
+  // The real date, never the simulated one, a date picker that rings the
   // wrong day as "today" is simply a broken calendar.
   const today = realToday();
 
@@ -30,7 +30,7 @@ export function MonthCalendar({
     if (!value) return;
     const selected = parseISO(value);
     if (!isSameMonth(selected, cursor)) setCursor(selected);
-    // Only react to the incoming value — paging with the arrows must stick.
+    // Only react to the incoming value, paging with the arrows must stick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 

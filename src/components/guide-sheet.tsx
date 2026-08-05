@@ -14,7 +14,7 @@ import { useAriaStore, type Task } from '@/store/aria-store';
 /**
  * The Guide, opened from a task rather than from the setup conversation.
  *
- * Same behaviour, same words, same compass — because it is the same door. It
+ * Same behaviour, same words, same compass, because it is the same door. It
  * appears on the plan preview, on the definition-of-done gate, on a pinned step
  * and on anything that has rolled over twice, and if those were four different
  * controls nobody would learn that. The chat renders its own version inside the
@@ -55,7 +55,7 @@ export function GuideSheet({
          * The context is everything Aria kept when the task was created.
          *
          * A guide that ignores the rubric is worse than none, and by this point
-         * the rubric lives in the sections written at setup — so they go back
+         * the rubric lives in the sections written at setup, so they go back
          * in rather than being re-derived from a title.
          */
         note: [task.description, ...(task.draftSections ?? []).map((s) => s.content)]
@@ -173,7 +173,7 @@ export function GuideSheet({
           ))}
 
           {directions?.length ? (
-            <Choice label="None of these — ask again" onPress={() => void ask(focus ?? 'angle')} />
+            <Choice label="None of these. Ask again" onPress={() => void ask(focus ?? 'angle')} />
           ) : null}
         </ScrollView>
       </View>

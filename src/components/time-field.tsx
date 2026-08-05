@@ -10,7 +10,7 @@ import { useColors } from '@/lib/colors';
 const pad = (n: number) => String(n).padStart(2, '0');
 const to24 = (h12: number, pm: boolean) => (pm ? (h12 % 12) + 12 : h12 % 12);
 
-/** Optional "HH:mm" (24h) time selector — pure JS, works everywhere. Hours and
+/** Optional "HH:mm" (24h) time selector, pure JS, works everywhere. Hours and
  *  minutes can be nudged with the chevrons or typed directly. */
 export function TimeField({
   value,

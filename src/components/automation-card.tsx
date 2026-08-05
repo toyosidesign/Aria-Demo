@@ -31,7 +31,7 @@ export function AutomationCard() {
 
   if (!due.length && !upcoming.length && !doneToday.length) return null;
 
-  // Something is due — this is the moment Aria has been waiting for.
+  // Something is due, this is the moment Aria has been waiting for.
   if (due.length) {
     return (
       <Animated.View
@@ -43,7 +43,7 @@ export function AutomationCard() {
             {due.length === 1 ? 'Something’s due now' : `${due.length} things are due now`}
           </Text>
         </View>
-        {/* Supporting copy, not a second heading — see aria-today-card. */}
+        {/* Supporting copy, not a second heading, see aria-today-card. */}
         <Text variant="small" tone="muted" className="leading-5">
           {due.length === 1
             ? `Your ${CHANNEL_META[due[0].channel].label.toLowerCase()} for “${due[0].taskTitle}” is written and ready.`

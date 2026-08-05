@@ -87,7 +87,7 @@ export interface Subtask {
    */
   due?: string;
   /**
-   * What makes a milestone actually happen — a review, a demo, someone waiting.
+   * What makes a milestone actually happen, a review, a demo, someone waiting.
    *
    * Collected because a milestone with nothing forcing it is the one that
    * moves. Kept on the step so the follow-up can say *what* was supposed to
@@ -98,7 +98,7 @@ export interface Subtask {
    * How many times this step has been pushed.
    *
    * Two is where the Guide gets offered, three is where Aria asks one question
-   * and lets it go — see `rolloverVerdict` in lib/plan.ts. Undefined on
+   * and lets it go, see `rolloverVerdict` in lib/plan.ts. Undefined on
    * everything that is not a work step.
    */
   rollovers?: number;
@@ -108,7 +108,7 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
-  date: string; // ISO yyyy-MM-dd — the calendar date
+  date: string; // ISO yyyy-MM-dd, the calendar date
   priority: Priority;
   kind: TaskKind;
   status: TaskStatus;
@@ -140,7 +140,7 @@ export interface Task {
  * A task Aria has proposed in chat but nobody has created yet.
  *
  * Structurally the same as `ParsedTask` in lib/assistant.ts, declared here
- * rather than imported because that module imports *this* one — taking it the
+ * rather than imported because that module imports *this* one, taking it the
  * other way would be a cycle. Assignment still works in both directions.
  */
 export interface ProposedTask {
@@ -166,8 +166,8 @@ export interface ChatMessage {
   /**
    * True when the scripted parser answered rather than the model.
    *
-   * Rendered only in development. The fallback is deliberately good — it reads
-   * like a real reply — which is precisely why a dead API key went unnoticed
+   * Rendered only in development. The fallback is deliberately good, it reads
+   * like a real reply, which is precisely why a dead API key went unnoticed
    * for weeks. Being able to see which one answered is the difference between
    * testing Aria and testing the fallback.
    */
@@ -212,7 +212,7 @@ export type { ThemePref } from '@/lib/themes';
 /**
  * How much scaffolding this person wants around an explanation.
  *
- * Not a learning-style claim — it's a stated preference about pacing and
+ * Not a learning-style claim, it's a stated preference about pacing and
  * framing, which is something someone can actually answer about themselves.
  */
 export type ExplainStyle = 'direct' | 'examples' | 'stepwise';
@@ -222,7 +222,7 @@ export type ExplainStyle = 'direct' | 'examples' | 'stepwise';
  *
  * Onboarding used to open with "What are you studying?", which decided the
  * answer inside the question: someone employed, or running their own thing, had
- * to either lie or skip. It also quietly mis-set every prompt — `describeLearner`
+ * to either lie or skip. It also quietly mis-set every prompt, `describeLearner`
  * opened with "You are helping a student" for all of them.
  *
  * It matters beyond the greeting. The Guide withholds prose for an assignment
@@ -235,7 +235,7 @@ export interface Profile {
   name: string;
   email: string;
   /**
-   * One line on who they are — "Sophomore at State University", "Product
+   * One line on who they are, "Sophomore at State University", "Product
    * designer at Acme", "Freelance, two kids". Replaces the old school/year
    * pair, which assumed university and did nothing but sit on the profile.
    * This one feeds Aria's prompts, so it changes how drafts actually read.
@@ -246,7 +246,7 @@ export interface Profile {
   /** Studying, employed, or running their own thing. The first question asked. */
   role?: WorkRole;
   /**
-   * Their subject or their field — "Law", "Mechanical Engineering", "Product
+   * Their subject or their field, "Law", "Mechanical Engineering", "Product
    * design", "A design studio".
    *
    * One field for all three roles because it plays one part in every prompt:
@@ -255,7 +255,7 @@ export interface Profile {
    * it.
    */
   studying?: string;
-  /** How far in — "2nd year", "Postgrad". Students only; sets the depth. */
+  /** How far in, "2nd year", "Postgrad". Students only; sets the depth. */
   level?: string;
   /**
    * The things they're into.
@@ -277,15 +277,15 @@ export interface Settings {
   /**
    * Send at the scheduled moment without asking first. Pro only.
    *
-   * Off means Aria still does the work — drafts it, addresses it, has it
-   * waiting — and asks before anything leaves. On means it goes.
+   * Off means Aria still does the work, drafts it, addresses it, has it
+   * waiting, and asks before anything leaves. On means it goes.
    *
    * Deliberately **not** a device preference like `theme`. The cron sends with
    * nobody watching and no device involved, so this has to be readable from the
    * server or it cannot govern the thing it exists to govern. It lives in the
    * `profiles` row (migration 005) and the Edge Function reads it there.
    *
-   * Defaults off, and stays off for anyone without Pro — see `autoSendEnabled`,
+   * Defaults off, and stays off for anyone without Pro, see `autoSendEnabled`,
    * which is the only correct way to ask this question. The raw flag can be
    * true on an account whose Pro has lapsed.
    */
@@ -293,19 +293,19 @@ export interface Settings {
   /**
    * Weekdays that are always spoken for. 0 = Sunday.
    *
-   * Lectures, a shift, a standing commitment — the part of someone's week the
+   * Lectures, a shift, a standing commitment, the part of someone's week the
    * app cannot read off its own calendar. Asked once, on the first assignment
    * that needs a plan, and reused by every one after it: "I have labs on
    * Wednesdays" is not a per-assignment fact.
    *
-   * Local, like `theme`, and for a related reason — there is no column for it
+   * Local, like `theme`, and for a related reason, there is no column for it
    * and no server-side reader that needs it. It is in `settings` so it resets
    * with the account rather than being inherited by whoever signs in next.
    */
   fixedDays?: number[];
 }
 
-/** Effective "today" for the whole app — the real current date, overridable so
+/** Effective "today" for the whole app, the real current date, overridable so
  *  the demo can jump to a future date. */
 export const DEFAULT_DEMO_DATE = toISODate(new Date());
 
@@ -323,8 +323,8 @@ export const DEFAULT_SETTINGS: Settings = {
   /**
    * A fixed theme, not 'system'.
    *
-   * Following the device means the app changes appearance on its own — light at
-   * noon, dark at night — which is a thing to be agreed to rather than assumed.
+   * Following the device means the app changes appearance on its own, light at
+   * noon, dark at night, which is a thing to be agreed to rather than assumed.
    * Defaulting to 'system' switched it on for everyone and left the toggle in
    * Settings as the only way to find out it was happening.
    *
@@ -372,7 +372,7 @@ export function newDraftSubtask(title = ''): Subtask {
  * These used to be hardcoded (2026-07-23 and friends), which meant the demo
  * quietly rotted: as real days passed everything slid into the past, "Today"
  * emptied out, and the app looked broken on first run. Offsets keep the same
- * story — a couple due today, some overdue, some coming up — on any date.
+ * story, a couple due today, some overdue, some coming up, on any date.
  */
 const seedDay = (offset: number) => toISODate(addDays(new Date(), offset));
 const seedStamp = (offset: number) => {
@@ -602,12 +602,12 @@ interface AriaState {
   contacts: Contact[]; // Maya's own saved contacts
   automations: Automation[]; // work Aria runs at a scheduled moment
   /**
-   * Who signed in here last. Survives sign-out on purpose — it's what lets the
+   * Who signed in here last. Survives sign-out on purpose, it's what lets the
    * login screen greet a returning user by name instead of treating every
    * visit as a first one. Name and email only; never a credential.
    */
   lastUser: { name: string; email: string } | null;
-  pro: boolean; // Aria Pro — unlocks scheduled automations + every integration
+  pro: boolean; // Aria Pro, unlocks scheduled automations + every integration
   proWaitlisted: boolean; // asked to be told when Pro opens up
   signedIn: boolean;
   onboarded: boolean; // false right after a new signup, until the welcome is done
@@ -654,7 +654,7 @@ interface AriaState {
   completeTask: (id: string, opts?: { byAria?: boolean }) => void;
   reopenTask: (id: string) => void;
   /** `silent` when the move is provisional and the UI is still asking where to
-   *  put it — confirming before the user has decided reads as a lie. */
+   *  put it, confirming before the user has decided reads as a lie. */
   rescheduleTask: (id: string, date: string, opts?: { silent?: boolean }) => void;
   /** Push a reminder out to a later moment, keeping it on the list. */
   snoozeTask: (id: string, until: Date) => void;
@@ -680,7 +680,7 @@ interface AriaState {
   /**
    * Empty the planner and start on real data.
    *
-   * The counterpart to `resetDemo`, which only ever *restores* the samples —
+   * The counterpart to `resetDemo`, which only ever *restores* the samples , 
    * there was no way out of demo data short of deleting each task by hand, so
    * the home screen's offer to "clear them and start on your own" was a promise
    * the app couldn't keep.
@@ -688,10 +688,17 @@ interface AriaState {
    * Deliberately leaves the account alone: profile, settings and sign-in state
    * survive. This clears what's *in* the planner, it doesn't reset the app.
    */
+  /**
+   * Whether the sample tasks and contacts are present.
+   *
+   * The onboarding switch calls this. Off removes the seeds and leaves anything
+   * the person made; on restores only what is missing.
+   */
+  setSampleData: (on: boolean) => void;
   clearAllData: () => void;
   /**
    * Whether the "try the sample data" offer on the home screen has been
-   * answered. Set either way — taking the tour or declining it both count, so
+   * answered. Set either way, taking the tour or declining it both count, so
    * the card asks once and never again.
    */
   /**
@@ -708,7 +715,7 @@ interface AriaState {
    * The conversation with Aria, kept across closes.
    *
    * It lived in the chat screen's own state, so shutting the sheet threw the
-   * whole thread away — including tasks Aria had offered but nobody had tapped
+   * whole thread away, including tasks Aria had offered but nobody had tapped
    * yet. Capped at CHAT_LIMIT so a long-running account can't grow the stored
    * blob without bound.
    */
@@ -783,7 +790,7 @@ export const useAriaStore = create<AriaState>()(
       setSetting: (key, value) => {
         set((s) => ({ settings: { ...s.settings, [key]: value } }));
         // Turning notifications off must cancel what's already booked, not just
-        // stop new ones — otherwise alarms keep arriving after you said no.
+        // stop new ones, otherwise alarms keep arriving after you said no.
         if (key === 'notifications') {
           setNotificationsEnabled(value as boolean);
           void reconcileAlarms(get().tasks);
@@ -798,12 +805,12 @@ export const useAriaStore = create<AriaState>()(
             name: input.name?.trim() || s.lastUser?.name || s.profile.name,
             email: input.email?.trim() || s.lastUser?.email || s.profile.email,
           },
-          // New account: start fresh — no tasks or contacts, and show the welcome.
+          // New account: start fresh, no tasks or contacts, and show the welcome.
           onboarded: input.isNew ? false : s.onboarded,
           tasks: input.isNew ? [] : s.tasks,
           contacts: input.isNew ? [] : s.contacts,
           demoDate: input.isNew ? DEFAULT_DEMO_DATE : s.demoDate,
-          // A fresh account gets the offer again — the previous person's answer
+          // A fresh account gets the offer again, the previous person's answer
           // to it isn't this person's.
           demoOfferDismissed: input.isNew ? false : s.demoOfferDismissed,
           profile: {
@@ -818,12 +825,12 @@ export const useAriaStore = create<AriaState>()(
       },
       hydrate: async (userId) => {
         // Somebody else signing in on this handset is the real reason to clear
-        // local data — not a session that happened to be missing at launch.
+        // local data, not a session that happened to be missing at launch.
         const previous = get().lastUserId;
 
         if (previous && previous !== userId) {
           /*
-           * A different account. The one moment everything personal has to go —
+           * A different account. The one moment everything personal has to go , 
            * see PERSISTED STATE at the persist config for the full list.
            *
            * `settings` is in here because of `theme`: appearance is a choice a
@@ -848,7 +855,7 @@ export const useAriaStore = create<AriaState>()(
            * True on a fresh install, and on any device that signed out while
            * `clearLocal` still cleared this marker. Either way the local
            * `onboarded` flag can't be attributed to the account now signing in,
-           * so it isn't evidence — the server's row is. Clearing it lets the
+           * so it isn't evidence, the server's row is. Clearing it lets the
            * merge below resolve from the remote: a returning user's row says
            * true and they skip onboarding, a new signup's says false and they
            * see it.
@@ -870,7 +877,7 @@ export const useAriaStore = create<AriaState>()(
           return;
         }
         // Hydrating must never destroy local work. An empty remote set means
-        // "nothing has synced up yet", not "this account has nothing" — keep
+        // "nothing has synced up yet", not "this account has nothing", keep
         // what's on the device and push it up instead.
         const localTasks = get().tasks;
         const localContacts = get().contacts;
@@ -885,7 +892,7 @@ export const useAriaStore = create<AriaState>()(
           signedIn: true,
           profile: { ...s.profile, ...(name ? { name } : {}), ...remote },
           // Merge, don't replace. A remote row only reports the columns it has
-          // set, so anything it is silent about keeps the device's value —
+          // set, so anything it is silent about keeps the device's value , 
           // otherwise a bare profile row resets the theme on every launch.
           settings: { ...s.settings, ...(data.settings ?? {}) },
           onboarded: data.onboarded || s.onboarded,
@@ -899,7 +906,7 @@ export const useAriaStore = create<AriaState>()(
            * copy is the one that knows whether Friday's email went. A device
            * that was asleep at 09:00 still has the row as 'scheduled'; merging
            * by preferring the local value would keep showing it as pending
-           * forever, and — worse — leave it looking due to the run screen.
+           * forever, and, worse, leave it looking due to the run screen.
            */
           automations: data.automations.length ? data.automations : s.automations,
         }));
@@ -915,8 +922,8 @@ export const useAriaStore = create<AriaState>()(
         if (!data.tasks.length && localTasks.length) void upsertTasks(localTasks);
         if (!data.contacts.length && localContacts.length) void upsertContacts(localContacts);
         /*
-         * Automations scheduled before this device ever synced — including
-         * every one made by a build that predates the table — get pushed up so
+         * Automations scheduled before this device ever synced, including
+         * every one made by a build that predates the table, get pushed up so
          * the cron can see them at all. One write each rather than a bulk
          * insert, deliberately: these go through the outbox, so the ones that
          * fail here are retried on the next foreground instead of being lost,
@@ -936,7 +943,7 @@ export const useAriaStore = create<AriaState>()(
        * same thing at all: an expired token, a failed refresh or simply being
        * offline for a moment all look identical from here. Overnight the access
        * token expires, and the next launch destroyed every task, contact and
-       * message on the device — permanently, since none of it had synced.
+       * message on the device, permanently, since none of it had synced.
        */
       clearLocal: () => {
         setSyncUser(null);
@@ -957,7 +964,7 @@ export const useAriaStore = create<AriaState>()(
          * the second should inherit nothing. Clearing it here would collapse
          * both into "unknown", and the per-person reset below could never fire.
          *
-         * It is an opaque id, not data — the account's actual content is wiped
+         * It is an opaque id, not data, the account's actual content is wiped
          * above.
          */
       },
@@ -965,13 +972,13 @@ export const useAriaStore = create<AriaState>()(
        * Send yourself back through onboarding.
        *
        * A development affordance. Onboarding runs once per account, which makes
-       * it the hardest screen in the app to iterate on — every look at it
+       * it the hardest screen in the app to iterate on, every look at it
        * otherwise costs a sign-out, a deleted account and a fresh signup. The
        * auth gate watches `onboarded`, so clearing it is all that's needed;
        * `/welcome` follows on its own.
        *
        * Answers are left alone deliberately. This is for seeing the flow again,
-       * not for wiping a profile — Start fresh already does that.
+       * not for wiping a profile, Start fresh already does that.
        */
       replayOnboarding: () => set({ onboarded: false }),
       completeOnboarding: () => {
@@ -979,7 +986,7 @@ export const useAriaStore = create<AriaState>()(
          * Also re-arms the demo offer.
          *
          * `signIn` resets it for a new account, but that only runs on the
-         * development mock path — a real Supabase signup goes through the auth
+         * development mock path, a real Supabase signup goes through the auth
          * gate instead and never calls it. So the flag kept whatever the device
          * already had, and since resetting the demo, clearing all data and
          * dismissing the card all set it to true, a fresh account on a
@@ -1173,8 +1180,8 @@ export const useAriaStore = create<AriaState>()(
          * This notification predates the scheduler: it existed so the student
          * could be told to open the app at the right moment and press send.
          * With the cron live and autonomous sending on, an email now gets both
-         * — the server sends it, and the phone still asks you to go and do it
-         * — which reads as the automation having failed when it has just
+         *, the server sends it, and the phone still asks you to go and do it
+         *, which reads as the automation having failed when it has just
          * succeeded.
          *
          * Only email can be sent unattended, so only email skips the nudge.
@@ -1192,7 +1199,7 @@ export const useAriaStore = create<AriaState>()(
             a.id === id ? { ...a, status: 'cancelled' as const } : a,
           ),
         }));
-        // Cancelling has to reach the server or it hasn't happened — the cron
+        // Cancelling has to reach the server or it hasn't happened, the cron
         // is holding the only copy that can still send it.
         cancelAutomationRow(id);
         void cancelAutomationNotice(id);
@@ -1208,7 +1215,7 @@ export const useAriaStore = create<AriaState>()(
         }));
         settleAutomationRow(id, outcome.status, outcome.error);
         void cancelAutomationNotice(id);
-        // Sending was the whole task — check it off the same way Aria does
+        // Sending was the whole task, check it off the same way Aria does
         // when it handles something end to end.
         if (outcome.status === 'sent' || outcome.status === 'done') {
           const a = get().automations.find((x) => x.id === id);
@@ -1228,6 +1235,46 @@ export const useAriaStore = create<AriaState>()(
         // exist in the app the student is looking at.
         void replaceAllAutomations([]);
       },
+      setSampleData: (on) => {
+        /*
+         * The switch onboarding offers, and it has to be true both ways.
+         *
+         * It used to move the simulated date and nothing else, while the sample
+         * tasks were seeded regardless, so somebody who never touched it still
+         * arrived to a planner full of Jane's birthday and a chemistry lab
+         * report they had never heard of. A control labelled "show me around
+         * with sample tasks" has to be the thing that decides whether there are
+         * sample tasks.
+         *
+         * Turning it off removes the samples and nothing else. Anything created
+         * since is kept: the seeds are recognisable by their ids, and a switch
+         * on a setup screen must never be able to delete somebody's own work.
+         */
+        if (!on) {
+          const tasks = get().tasks.filter((t) => !t.id.startsWith('seed-'));
+          const contacts = get().contacts.filter((c) => !c.id.startsWith('ct-'));
+          set({ tasks, contacts, demoDate: DEFAULT_DEMO_DATE, demoOfferDismissed: true });
+          // Alarms outlive the tasks that scheduled them, so a removed sample
+          // would otherwise still chime.
+          void reconcileAlarms(tasks);
+          void replaceAllTasks(tasks);
+          void replaceAllContacts(contacts);
+          return;
+        }
+        // Back on: restore only what is missing, so a second toggle doesn't
+        // duplicate the samples or discard real work sitting beside them.
+        const have = new Set(get().tasks.map((t) => t.id));
+        const haveContacts = new Set(get().contacts.map((c) => c.id));
+        const tasks = [...get().tasks, ...buildSeedTasks().filter((t) => !have.has(t.id))];
+        const contacts = [
+          ...get().contacts,
+          ...SEED_CONTACTS.filter((c) => !haveContacts.has(c.id)),
+        ];
+        set({ tasks, contacts, demoOfferDismissed: true });
+        void reconcileAlarms(tasks);
+        void replaceAllTasks(tasks);
+        void upsertContacts(contacts);
+      },
       clearAllData: () => {
         set({
           tasks: [],
@@ -1237,7 +1284,7 @@ export const useAriaStore = create<AriaState>()(
           // and leaving it set would make an empty planner look broken.
           demoDate: DEFAULT_DEMO_DATE,
           // Nothing left to offer a tour of, and they've just declined it by
-          // action — don't ask again on the now-empty home screen.
+          // action, don't ask again on the now-empty home screen.
           demoOfferDismissed: true,
           chat: [],
         });
@@ -1264,7 +1311,7 @@ export const useAriaStore = create<AriaState>()(
        * who it belongs to, because that decides whether it must be cleared when
        * the account changes.
        *
-       * Getting this wrong has produced the same bug three separate times — a
+       * Getting this wrong has produced the same bug three separate times, a
        * value set by one account silently inherited by the next:
        *
        *   · `theme`              a new signup opened the app in the previous
@@ -1277,13 +1324,13 @@ export const useAriaStore = create<AriaState>()(
        *
        * Each looked unrelated. All three were this.
        *
-       * PER-PERSON — must reset on an account change. That happens in exactly
+       * PER-PERSON, must reset on an account change. That happens in exactly
        * one place: the `previous !== userId` branch in `hydrate`. Add new keys
        * there, NOT to `clearLocal`.
        *   tasks, contacts, automations, chat, profile, settings,
        *   onboarded, demoOfferDismissed, lastUser, pro, proWaitlisted
        *
-       * PER-DEVICE / PER-SESSION — must NOT reset, or they defeat the thing
+       * PER-DEVICE / PER-SESSION, must NOT reset, or they defeat the thing
        * they exist for.
        *   lastUserId  the marker that detects the account change at all
        *   signedIn    session state, owned by the auth gate
@@ -1291,7 +1338,7 @@ export const useAriaStore = create<AriaState>()(
        *
        * Signing out is NOT an account change. The same person signs back in
        * constantly, and resetting there would drop their theme and re-run
-       * onboarding every time — which is exactly the bug one version of this
+       * onboarding every time, which is exactly the bug one version of this
        * fix shipped with. `clearLocal` wipes content; only a genuinely
        * different user id wipes preferences.
        */
@@ -1334,7 +1381,7 @@ export const useAriaStore = create<AriaState>()(
         });
         if (repaired) console.warn('[aria] repaired duplicate chat message ids');
 
-        // Theme names have changed more than once — the setting was
+        // Theme names have changed more than once, the setting was
         // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',
         // which have since gone. Anything not currently offered is rewritten
         // rather than left to fall back on every read: a stale value would keep
@@ -1347,7 +1394,7 @@ export const useAriaStore = create<AriaState>()(
         }
 
         // A previously persisted "today" that now sits in the past is a stale
-        // default (simulated dates are always in the future) — snap it to today
+        // default (simulated dates are always in the future), snap it to today
         // so the calendar and everything keyed off "today" stay correct.
         const today = toISODate(new Date());
         if (state.demoDate < today) state.setDemoDate(today);
@@ -1364,7 +1411,7 @@ export const useAriaStore = create<AriaState>()(
         // Backfill for installs that signed in before `lastUser` existed, so a
         // returning user is greeted by name on their next visit rather than
         // having to sign in once more first. Gated on `signedIn` because the
-        // default profile carries a real-looking name — without that check a
+        // default profile carries a real-looking name, without that check a
         // brand-new install would be welcomed back as someone it's never met.
         if (!state.lastUser && state.signedIn && state.profile.name) {
           state.rememberUser({ name: state.profile.name, email: state.profile.email });
@@ -1404,7 +1451,7 @@ export function selectDueAutomations(automations: Automation[], now: Date = new 
     .sort((a, b) => a.runAt.localeCompare(b.runAt));
 }
 
-/** Still waiting — what the "Aria will handle" list shows. */
+/** Still waiting, what the "Aria will handle" list shows. */
 export function selectUpcomingAutomations(automations: Automation[], now: Date = new Date()) {
   return automations
     .filter((a) => isPending(a) && parseISO(a.runAt).getTime() > now.getTime())
@@ -1461,7 +1508,7 @@ export function selectWeekLoad(tasks: Task[], demoDate: string): WeekLoad {
 }
 
 /**
- * Overdue — an earlier day, or today with its time already gone.
+ * Overdue, an earlier day, or today with its time already gone.
  *
  * This used to compare dates alone, so something due at 3pm stayed "upcoming"
  * until midnight. A time on a task is a deadline, not decoration: once it's
@@ -1487,7 +1534,7 @@ export function isLate(task: Task, demoDate: string) {
  * Due today, and still in time.
  *
  * The complement of `isLate` within today: same day, but either no time set or
- * a time that hasn't come round yet. Deliberately exclusive of late — a task
+ * a time that hasn't come round yet. Deliberately exclusive of late, a task
  * can't be both "get to this today" and "you've missed this", and showing both
  * labels would say nothing.
  */
@@ -1507,7 +1554,7 @@ export function isDueToday(task: Task, demoDate: string) {
   /*
    * A reminder is never "due".
    *
-   * Due means something has to be attended to or sent — a task, an assignment,
+   * Due means something has to be attended to or sent, a task, an assignment,
    * a project. A reminder does the opposite: it comes and finds you at its
    * moment, and nothing is owed until then. Marking one due asks for action
    * that has not been asked for.
@@ -1536,7 +1583,7 @@ export function isDueToday(task: Task, demoDate: string) {
  * happened is meaningless, so those only appear once this is true.
  *
  * A reminder with no time is treated as due for the whole of its day rather
- * than only at 23:59 — otherwise an all-day reminder would sit unanswerable
+ * than only at 23:59, otherwise an all-day reminder would sit unanswerable
  * until the day was practically over.
  */
 export function hasReminderFired(task: Task, demoDate: string): boolean {

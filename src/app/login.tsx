@@ -88,7 +88,7 @@ export default function LoginScreen() {
     hapticSelect();
     setError(null);
     // Unticking "remember me" is the only thing that clears the saved name and
-    // email — signing out deliberately keeps them so the greeting survives.
+    // email, signing out deliberately keeps them so the greeting survives.
     if (!remember) forgetUser();
 
     setBusy(true);
@@ -114,7 +114,7 @@ export default function LoginScreen() {
       if (isNew) {
         // Hold the name locally first. The profiles row is created by a database
         // trigger that only records id and email, and writing the name needs a
-        // session that doesn't exist yet when email confirmation is on — so
+        // session that doesn't exist yet when email confirmation is on, so
         // without this the name is simply lost between signing up and signing in.
         rememberUser({ name: name.trim(), email: email.trim() });
         const { data, error: err } = await supabase.auth.signUp({ email: email.trim(), password });
@@ -141,7 +141,7 @@ export default function LoginScreen() {
           setBusy(false);
           return;
         }
-        // The auth gate hydrates and routes into the app — busy stays true so
+        // The auth gate hydrates and routes into the app, busy stays true so
         // the loading screen covers that hand-off.
       }
     } catch {
@@ -287,7 +287,7 @@ export default function LoginScreen() {
           />
         </View>
 
-        {/* Switch modes — replaces the segmented control */}
+        {/* Switch modes, replaces the segmented control */}
         <View className="flex-row items-center justify-center gap-1.5">
           <Text variant="small" tone="muted">
             {isNew ? 'Already have an account?' : 'Don’t have an account?'}

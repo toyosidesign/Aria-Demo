@@ -6,7 +6,7 @@
  * and Aria had the birthday, the reminder before it, and the dividers between
  * them in context as though they were the same subject. It answered about the
  * wrong one, mixed details across them, and there was nothing on screen to
- * explain why — the transcript looked correctly separated, because the
+ * explain why, the transcript looked correctly separated, because the
  * dividers are drawn.
  *
  * So the split that exists visually is made real: the model gets the current

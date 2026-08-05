@@ -2,7 +2,7 @@
  * End-to-end checks against a running dev server.
  *
  * The offline suite proves the guards work in isolation. This proves they are
- * actually wired into the shipped routes — specifically that Expo Router
+ * actually wired into the shipped routes, specifically that Expo Router
  * recognises `export const POST = protectedRoute(...)`. If it only honoured
  * `export async function POST`, all four routes would answer 404 and the app
  * would be broken rather than protected, so this is the check that matters most.
@@ -41,12 +41,12 @@ const assert = (cond, msg) => {
 console.log(`\n\x1b[1mLive route checks against ${BASE}\x1b[0m`);
 
 // The wiring check. A 404 here means protectedRoute is not being registered as
-// a handler at all — the routes would be unreachable, not merely unprotected.
+// a handler at all, the routes would be unreachable, not merely unprotected.
 for (const route of ROUTES) {
   await test(`${route} is registered and rejects an anonymous caller with 401`, async () => {
     const res = await post(route, { title: 'probe', message: 'probe', today: '2026-07-30', to: 'a@b.co', body: 'x', kind: 'general' });
-    assert(res.status !== 404, 'route not registered — Expo Router did not pick up the handler');
-    assert(res.status !== 405, 'POST not accepted — handler export shape is wrong');
+    assert(res.status !== 404, 'route not registered, Expo Router did not pick up the handler');
+    assert(res.status !== 405, 'POST not accepted, handler export shape is wrong');
     assert(res.status === 401, `expected 401, got ${res.status}`);
     const payload = await res.json();
     assert(payload.error === 'Unauthorized', `expected an opaque 401 body, got ${JSON.stringify(payload)}`);
@@ -73,7 +73,7 @@ await test('GET is rejected on every route (no browser-triggerable spend)', asyn
     const res = await fetch(BASE + route);
     assert(
       res.status === 405 || res.status === 404,
-      `${route} answered a GET with ${res.status} — expected the method to be refused`,
+      `${route} answered a GET with ${res.status}, expected the method to be refused`,
     );
   }
 });
@@ -87,7 +87,7 @@ await test('other state-changing methods are rejected too', async () => {
     });
     assert(
       res.status === 405 || res.status === 404,
-      `${method} /api/send-email returned ${res.status} — expected the method to be refused`,
+      `${method} /api/send-email returned ${res.status}, expected the method to be refused`,
     );
   }
 });
@@ -98,7 +98,7 @@ await test('an oversized anonymous body is refused without being parsed', async 
   const started = Date.now();
   const res = await post('/api/subtasks', huge);
   assert(res.status === 401, `expected 401, got ${res.status}`);
-  assert(Date.now() - started < 15000, 'took too long — body may be fully parsed before rejection');
+  assert(Date.now() - started < 15000, 'took too long, body may be fully parsed before rejection');
 });
 
 await test('no response leaks a stack trace or internal path', async () => {

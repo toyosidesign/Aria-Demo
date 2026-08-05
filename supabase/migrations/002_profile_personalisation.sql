@@ -2,7 +2,7 @@
 --
 -- Onboarding asks four questions; these are where the answers live. Without
 -- them the answers exist only on the device, which means they're lost on
--- reinstall and — more importantly — invisible to anything running server-side.
+-- reinstall and, more importantly, invisible to anything running server-side.
 --
 -- Safe to run more than once, and safe to run before or after 001.
 

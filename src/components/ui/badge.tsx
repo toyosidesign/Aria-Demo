@@ -3,9 +3,9 @@
  *
  * In this app, roundness says whether a thing can be tapped:
  *
- *   rounded-full (pill)   interactive — Chip, ChoiceChip, and buttons at small
+ *   rounded-full (pill)   interactive, Chip, ChoiceChip, and buttons at small
  *                         sizes all read as pills
- *   rounded-md            informational — a badge states a fact and does not
+ *   rounded-md            informational, a badge states a fact and does not
  *                         respond to a tap
  *
  * Badges were pills, which put them in the interactive family and invited taps
@@ -45,8 +45,8 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
  * Where a task stands, in one word.
  *
  * Three states, escalating: `due` is today and still in time, `late` has been
- * missed, `done` is finished. They are mutually exclusive by construction — see
- * `isDueToday`, which excludes late — so a card only ever shows one.
+ * missed, `done` is finished. They are mutually exclusive by construction, see
+ * `isDueToday`, which excludes late, so a card only ever shows one.
  *
  * ── Why these take their colours from the ramps rather than the palette ──────
  * The fill used to be the palette token at 12% over the card. Tinting a
@@ -55,8 +55,8 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
  * and ruined the hue: warning-800 is a brown-red, so "Due" stopped looking
  * orange at all.
  *
- * Splitting the two jobs solves both. The **fill** carries the hue — a real
- * amber, red or green that is unmistakable at a glance — and the **text**
+ * Splitting the two jobs solves both. The **fill** carries the hue, a real
+ * amber, red or green that is unmistakable at a glance, and the **text**
  * carries the contrast at the 700 step. Every pair clears 4.5:1.
  */
 const TONE = {

@@ -9,7 +9,7 @@ import { hapticSelect } from '@/lib/haptics';
  * Picking the paper the app is printed on.
  *
  * Each swatch is a miniature of what a card will actually look like in that
- * theme — its own surface, its own text tones, its own border — because a flat
+ * theme, its own surface, its own text tones, its own border, because a flat
  * colour chip tells you the background and nothing about whether text on it
  * will be comfortable. The lines are drawn at the theme's `ink`, `muted` and
  * `faint`, so a theme whose text is weak looks weak here too.
@@ -19,7 +19,7 @@ import { hapticSelect } from '@/lib/haptics';
  * Card proportion, width ÷ height.
  *
  * The swatches size themselves off the row rather than off a fixed width, so
- * this is what keeps them card-shaped as they stretch. Roughly 3:4 — tall
+ * this is what keeps them card-shaped as they stretch. Roughly 3:4, tall
  * enough to read as a page, short enough that four of them don't take over the
  * Appearance section.
  */

@@ -14,7 +14,7 @@ import { useAriaStore } from '@/store/aria-store';
  * An empty planner is a bad first impression: nothing to complete, nothing to
  * swipe, no sense of what Aria does with a task once it exists. Loading a few
  * example tasks answers that in one tap, and "Reset demo data" in Settings is
- * the way back out — so the invitation says that up front rather than leaving
+ * the way back out, so the invitation says that up front rather than leaving
  * someone wondering whether they've just polluted their account.
  *
  * Shown only on an empty planner (see the caller), so it can never overwrite

@@ -2,7 +2,7 @@
  * The colour system: ramps, themes, and how a theme becomes CSS variables.
  *
  * Deliberately free of any app import. The store needs `ThemePref` to type the
- * setting, and lib/colors.ts needs the store to know which theme is active —
+ * setting, and lib/colors.ts needs the store to know which theme is active , 
  * putting the registry here is what stops those two forming a cycle.
  */
 
@@ -36,7 +36,7 @@ export interface Palette {
  *
  * 300 and 400 are interpolated. The supplied set jumps from L .543 straight to
  * L .047 with nothing between, and a dark theme needs an accent light enough to
- * read on it — so those two fill the gap on the same hue and chroma.
+ * read on it, so those two fill the gap on the same hue and chroma.
  */
 export const primary = {
   50: '#EAEDF3',
@@ -114,12 +114,12 @@ export const success = {
  *
  * Only these change between themes. Accent and the three semantic colours come
  * from the ramps above and stay put, so "Cream" is still recognisably the same
- * app — a different paper stock, not a different brand.
+ * app, a different paper stock, not a different brand.
  *
  * Every value here was picked against a contrast target rather than by eye:
  * `ink` and `muted` clear 4.5:1 on that theme's own surface in all six. `faint`
- * sits lower by design — it is the placeholder/"nothing here" tone, matching
- * gray-400's role in the source system — so it should never carry meaning.
+ * sits lower by design, it is the placeholder/"nothing here" tone, matching
+ * gray-400's role in the source system, so it should never carry meaning.
  */
 interface Neutrals extends Partial<Palette> {
   dark: boolean;
@@ -132,14 +132,14 @@ interface Neutrals extends Partial<Palette> {
   muted: string;
   faint: string;
   /**
-   * The tint behind accent-coloured content — chips, banners, the demo invite.
+   * The tint behind accent-coloured content, chips, banners, the demo invite.
    *
    * Per theme rather than one shared blue, because a fixed tint is a different
    * colour dropped onto someone else's paper: on Linen it read as a powder-blue
    * card sitting on warm cream. Each theme names a step of *itself*.
    *
    * A theme may override *any* palette field when the shared value is wrong for
-   * it — see Charcoal, which opts out of the accent and the priority dot.
+   * it, see Charcoal, which opts out of the accent and the priority dot.
    *
    * `accentSoft` has to separate from `bg` as well as from `surface`. These land on both:
    * the profile avatar is an accent-soft disc directly on the page, and chips
@@ -157,7 +157,7 @@ const NEUTRALS = {
     ink: primary[950], muted: '#5A6478', faint: '#8A94A8',
     // Darker than the *page*, not just than the card. Tuned against `surface`
     // it vanished on the profile screen, where an accent-soft disc sits on
-    // `bg` — see the note on Neutrals.accentSoft.
+    // `bg`, see the note on Neutrals.accentSoft.
     accentSoft: '#DEE4ED',
   },
   linen: {
@@ -175,7 +175,7 @@ const NEUTRALS = {
      * True neutrals: R, G and B equal at every step.
      *
      * These started as the iOS system greys, which carry a deliberate cool
-     * cast — #1C1C1E, #A1A1A6, #D1D1D6 all sit five points bluer than they are
+     * cast, #1C1C1E, #A1A1A6, #D1D1D6 all sit five points bluer than they are
      * red. Individually invisible; across a whole screen of text, buttons and
      * links it reads as "slightly blue", which is Midnight's job. Charcoal is
      * the neutral one, so it is neutral all the way down.
@@ -188,8 +188,8 @@ const NEUTRALS = {
      *
      * A light grey keeps the theme monochrome and still carries: it sits 11.2:1
      * on the card, and far enough from both white ink and muted to read as an
-     * accent rather than as another text tone. Filled controls invert here —
-     * dark label on a light fill — which is why `accentInk` comes with it.
+     * accent rather than as another text tone. Filled controls invert here , 
+     * dark label on a light fill, which is why `accentInk` comes with it.
      */
     accent: '#D1D1D1',
     accentInk: '#1C1C1C',
@@ -207,7 +207,7 @@ const NEUTRALS = {
 
 export type ThemeName = keyof typeof NEUTRALS;
 
-/** Presentation order for the picker — light stocks first, then dark. */
+/** Presentation order for the picker, light stocks first, then dark. */
 export const THEME_NAMES = Object.keys(NEUTRALS) as ThemeName[];
 
 /**
@@ -217,13 +217,13 @@ export const THEME_NAMES = Object.keys(NEUTRALS) as ThemeName[];
  *
  *  · `accent` is blue **700** on light and **300** on dark, not the usual
  *    600/400. The deciding case is accent-coloured text on an `accentSoft`
- *    panel — chips, banners, the demo invite. blue-600 on blue-50 is 4.25:1
+ *    panel, chips, banners, the demo invite. blue-600 on blue-50 is 4.25:1
  *    and blue-400 on blue-900 is 4.25:1; both miss AA. 700/300 clear every
  *    pairing at ~5.6 while still reading as the brand blue.
  *
  *  · `success`, `warning` and `danger` use the **700** step on light, not 600.
  *    On white, error-600 is a comfortable 4.83:1, but on Linen's warmer paper
- *    it drops to 4.39 — under AA. 700 holds across every light theme.
+ *    it drops to 4.39, under AA. 700 holds across every light theme.
  *
  *    They were briefly pushed to 800 to survive StatusBadge tinting its own
  *    background with them, which cost the orange its orange: warning-800 is a
@@ -309,7 +309,7 @@ export function themeVars(theme: Theme): Record<string, string> {
 }
 
 /**
- * Kept so the plain light/dark pair is still reachable — the navigation theme
+ * Kept so the plain light/dark pair is still reachable, the navigation theme
  * and the pre-hydration background need a value before a preference is known.
  */
 export const palette: { light: Palette; dark: Palette } = {

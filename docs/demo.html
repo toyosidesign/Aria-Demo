@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Aria: a three-minute interactive walkthrough of the assistant — an occasion, an assignment read from its brief, the Guide, and a project.">
+<meta name="description" content="Aria: a three-minute interactive walkthrough of the assistant, an occasion, an assignment read from its brief, the Guide, and a project.">
 <!--
   Self-contained on purpose.
 
   No stylesheet, no script, no font and no image is fetched from anywhere: this
   file opens by double-clicking it, works with the network off, and can be
   emailed, zipped or dropped on any static host without a build step. Anyone
-  changing it should keep it that way — the moment it needs a CDN it stops
+  changing it should keep it that way: the moment it needs a CDN it stops
   being something you can just send to someone.
 -->
 <style>
@@ -86,7 +86,7 @@
   .card.offer{background:var(--accentSoft);border-color:var(--accent);border-radius:22px}
   .card.done b{text-decoration:line-through;color:var(--muted)}
 
-  /* progress on a piece of work — a title and a date look identical whether
+  /* progress on a piece of work, a title and a date look identical whether
      it has just been created or just been finished */
   .bar-track{height:6px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:4px}
   .bar-fill{height:100%;border-radius:999px;background:var(--accent);transition:width .6s ease}
@@ -186,7 +186,7 @@
 </style>
 
 <h1>Aria: interactive demo</h1>
-<p class="sub">Three minutes through the assistant: an occasion, an assignment read from its brief, the Guide, and a project through its gate. It plays on its own — jump between scenes at any point.</p>
+<p class="sub">Three minutes through the assistant: an occasion, an assignment read from its brief, the Guide, and a project through its gate. It plays on its own, jump between scenes at any point.</p>
 
 <div class="phone" id="phone">
   <div class="notch"><span>9:41</span><span>▮▮▮</span></div>
@@ -323,7 +323,7 @@
     <div class="prow${lit==='weight'?' lit':''}"><span class="d">Thu 16 Sep</span><span class="t">Build the argument</span></div>
     <div class="prow"><span class="d">Sun 20 Sep</span><span class="t">Write it up</span></div>
     <div class="prow"><span class="d">Tue 23 Sep</span><span class="t">Referencing and proofread</span></div>
-    <div class="prow buffer${lit==='buffer'?' lit':''}"><span class="d">Fri 25 Sep</span><span class="t">Submission buffer — 2 days</span></div>
+    <div class="prow buffer${lit==='buffer'?' lit':''}"><span class="d">Fri 25 Sep</span><span class="t">Submission buffer: 2 days</span></div>
     <div class="btn guide">Not sure where to start?</div>
     <div class="btn">Accept</div>`;
 
@@ -390,11 +390,11 @@
     [74500, () => { bubble('aria',"Send me the brief and I'll read it. Or fill it in yourself if you'd rather.");
                     panel(`<div class="btn">Upload the brief</div>
                            <div class="pills"><span class="pill">Photo of it</span><span class="pill">I'll fill it in</span></div>`); }],
-    [79000, () => { bubble('me','📄 Cold War essay — brief.pdf','file'); panel(''); quiet(); }],
+    [79000, () => { bubble('me','📄 Cold War essay, brief.pdf','file'); panel(''); quiet(); }],
     [80500, () => { bubble('aria','Let me read it.'); }],
     [83000, () => { bubble('aria',"Here's what the brief says. Check anything I've marked as unsure.");
                     panel(EXTRACTION(false));
-                    say('Read out of the PDF — deliverable, deadline, weighting, criteria'); }],
+                    say('Read out of the PDF, deliverable, deadline, weighting, criteria'); }],
     [89000, () => { say('Every fact carries how sure Aria is of it'); }],
     [94000, () => { panel(EXTRACTION(true));
                     say('A missing one is not a blank. It is three ways to fix it'); }],
@@ -406,7 +406,7 @@
     [106500,() => { panel(''); bubble('aria',"I'll plan around the 6 days you've already got something on."); quiet(); }],
     [108500,() => { bubble('aria','Here it is, working back from the deadline. Change anything, then accept.');
                     panel(PLAN('first')); say('Backwards from the deadline, so the answer is when to start'); }],
-    [114500,() => { panel(PLAN('weight')); say('Days shared out by what it is marked on — argument is 40%'); }],
+    [114500,() => { panel(PLAN('weight')); say('Days shared out by what it is marked on, argument is 40%'); }],
     [120000,() => { panel(PLAN('buffer')); say('The run-up is a row, so nothing gets booked over it'); }],
     [125500,() => { panel(''); bubble('aria','Done. "Cold War essay" is saved, and step one is pinned.'); quiet(); }],
     [128000,() => { show('p-tasks'); $('t-essay').style.display='';
@@ -429,7 +429,7 @@
                              <span>Needs: two examples close enough to be comparable</span>
                              <span>Costs: half the words go on setting the comparison up</span>
                              <span class="chip sure" style="align-self:flex-start;margin-top:2px">Marks under Analysis</span></div>`);
-                    say('Angles and what each would cost — never the essay itself'); }],
+                    say('Angles and what each would cost, never the essay itself'); }],
     [149000,() => { say('Where the rubric rewards it, in the rubric’s own words'); }],
     [153000,() => { panel(''); bubble('me','Take the first one');
                     bubble('aria','"Take a position on the 1968 crisis and defend it" it is. I’ll build the plan around that.');
@@ -443,7 +443,7 @@
     [163000,() => { bubble('me','Done when the three pages are live and someone outside the team can use them.');
                     panel(''); }],
     [165000,() => { bubble('aria','Here’s what I think you’re doing. Tell me where I’ve got it wrong.');
-                    panel(`<div class="draftbox">You’re building a small marketing site — three pages, live, and usable by someone outside the team without you explaining it.</div>
+                    panel(`<div class="draftbox">You’re building a small marketing site, three pages, live, and usable by someone outside the team without you explaining it.</div>
                            <div class="head"><span class="chip">Probably</span><span class="label" style="letter-spacing:.06em">from what you’ve told me</span></div>
                            <div class="pills"><span class="pill on">That’s it</span><span class="pill">Not quite</span></div>`);
                     say('Said back, with how sure Aria is that it understood'); }],
@@ -478,7 +478,7 @@
   }
 
   /* Jumping runs every earlier beat instantly, so a scene is never entered
-     half-dressed — the same reason the app rebuilds state from the draft
+     half-dressed, the same reason the app rebuilds state from the draft
      rather than from whatever the screen happened to be showing. */
   function seek(ms){
     cancelAnimationFrame(raf);

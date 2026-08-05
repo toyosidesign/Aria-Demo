@@ -41,7 +41,7 @@ export default function EditProfileScreen() {
   }
 
   function chooseAvatar() {
-    // Web has no camera roll to choose between — go straight to the file picker.
+    // Web has no camera roll to choose between, go straight to the file picker.
     if (Platform.OS === 'web') {
       void choose('library');
       return;
@@ -136,7 +136,7 @@ export default function EditProfileScreen() {
           </View>
 
           {/* The onboarding answers, editable. Someone's course changes, they
-              pick up a new sport, or they skipped the questions entirely — none
+              pick up a new sport, or they skipped the questions entirely, none
               of which should mean living with a profile that's wrong. */}
           <Input
             label="Studying (optional)"

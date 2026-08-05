@@ -67,7 +67,7 @@ export const MAX_BRIEF_BYTES = 6 * 1024 * 1024;
  * What the model can actually read.
  *
  * PDFs and images go straight through as document and image blocks. A .docx is
- * a zip of XML and arrives as bytes nothing here can open — so it is refused by
+ * a zip of XML and arrives as bytes nothing here can open, so it is refused by
  * name, with the two things that do work, rather than uploaded and silently
  * extracted as gibberish.
  */
@@ -117,7 +117,7 @@ export async function pickBriefDocument(): Promise<DocumentPick> {
       return { status: 'error', message: 'I can read a PDF, an image or plain text' };
     }
     if (typeof asset.size === 'number' && asset.size > MAX_BRIEF_BYTES) {
-      return { status: 'error', message: 'That file is too big — 6MB is the limit' };
+      return { status: 'error', message: 'That file is too big, 6MB is the limit' };
     }
 
     const file = new FS.File(asset.uri);

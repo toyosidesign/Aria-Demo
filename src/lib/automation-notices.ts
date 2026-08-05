@@ -140,6 +140,6 @@ export async function scheduleAutomationNotice(automation: Automation) {
     map[automation.id] = id;
     await save();
   } catch {
-    /* scheduling unsupported here — the run screen still catches it on open */
+    /* scheduling unsupported here, the run screen still catches it on open */
   }
 }

@@ -26,7 +26,7 @@ function getNotifs(): NotificationsModule | null {
 
 /**
  * Expo Go loads expo-notifications but doesn't reliably deliver scheduled
- * alarms, so the module being importable is not proof a chime can ring — the
+ * alarms, so the module being importable is not proof a chime can ring, the
  * `!N` guard below never catches this case. Without the check, syncTaskAlarm
  * reports 'scheduled' and Aria promises a nudge that never arrives, which is
  * worse than saying up front that it can't.
@@ -46,7 +46,7 @@ export function inExpoGo(): boolean {
   return expoGo;
 }
 
-// Said once per session, not once per alarm — the limitation is about the
+// Said once per session, not once per alarm, the limitation is about the
 // build, so repeating it on every task would just be noise.
 let warnedExpoGo = false;
 function warnExpoGoOnce(silent?: boolean) {
@@ -59,7 +59,7 @@ function warnExpoGoOnce(silent?: boolean) {
  * The user's notifications preference, pushed in by the store.
  *
  * Held here rather than read from the store because the store imports this
- * module — reaching back the other way would make the two circular. Nothing
+ * module, reaching back the other way would make the two circular. Nothing
  * consulted this setting before, so turning notifications off in Settings
  * changed nothing and alarms kept firing.
  */
@@ -128,7 +128,7 @@ async function ensurePermission(): Promise<boolean> {
 }
 
 /**
- * Ask for notification permission up front — call this when the user first turns
+ * Ask for notification permission up front, call this when the user first turns
  * an alarm on, so that previewing (and the real chime) works instantly afterward
  * instead of triggering the OS prompt later, mid-flow. Resolves false when the
  * alarm can't ring, so the caller can say so rather than leave a dead switch on.
@@ -202,7 +202,7 @@ export type AlarmResult =
 /**
  * Reconcile a task's alarm: cancel any existing one, then (re)schedule a chime
  * if the task is still to-do, has an alarm + a time, and that time is future.
- * Returns why nothing was scheduled so callers can tell the user — a silently
+ * Returns why nothing was scheduled so callers can tell the user, a silently
  * dropped alarm is indistinguishable from one that works until it doesn't ring.
  */
 export async function syncTaskAlarm(

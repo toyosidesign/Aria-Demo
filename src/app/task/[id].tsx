@@ -96,7 +96,7 @@ export default function TaskDetailScreen() {
    * Selected one field at a time, not as an object.
    *
    * A selector returning `{...}` builds a new object on every call, and zustand
-   * compares snapshots with Object.is — so it would never match, and this
+   * compares snapshots with Object.is, so it would never match, and this
    * screen would re-render on every store change. Primitives (and the interests
    * array, whose reference is stable until it's actually replaced) compare
    * correctly. They're assembled into a Learner at the call site instead.
@@ -177,7 +177,7 @@ export default function TaskDetailScreen() {
   /*
    * The step the plan says is next, and how much it has been avoided.
    *
-   * `pinned` is simply the first one not done — the plan is already in order,
+   * `pinned` is simply the first one not done, the plan is already in order,
    * so the next live row is the next thing. `rolloverVerdict` turns the count
    * of times it has been pushed into the two decisions that follow from it.
    */
@@ -264,7 +264,7 @@ export default function TaskDetailScreen() {
           ) : null}
         </View>
 
-        {/* Says the task will come back, and when — otherwise the only clue is
+        {/* Says the task will come back, and when, otherwise the only clue is
             a new copy appearing after it's ticked off. */}
         {task.repeat ? (
           <View className="flex-row items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3">
@@ -343,7 +343,7 @@ export default function TaskDetailScreen() {
           </View>
         ) : null}
 
-        {/* Aria's drafted content — kept separate from Notes, copyable */}
+        {/* Aria's drafted content, kept separate from Notes, copyable */}
         {task.draftSections && task.draftSections.length > 0 ? (
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
@@ -475,7 +475,7 @@ export default function TaskDetailScreen() {
           A plan of eight steps with nothing pinned makes every one of them look
           equally due, which is how a student ends up doing the easy one. This
           is the step the plan says comes next, on its own, with the date it was
-          aimed at and the Guide beside it — the third of the four places the
+          aimed at and the Guide beside it, the third of the four places the
           Guide appears, because being stuck happens on a step rather than on a
           setup screen.
         */}
@@ -497,7 +497,7 @@ export default function TaskDetailScreen() {
                 Two rollovers is where the Guide stops waiting to be asked.
 
                 A step that has moved twice is not a scheduling problem, it is
-                somebody stuck — so the offer is made here rather than left to
+                somebody stuck, so the offer is made here rather than left to
                 be found. The third one is where Aria asks whether it should go
                 at all; that lives in `rolloverVerdict`, with the follow-up loop
                 that will call it.
@@ -516,7 +516,7 @@ export default function TaskDetailScreen() {
           </View>
         ) : null}
 
-        {/* Checklist — tap an item for research help */}
+        {/* Checklist, tap an item for research help */}
         {task.subtasks.length > 0 ? (
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
@@ -562,7 +562,7 @@ export default function TaskDetailScreen() {
         ) : null}
 
         {/* Complete (todo only). Reopen lives as a subtle header icon for done tasks. */}
-        {/* A reminder has nothing to complete — you've either taken it in or
+        {/* A reminder has nothing to complete, you've either taken it in or
             you want it again shortly. Those two answers only make sense once
             it has actually gone off, so until then Aria just says when. */}
         {task.status === 'todo' && isReminderOnly(task) ? (
@@ -588,7 +588,7 @@ export default function TaskDetailScreen() {
                   {task.alarm && task.time ? 'Aria will remind you' : 'Saved for later'}
                 </Text>
               </View>
-              {/* Only promise a chime when an alarm is actually set — claiming
+              {/* Only promise a chime when an alarm is actually set, claiming
                   a nudge that never comes is how a reminder gets missed. */}
               <Text className="text-[14px] leading-[20px]">
                 {task.alarm && task.time

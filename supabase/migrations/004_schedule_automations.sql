@@ -14,7 +14,7 @@
 --        supabase functions deploy run-automations --no-verify-jwt
 --
 --   2. Set its secrets (see supabase/functions/README.md), keeping the value
---      of ARIA_CRON_SECRET — you cannot read it back out afterwards.
+--      of ARIA_CRON_SECRET, you cannot read it back out afterwards.
 --
 --   3. Store the same two values in Vault, from the SQL editor:
 --        select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
@@ -26,8 +26,8 @@ create extension if not exists pg_cron  with schema extensions;
 create extension if not exists pg_net   with schema extensions;
 
 -- Unschedule first so re-running this replaces the job rather than stacking a
--- second copy of it. Two jobs would not double-send — the claim in 003 prevents
--- that — but they would double the request volume for nothing.
+-- second copy of it. Two jobs would not double-send, the claim in 003 prevents
+-- that, but they would double the request volume for nothing.
 select cron.unschedule('aria-run-automations')
  where exists (select 1 from cron.job where jobname = 'aria-run-automations');
 
@@ -38,7 +38,7 @@ select cron.unschedule('aria-run-automations')
  * between "9:00, send the email" and the email being sent, and a student who
  * scheduled something for 9:00 sharp should not watch it leave at 9:05. A tick
  * with nothing due costs one indexed lookup against a partial index that covers
- * only pending email automations — see automations_due_idx in 003.
+ * only pending email automations, see automations_due_idx in 003.
  *
  * The request is fire-and-forget. pg_net queues it and returns immediately, so
  * a slow provider cannot hold a database worker open, and the next tick starts

@@ -22,7 +22,7 @@ type Stage = 'choose' | 'sending' | 'confirm';
  *
  * Deliberately not the chat flow: there's nothing left to draft or discuss, so
  * routing through Aria's conversation just puts two screens between the user
- * and the one decision they still have — which app it goes out in.
+ * and the one decision they still have, which app it goes out in.
  */
 export function SendCardSheet({
   task,
@@ -97,7 +97,7 @@ export function SendCardSheet({
    */
   function confirmSent() {
     hapticSuccess();
-    // Read the queue before completing — this task is excluded either way.
+    // Read the queue before completing, this task is excluded either way.
     const next = selectNextDue(tasks, demoDate, task.id);
     completeTask(task.id, { byAria: true });
     reset();

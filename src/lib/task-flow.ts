@@ -2,7 +2,7 @@
  * Setting a task up *in the conversation*, one question at a time.
  *
  * Chat used to parse a sentence, propose a card, and then hand the student to
- * `/task/new` to finish it — which is a form, reached by leaving the assistant
+ * `/task/new` to finish it, which is a form, reached by leaving the assistant
  * you were talking to. Everything the form asks, Aria can ask.
  *
  * ── Why a state machine, and why it lives here ──────────────────────────────
@@ -10,8 +10,8 @@
  * The flow is deliberately pure: a draft, a step, and a function from one to
  * the next. No React, no store, no navigation. Two reasons.
  *
- * The order of questions is the product — "who, then do I have their number,
- * then when" is the difference between an assistant and an interrogation — and
+ * The order of questions is the product, "who, then do I have their number,
+ * then when" is the difference between an assistant and an interrogation, and
  * that ordering is worth asserting in a test rather than discovering on a
  * phone. `scripts/checks/task-flow.ts` walks every kind end to end.
  *
@@ -41,7 +41,7 @@ import type { Priority, TaskKind, TaskMethod } from '@/store/aria-store';
  * It is reachable from the plan preview, the definition-of-done gate, a pinned
  * step and an offer after two rollovers, and it has to come back to whichever
  * of those opened it. Keeping `from` here is what makes that a property of the
- * flow — testable in `check:flow` — rather than four screens each remembering
+ * flow, testable in `check:flow`, rather than four screens each remembering
  * where the user was.
  */
 export interface GuideState {
@@ -90,7 +90,7 @@ export type FlowStep =
   | 'preview' // read it back before anything is saved
   | 'done';
 
-/** Everything collected so far. Every field optional — that is the point. */
+/** Everything collected so far. Every field optional, that is the point. */
 export interface FlowDraft {
   kind: TaskKind;
   title?: string;
@@ -137,7 +137,7 @@ export interface FlowDraft {
    * They could not say what done looks like.
    *
    * Not a skip. Working it out becomes the first thing on the list, because a
-   * project nobody can describe the end of is one that runs forever — and that
+   * project nobody can describe the end of is one that runs forever, and that
    * is the actual work, not a prerequisite to be waved past.
    */
   definitionDeferred?: boolean;
@@ -147,7 +147,7 @@ export interface FlowDraft {
   /** The list they will come back to. Kept, and kept visible. */
   scopeOut?: string[];
   milestones?: { title: string; due?: string; forcing?: string }[];
-  /** The Guide, when it is open. See `nextStep` — it is a detour, not a step. */
+  /** The Guide, when it is open. See `nextStep`, it is a detour, not a step. */
   guide?: GuideState;
   /** Answers to anything drilled into, kept so they reach the saved task. */
   notes?: { title: string; content: string }[];
@@ -155,7 +155,7 @@ export interface FlowDraft {
   /**
    * How Aria handles it, in the words the question uses.
    *
-   * This was a three-way `delivery` — card, message, or neither — which asked
+   * This was a three-way `delivery`, card, message, or neither, which asked
    * the student to say "a message" and then guessed the channel from whichever
    * detail their contact happened to carry. An event that was always going to
    * be a phone call had no way to say so, and a text to someone whose card only
@@ -177,7 +177,7 @@ export interface FlowDraft {
 /**
  * Kinds that are about a person.
  *
- * A birthday with no name is not a birthday, it's a date in a calendar — so
+ * A birthday with no name is not a birthday, it's a date in a calendar, so
  * these ask who first and everything else hangs off the answer. Assignments and
  * projects are about a piece of work and never ask.
  */
@@ -188,8 +188,8 @@ const PERSON_KINDS: TaskKind[] = ['birthday', 'anniversary'];
  *
  * They are one flow asking one sequence of questions, and differ only in how
  * they open: an event is described, a birthday and an anniversary belong to
- * someone. Everything after that — date, time, repeat, priority, how Aria
- * handles it — is the same for all three.
+ * someone. Everything after that, date, time, repeat, priority, how Aria
+ * handles it, is the same for all three.
  *
  * Restated here rather than imported from `lib/aria-actions`, for the reason
  * given at `KIND_METHOD` below: that module reaches the store, and this one is
@@ -208,7 +208,7 @@ export type EventMethod = 'sms' | 'email' | 'call' | 'photo' | 'card' | 'remind'
 /**
  * The answers to "How should Aria handle it?", in the order they are offered.
  *
- * Reaching someone first, the plain reminder last — the list reads as "and if
+ * Reaching someone first, the plain reminder last, the list reads as "and if
  * none of those, just tell me", which is the one answer that needs nothing else
  * collected after it.
  */
@@ -229,7 +229,7 @@ export type Need = 'required' | 'optional' | 'none';
  *
  * Required means Aria cannot do the thing without it: there is no texting a
  * person with no number and no emailing one with no address. Optional means it
- * is worth keeping if the contact carries it and is never worth asking for —
+ * is worth keeping if the contact carries it and is never worth asking for , 
  * the contact step only ever prompts for a detail that is `required` and
  * genuinely missing, which is what stops a card for your mother demanding her
  * email address.
@@ -313,9 +313,9 @@ export function guideModeFor(kind: TaskKind): GuideMode {
 /**
  * Kinds worth planning out rather than just scheduling.
  *
- * Assignment and project used to be here. They have their own flows now —
+ * Assignment and project used to be here. They have their own flows now , 
  * a brief to read and a definition of done to state, neither of which is a
- * checklist question — and "Task" is what is left: something with no brief, no
+ * checklist question, and "Task" is what is left: something with no brief, no
  * marker and no deadline structure, where "how do you want me to handle it,
  * then let me break it down" is still exactly right.
  */
@@ -342,7 +342,7 @@ export function nextStep(d: FlowDraft): FlowStep {
    * The Guide is a detour, and it is checked before anything else.
    *
    * It opens from the plan preview, from the definition-of-done gate, from a
-   * pinned step and from the offer made after two rollovers — four places, one
+   * pinned step and from the offer made after two rollovers, four places, one
    * behaviour, and it has to come back to whichever one opened it. Modelling it
    * as a step in the sequence would mean four different sequences; modelling it
    * as a flag with a return address means one.
@@ -357,7 +357,7 @@ export function nextStep(d: FlowDraft): FlowStep {
    * The split used to be "birthdays get the guided setup, everything else gets
    * one question and a text box", which meant an assignment or a reminder fell
    * back to typing a sentence and hoping the parser understood it. The steps
-   * still differ by kind — an essay has no card and no recipient — but the
+   * still differ by kind, an essay has no card and no recipient, but the
    * shape is the same: Aria asks, you tap, nothing is typed that doesn't have
    * to be.
    */
@@ -367,7 +367,7 @@ export function nextStep(d: FlowDraft): FlowStep {
    *
    * A title alone produces a generic checklist. "Work with me on creating a
    * design system" is the sentence that makes the list worth reading, and it is
-   * the one thing the old flow never asked for — it went straight from a name
+   * the one thing the old flow never asked for, it went straight from a name
    * to a date, so the plan Aria could have built never existed.
    */
   if (PLANNING_KINDS.includes(d.kind) && !d.answered.approach) return 'approach';
@@ -420,7 +420,7 @@ export function nextStep(d: FlowDraft): FlowStep {
  *
  * Two orders, one shape: establish what the work actually is, then plan it,
  * then accept. What differs is where the truth comes from. An assignment has a
- * brief — somebody else has already written down the deliverable, the deadline
+ * brief, somebody else has already written down the deliverable, the deadline
  * and the criteria, so Aria reads it and shows what it found. A project has
  * nobody's brief, so the equivalent step is stating what done looks like, and
  * that is a gate rather than a question: everything after it depends on the
@@ -434,7 +434,7 @@ export function nextStep(d: FlowDraft): FlowStep {
  * deadline: with one, asking would be asking the student to repeat what they
  * just uploaded.
  *
- * Both end at the plan preview, which is where Accept lives — see
+ * Both end at the plan preview, which is where Accept lives, see
  * `WORK_ACCEPTS_AT`. There is no separate confirmation screen because the plan
  * *is* the confirmation: everything decided is visible in it, and a preview of
  * a preview is a tap that teaches nothing.
@@ -461,7 +461,7 @@ function nextWorkStep(d: FlowDraft): FlowStep {
    * The gate.
    *
    * `definition` is not answered by skipping it. The panel offers two ways
-   * through — state it, or say you can't yet — and the second sets
+   * through, state it, or say you can't yet, and the second sets
    * `definitionDeferred`, which turns "work out what done looks like" into the
    * first thing on the plan. Either way something real was decided, which is
    * the difference between a gate and a required field.
@@ -481,7 +481,7 @@ function nextWorkStep(d: FlowDraft): FlowStep {
  * The date everything is working towards.
  *
  * An assignment's comes from the brief, and only counts when it resolved to an
- * actual day — "end of week 9" is a real thing for the card to show and a
+ * actual day, "end of week 9" is a real thing for the card to show and a
  * useless thing to plan backwards from, so it is deliberately not accepted
  * here. A project's is its last milestone, which is the same idea arrived at
  * from the other end.
@@ -503,7 +503,7 @@ export function workDeadline(d: FlowDraft): string | undefined {
  * icon and the same word every time; if it were a different control in each,
  * nobody would learn that it is the same door.
  *
- * The fifth place is not a step at all — anything rolled over twice offers it
+ * The fifth place is not a step at all, anything rolled over twice offers it
  * automatically. That lives in `lib/plan.ts` with the rollover rules.
  */
 export const GUIDE_STEPS: FlowStep[] = ['planPreview', 'definition', 'milestones', 'scope'];
@@ -535,7 +535,7 @@ export function closeGuide(d: FlowDraft): FlowDraft {
  *
  * The handling method decides what gets asked after it, so changing it has to
  * take its dependents with it. Without this, answering "text" and then changing
- * to "email" at the preview kept `contact` marked answered — the flow skipped
+ * to "email" at the preview kept `contact` marked answered, the flow skipped
  * straight past it holding a phone number, and `flowMethod` quietly downgraded
  * the whole thing to a reminder because there was no address to send to.
  */
@@ -546,7 +546,7 @@ const DEPENDENTS: Partial<Record<FlowStep, FlowStep[]>> = {
 /**
  * Re-open one answered step, and anything that hung off it.
  *
- * What was collected is deliberately kept — a message written for a card is a
+ * What was collected is deliberately kept, a message written for a card is a
  * reasonable starting point for the text it just became, and clearing it would
  * throw away work over a change of mind. Only the *answered* marks go, so the
  * questions get asked again.
@@ -582,8 +582,8 @@ export function promptFor(step: FlowStep, d: FlowDraft): string {
       /*
        * The one question worth blocking on.
        *
-       * A project without a stated end is the thing people actually stall on —
-       * not the tasks, the not-knowing-when-to-stop — so this is asked before
+       * A project without a stated end is the thing people actually stall on , 
+       * not the tasks, the not-knowing-when-to-stop, so this is asked before
        * anything is scoped or scheduled, and "I can't say yet" is an honest
        * answer that becomes the first piece of work.
        */
@@ -618,7 +618,7 @@ export function promptFor(step: FlowStep, d: FlowDraft): string {
        * Asked as "who am I texting", not "do you have their contact".
        *
        * By this point the method is chosen, so the question is about the person
-       * rather than about the data — and naming the thing Aria is about to do
+       * rather than about the data, and naming the thing Aria is about to do
        * is what makes the required detail underneath it make sense. A number is
        * a strange thing to insist on until you know it is a text.
        */
@@ -739,7 +739,7 @@ export function ackFor(step: FlowStep, d: FlowDraft): string | null {
         case 'call':
           return "I'll line the call up for you.";
         case 'remind':
-          return "Nothing to send — I'll just remind you.";
+          return "Nothing to send, I'll just remind you.";
         default:
           return null;
       }
@@ -764,7 +764,7 @@ export function flowTitle(d: FlowDraft): string {
  *
  * Mirrors `defaultMethodFor` in the store, restated here rather than imported
  * because that module pulls in AsyncStorage and the alarm layer, and this one
- * is deliberately importable without a React Native runtime — which is the
+ * is deliberately importable without a React Native runtime, which is the
  * whole reason `npm run check:flow` can walk it. Kept in step by the check that
  * asserts an assignment saves as 'steps'.
  */
@@ -792,7 +792,7 @@ export function flowMethod(d: FlowDraft): TaskMethod {
      * Except when we cannot address it.
      *
      * The contact step won't let a text through without a number, but a draft
-     * can still arrive here short of one — an answer reopened from the preview
+     * can still arrive here short of one, an answer reopened from the preview
      * and cleared, or a flow saved from somewhere that skipped ahead. Saving it
      * as a text anyway promises a message Aria has nowhere to send, and the
      * offer card on Today would carry that promise all the way to the student.
@@ -804,7 +804,7 @@ export function flowMethod(d: FlowDraft): TaskMethod {
    * No handling question was asked, which is every kind that isn't an event.
    *
    * This used to fall through to 'remind' for all of them, so an assignment set
-   * up in chat was saved as a plain reminder — and the task screen keys its
+   * up in chat was saved as a plain reminder, and the task screen keys its
    * whole breakdown feature off `method === 'steps'`, so the one thing Aria is
    * for on an assignment simply wasn't offered.
    */
@@ -837,7 +837,7 @@ export function toTaskInput(d: FlowDraft): {
      * `d.date` is the answer to "when is it due", which an assignment only gets
      * asked when the brief did not say. Taking the deadline from the brief (or
      * from the last milestone, for a project) is what makes the upload worth
-     * doing — see `workDeadline`.
+     * doing, see `workDeadline`.
      */
     date: (isWorkKind(d.kind) ? workDeadline(d) : d.date) ?? d.date!,
     // Asked for now, rather than assumed. It used to be hardcoded to medium,
@@ -867,7 +867,7 @@ export function toTaskInput(d: FlowDraft): {
  *
  * Struck rows and the submission buffer do not become steps: one was declined
  * and the other is reserved time rather than work. Everything else carries its
- * date, so a step knows when it was meant to happen — which is the whole
+ * date, so a step knows when it was meant to happen, which is the whole
  * requirement for noticing that it didn't, and the reason `rollovers` starts
  * counting from zero here rather than being added later.
  *
@@ -894,7 +894,7 @@ export function flowSteps(d: FlowDraft): { title: string; due?: string; forcing?
  * The step that gets pinned: the first one still to do.
  *
  * Pinned rather than merely first, because an assignment created and then left
- * alone looks identical to one finished — the task row shows a title and a date
+ * alone looks identical to one finished, the task row shows a title and a date
  * either way. One live step on the front of it is the difference between a list
  * entry and something in progress.
  */
@@ -919,7 +919,7 @@ export function flowDocument(d: FlowDraft): string {
   /*
    * The out-list is in the document, not just on the screen.
    *
-   * It is the one people come back to — three weeks in, when the thing they
+   * It is the one people come back to, three weeks in, when the thing they
    * decided not to do starts looking necessary again, the useful artefact is
    * the sentence saying they already decided. That only helps if it survives
    * the setup conversation.
@@ -948,7 +948,7 @@ export function flowDocument(d: FlowDraft): string {
   if (milestones.length) {
     parts.push(
       `Milestones\n${milestones
-        .map((m) => `- ${m.title}${m.due ? ` (${m.due})` : ''}${m.forcing ? ` — forced by: ${m.forcing}` : ''}`)
+        .map((m) => `- ${m.title}${m.due ? ` (${m.due})` : ''}${m.forcing ? ` · forced by: ${m.forcing}` : ''}`)
         .join('\n')}`,
     );
   }
@@ -984,7 +984,7 @@ export function applyTypedAnswer(step: FlowStep, text: string): Partial<FlowDraf
    * Pasting the brief is the same answer as uploading it.
    *
    * Half the briefs that exist are a paragraph in a group chat rather than a
-   * PDF on a VLE, so the composer accepts one — and a project describing itself
+   * PDF on a VLE, so the composer accepts one, and a project describing itself
    * in a sentence arrives through exactly the same door.
    */
   if (step === 'brief') return { brief: { source: 'paste', text: value } };
@@ -994,7 +994,7 @@ export function applyTypedAnswer(step: FlowStep, text: string): Partial<FlowDraf
 /**
  * A title from the first thing they wrote.
  *
- * A project described in a paragraph should not then be asked what to call it —
+ * A project described in a paragraph should not then be asked what to call it , 
  * the first clause is what they would have typed anyway. Cut at a sentence
  * ending or a comfortable length, whichever comes first.
  */
@@ -1012,7 +1012,7 @@ export function titleFromText(text: string): string {
  *
  * Computed from what it actually had to work with, not claimed by the model
  * about itself. A definition of done, a scope and a brief is a reading worth
- * trusting; a one-line description is a guess, and the card says so — which is
+ * trusting; a one-line description is a guess, and the card says so, which is
  * the point of showing a confidence at all on a card whose whole job is to be
  * corrected.
  */

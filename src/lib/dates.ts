@@ -73,7 +73,7 @@ export function isPastMoment(date: string, time?: string | null): boolean {
  * The day the app is currently behaving as, for "is this in the past?".
  *
  * `isPastMoment` and `realToday` answer against the real clock, which is right
- * for anything physical — an alarm can only ring in real time. But validation
+ * for anything physical, an alarm can only ring in real time. But validation
  * has to answer against the day the *user* is looking at, and in demo mode that
  * is the simulated date.
  *
@@ -110,7 +110,7 @@ export function msUntilMoment(date: string, time?: string | null): number {
 /**
  * How often a task comes back. `undefined` means it doesn't.
  *
- * A deliberately short list of the intervals people actually name out loud —
+ * A deliberately short list of the intervals people actually name out loud , 
  * "every Monday", "the 1st of the month", "her birthday". A full RRULE grammar
  * buys flexibility nobody asked for at the cost of a UI nobody can use.
  */
@@ -162,7 +162,7 @@ export function nextOccurrence(date: string, repeat: Repeat): string {
  * The next occurrence that hasn't already gone by.
  *
  * Completing a daily task you last ticked off a fortnight ago should schedule
- * tomorrow, not two weeks ago — stepping once would leave it instantly overdue,
+ * tomorrow, not two weeks ago, stepping once would leave it instantly overdue,
  * and it would stay that way for every completion after it. The bound stops a
  * corrupt date turning this into an infinite loop.
  */
@@ -198,7 +198,7 @@ export function monthMatrix(cursor: Date): CalendarCell[] {
 
 /**
  * The same six-week grid split into rows of 7. Always render a calendar this
- * way — laying 42 cells out with `flex-wrap` and a `100/7`% width lets rounding
+ * way, laying 42 cells out with `flex-wrap` and a `100/7`% width lets rounding
  * push the seventh cell onto the next line, which silently shifts every date
  * out from under its weekday heading.
  */

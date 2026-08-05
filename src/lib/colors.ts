@@ -13,7 +13,7 @@ import { useAriaStore } from '@/store/aria-store';
 export * from '@/lib/themes';
 
 /**
- * The active theme, for imperative use — icon `color` props, StatusBar, chart
+ * The active theme, for imperative use, icon `color` props, StatusBar, chart
  * fills. `className` styling reads the same values through the CSS variables
  * that `themeVars` writes at the root, so the two never disagree.
  */
@@ -22,7 +22,7 @@ export function useTheme(): Theme {
    * React Native's Appearance, not nativewind's colour scheme.
    *
    * The app *writes* nativewind's scheme to keep `dark:` utilities in step with
-   * the chosen theme — Charcoal forces 'dark', White forces 'light'. Reading
+   * the chosen theme, Charcoal forces 'dark', White forces 'light'. Reading
    * that same value back to answer "what is the device set to" made the two a
    * loop: pick Midnight, and nativewind now says dark; switch to Match my
    * device, and "system" resolves against nativewind's own override rather

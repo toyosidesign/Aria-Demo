@@ -195,7 +195,7 @@ export default function AriaFlowScreen() {
       );
       generateSub(first);
     } else if (action.method === 'card' && task.description?.trim()) {
-      // The message was written on the task itself — use it rather than
+      // The message was written on the task itself, use it rather than
       // replacing what Maya already decided the card should say.
       const written = task.description.trim();
       setDraft(written);
@@ -222,7 +222,7 @@ export default function AriaFlowScreen() {
   }, [messages, typing]);
 
   // Coming back from Mail / Messages. Aria checked the task off when it opened
-  // the app, but it can't see whether Maya actually hit send — so ask, and give
+  // the app, but it can't see whether Maya actually hit send, so ask, and give
   // her a one-tap way to put it back if she didn't.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -361,7 +361,7 @@ export default function AriaFlowScreen() {
    * Share the picture with the message burned onto it.
    *
    * One image through the share sheet is what reaches WhatsApp, Facebook and
-   * Instagram alike — none of them accept a caption handed over from another
+   * Instagram alike, none of them accept a caption handed over from another
    * app, so the words have to be part of the picture.
    */
   async function sharePhoto() {
@@ -396,7 +396,7 @@ export default function AriaFlowScreen() {
 
   /**
    * Send the card as an actual image. No mail or message link can carry an
-   * attachment, so this goes through the system share sheet — which means the
+   * attachment, so this goes through the system share sheet, which means the
    * recipient is chosen there rather than pre-filled by Aria.
    */
   async function sendCardImage() {
@@ -443,11 +443,11 @@ export default function AriaFlowScreen() {
     setTyping(true);
 
     const body = outgoingBody();
-    // Keep a copy on the task — the draft shouldn't be lost in the handoff.
+    // Keep a copy on the task, the draft shouldn't be lost in the handoff.
     addDraftSection(task!.id, { title: meta?.label ?? 'Draft', content: body });
 
     const method = action!.method;
-    // A card is plain text, so it rides on Mail or WhatsApp — never SMS, where
+    // A card is plain text, so it rides on Mail or WhatsApp, never SMS, where
     // the layout falls apart.
     const res =
       method === 'email' || (method === 'card' && cardVia === 'email')
@@ -480,7 +480,7 @@ export default function AriaFlowScreen() {
     setPhase('done');
   }
 
-  /** "Yes, it sent" — leave the task checked off. */
+  /** "Yes, it sent", leave the task checked off. */
   function confirmSent() {
     tap();
     push(mk('maya', 'text', 'Yes, it sent.'));
@@ -488,7 +488,7 @@ export default function AriaFlowScreen() {
     setBackCheck(false);
   }
 
-  /** "It didn't send" — put the task back so it isn't quietly lost. */
+  /** "It didn't send", put the task back so it isn't quietly lost. */
   function undoSent() {
     tap();
     push(mk('maya', 'text', 'It didn’t send.'));
@@ -752,7 +752,7 @@ export default function AriaFlowScreen() {
             </View>
           ) : null}
 
-          {/* Just back from Mail / Messages — did it actually go? */}
+          {/* Just back from Mail / Messages, did it actually go? */}
           {backCheck ? (
             <View className="flex-row gap-2">
               <Button
@@ -767,7 +767,7 @@ export default function AriaFlowScreen() {
 
           {!backCheck && (phase === 'done' || phase === 'declined') ? (
             <View className="gap-2">
-              {/* Declining shouldn't dead-end — offer a new slot for it. */}
+              {/* Declining shouldn't dead-end, offer a new slot for it. */}
               {phase === 'declined' ? (
                 <Button
                   title="Pick another day & time"

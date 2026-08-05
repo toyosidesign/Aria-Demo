@@ -2,7 +2,7 @@
 --
 -- Until these exist, every task and profile save fails. The failure is silent:
 -- the device keeps its own copy so the app looks fine, but nothing reaches the
--- server — which also means nothing can run server-side, because there is no
+-- server, which also means nothing can run server-side, because there is no
 -- server-side data to run against.
 --
 -- Verified missing against the live database on 2026-07-31. Every other column
@@ -23,7 +23,7 @@ alter table public.tasks add column if not exists repeat           text;     -- 
 -- ---------------------------------------------------------------------------
 -- profiles
 -- ---------------------------------------------------------------------------
-alter table public.profiles add column if not exists context        text;    -- "Second year studying law" — feeds Aria's prompts
+alter table public.profiles add column if not exists context        text;    -- "Second year studying law", feeds Aria's prompts
 alter table public.profiles add column if not exists avatar_url     text;    -- profile picture
 alter table public.profiles add column if not exists biometric_lock boolean default false;
 
@@ -31,7 +31,7 @@ alter table public.profiles add column if not exists biometric_lock boolean defa
 -- Tell the API about them.
 --
 -- PostgREST caches the table shapes at startup. Without this it keeps serving
--- the old schema and the new columns stay invisible to the app — which looks
+-- the old schema and the new columns stay invisible to the app, which looks
 -- exactly like the migration having failed.
 -- ---------------------------------------------------------------------------
 notify pgrst, 'reload schema';

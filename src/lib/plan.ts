@@ -6,7 +6,7 @@
  * Forwards planning answers "what shall I do first", which is not the question
  * a deadline asks. It produces a list that starts today, runs at a comfortable
  * pace and arrives late, and nothing in it ever says so. Working back from the
- * deadline answers the question that matters — *when does this have to start* —
+ * deadline answers the question that matters, *when does this have to start* , 
  * and the answer is sometimes "yesterday", which is worth knowing on the day
  * the work is set rather than the night before it is due.
  *
@@ -23,7 +23,7 @@
  *     gets abandoned in week one.
  *
  * Pure, and importable without a React Native runtime, so `check:plan` can walk
- * every shape of it — including the ones nobody wants to reproduce by hand, a
+ * every shape of it, including the ones nobody wants to reproduce by hand, a
  * deadline tomorrow and a deadline already gone.
  */
 
@@ -31,16 +31,16 @@ import { addDays, differenceInCalendarDays, parseISO } from 'date-fns';
 
 import { toISODate } from '@/lib/dates';
 
-/** One row of the plan. A buffer is a row too — that is the point of it. */
+/** One row of the plan. A buffer is a row too, that is the point of it. */
 export interface PlanStep {
   title: string;
-  /** yyyy-MM-dd — the day this should be finished by. */
+  /** yyyy-MM-dd, the day this should be finished by. */
   due: string;
   /** Which criterion it serves, and what that is worth. Drives the share. */
   weight?: number;
   /** The reserved run-up to the deadline, rather than a piece of work. */
   buffer?: boolean;
-  /** Struck through by the student. Kept, not deleted — see `strike`. */
+  /** Struck through by the student. Kept, not deleted, see `strike`. */
   struck?: boolean;
 }
 
@@ -51,8 +51,8 @@ export interface Plan {
   /** Days held back between the last step and the deadline. */
   bufferDays: number;
   /**
-   * More steps than days. The plan is still returned — a compressed plan is
-   * more useful than a refusal — but the screen says so, because the student
+   * More steps than days. The plan is still returned, a compressed plan is
+   * more useful than a refusal, but the screen says so, because the student
    * needs to decide what to cut rather than discover it in week three.
    */
   tight: boolean;
@@ -65,7 +65,7 @@ export interface Plan {
  *
  * A day for anything short, two once there is a fortnight to play with. Not
  * proportional: the buffer covers printing, uploading, a portal that rejects
- * the file type and a submission page that will not load — none of which get
+ * the file type and a submission page that will not load, none of which get
  * worse because the essay was long.
  */
 export function bufferFor(days: number): number {
@@ -157,7 +157,7 @@ export function planBackwards(req: PlanRequest): Plan {
 
   if (bufferDays > 0) {
     placed.push({
-      title: bufferDays === 1 ? 'Submission buffer — 1 day' : `Submission buffer — ${bufferDays} days`,
+      title: bufferDays === 1 ? 'Submission buffer: 1 day' : `Submission buffer: ${bufferDays} days`,
       due: req.deadline,
       buffer: true,
     });
@@ -176,7 +176,7 @@ export function planBackwards(req: PlanRequest): Plan {
  * Strike a step out, or put it back.
  *
  * Struck rather than deleted, because "I'm not doing that" is a decision worth
- * being able to see and reverse — and because a plan that quietly loses rows
+ * being able to see and reverse, and because a plan that quietly loses rows
  * when tapped is a plan nobody trusts to tap.
  */
 export function strike(steps: PlanStep[], title: string): PlanStep[] {
@@ -201,7 +201,7 @@ export const GUIDE_AFTER_ROLLOVERS = 2;
 export const DROP_AFTER_ROLLOVERS = 3;
 
 export interface RolloverVerdict {
-  /** Offer the Guide — this is where people are actually stuck. */
+  /** Offer the Guide, this is where people are actually stuck. */
   offerGuide: boolean;
   /** Ask the one question, then drop it. */
   askToDrop: boolean;
@@ -217,7 +217,7 @@ export function rolloverVerdict(rollovers: number): RolloverVerdict {
 /**
  * The question asked before a step is dropped.
  *
- * One question, and a real one — "is this still part of it?" can be answered
+ * One question, and a real one, "is this still part of it?" can be answered
  * by someone avoiding the work, which is the state this exists to interrupt.
  * The two answers are both honest outcomes: it gets kept and guided, or it
  * goes and stops appearing.

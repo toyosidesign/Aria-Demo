@@ -32,8 +32,8 @@ async function sendEmailServerSide(req: SendEmailRequest): Promise<SendEmailResp
  * Carry out one scheduled item.
  *
  * Email is completed outright when a provider is configured. Text and WhatsApp
- * can only ever be handed off — no mobile OS lets an app send a message as the
- * user — so those come back as `handedOff` and the caller confirms with the
+ * can only ever be handed off, no mobile OS lets an app send a message as the
+ * user, so those come back as `handedOff` and the caller confirms with the
  * user rather than claiming they were sent.
  */
 export async function runAutomation(a: Automation): Promise<RunOutcome> {
@@ -42,7 +42,7 @@ export async function runAutomation(a: Automation): Promise<RunOutcome> {
 
   if (a.channel === 'email') {
     // normaliseSubject, not trim: a scheduled subject can carry an internal
-    // newline, which SendEmailSchema refuses outright — the send would fail with
+    // newline, which SendEmailSchema refuses outright, the send would fail with
     // a 400 the user reads as an unexplained failure.
     const subject = normaliseSubject(a.subject ?? '') || emailSubject(a.taskTitle, 'general');
 
@@ -61,7 +61,7 @@ export async function runAutomation(a: Automation): Promise<RunOutcome> {
       }
     }
 
-    // No provider set up (or no address) — open Mail with it ready instead.
+    // No provider set up (or no address), open Mail with it ready instead.
     const handoff = await openEmailDraft({ to: a.toEmail, subject, body: a.body });
     return {
       status: 'ready',

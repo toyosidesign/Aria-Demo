@@ -13,7 +13,7 @@ import { useAriaStore } from '@/store/aria-store';
  * Says out loud when the app isn't showing the real date.
  *
  * The demo can jump its effective "today", and everything keyed off that date
- * follows — the greeting, the calendar's highlighted day, what counts as
+ * follows, the greeting, the calendar's highlighted day, what counts as
  * overdue. Without this, a simulated date is indistinguishable from a broken
  * clock, which is precisely how it reads.
  */

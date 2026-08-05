@@ -74,7 +74,7 @@ export default function AriaRunScreen() {
    * The position is passed in, not read from `index`.
    *
    * `advance` closes over the `index` of the render that made it, and `perform`
-   * calls it directly rather than through one — so perform → advance → perform
+   * calls it directly rather than through one, so perform → advance → perform
    * re-enters the same closure with `index` frozen, and a queue of three looped
    * on the second item forever.
    *
@@ -114,7 +114,7 @@ export default function AriaRunScreen() {
           settleAutomation(a.id, { status: 'failed', error: a.error });
         } else {
           /*
-           * 'sending' — in flight elsewhere this second — or anything this
+           * 'sending', in flight elsewhere this second, or anything this
            * build doesn't recognise. Say so and settle nothing.
            *
            * The tempting `else` here writes 'failed', and that would be a lie
@@ -131,7 +131,7 @@ export default function AriaRunScreen() {
 
       if (claim.outcome === 'unreachable') {
         // Can't establish who owns this, and the mail route is a different host
-        // from Supabase — so "couldn't reach the database" does not mean the
+        // from Supabase, so "couldn't reach the database" does not mean the
         // send would fail. Leave it scheduled and let it come round again.
         setBusy(false);
         push(
@@ -143,7 +143,7 @@ export default function AriaRunScreen() {
         advance(at);
         return;
       }
-      // 'claimed' and 'unavailable' both mean carry on — see claimAutomation
+      // 'claimed' and 'unavailable' both mean carry on, see claimAutomation
       // for why those two are the safe ones.
     }
 

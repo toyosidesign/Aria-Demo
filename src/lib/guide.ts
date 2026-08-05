@@ -6,7 +6,7 @@
  * **Context first.** A guide that ignores the rubric is worse than none, so the
  * brief, the criteria and the scope go in before anything is generated. This is
  * why `GuideRequest` carries them and why the route refuses to invent around a
- * missing one — see `needsMore` below.
+ * missing one, see `needsMore` below.
  *
  * **One narrowing question.** "I'm stuck" covers two different problems and the
  * answers to them look nothing alike: picking an angle is a choice, working out
@@ -14,14 +14,14 @@
  * changes what comes back; not asking produces four directions that half fit.
  *
  * **Directions and questions, never prose.** For an assignment, writing the
- * argument is the student's job — the Guide gives angles, the questions each
+ * argument is the student's job, the Guide gives angles, the questions each
  * one has to answer, and where the rubric rewards it. A project has no such
  * constraint: a PM asking how to scope something should get a straight
  * recommendation, and hedging at them would be a worse product for no reason.
  *
  * **Nothing to go on is said out loud.** With no brief, no criteria and no
  * scope, four generic directions that fit any essay ever written are worse than
- * an admission — so Aria says it has nothing and asks for the single thing that
+ * an admission, so Aria says it has nothing and asks for the single thing that
  * would help most.
  */
 
@@ -58,7 +58,7 @@ export const NARROWING: Record<GuideMode, { question: string; options: { value: 
  * One way forward, with its price attached.
  *
  * `needs` and `costs` are not decoration. A direction offered without them is a
- * suggestion; with them it is a decision the student can actually make — the
+ * suggestion; with them it is a decision the student can actually make, the
  * interesting angle that needs three sources they cannot get hold of is the
  * wrong one, and only the cost line says so.
  */
@@ -85,7 +85,7 @@ export interface GuideRequest {
   definition?: string;
   scopeIn?: string[];
   scopeOut?: string[];
-  /** Free text they added — "my tutor said the last one was too descriptive". */
+  /** Free text they added, "my tutor said the last one was too descriptive". */
   note?: string;
   learner?: Learner;
   /**
@@ -107,7 +107,7 @@ export type GuideResult =
  * Is there enough here to be worth generating from?
  *
  * A title alone is not. Every essay has a title and none of the directions you
- * could write from one would be about this essay — which is the failure this
+ * could write from one would be about this essay, which is the failure this
  * whole module is built to avoid, so it is checked before the call rather than
  * hoped for after it.
  */
@@ -121,7 +121,7 @@ export function needsMore(req: GuideRequest): string | null {
   const hasNote = (req.note?.trim().length ?? 0) > 12;
   if (hasBrief || hasProject || hasNote) return null;
   return req.mode === 'assignment'
-    ? "I've got the title and nothing else. Paste the assignment question — one line is enough — and I'll give you angles that actually fit it."
+    ? "I've got the title and nothing else. Paste the assignment question, one line is enough, and I'll give you angles that actually fit it."
     : "I've got the name and nothing else. Tell me what it's for, or who it's for, and I'll come back with real options.";
 }
 
@@ -131,7 +131,7 @@ export function needsMore(req: GuideRequest): string | null {
  * Structural rather than subject-specific, and honest about being so: these are
  * the four shapes an angle can take, phrased against whatever context we do
  * have. Better than nothing on a train, and it never pretends to have read the
- * brief — `fallback` is set so the screen can say where it came from.
+ * brief, `fallback` is set so the screen can say where it came from.
  */
 export function localGuide(req: GuideRequest): GuideDirection[] {
   const subject = req.title.trim() || 'this';

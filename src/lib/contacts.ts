@@ -26,7 +26,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PHONE_RE = /^\+?[\d][\d\s().-]{5,}$/;
 
-/** Loose check — enough digits to dial, formatting characters allowed. */
+/** Loose check, enough digits to dial, formatting characters allowed. */
 export function isValidPhone(value: string): boolean {
   return PHONE_RE.test(value.trim());
 }

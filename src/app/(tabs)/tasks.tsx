@@ -24,7 +24,7 @@ export default function TasksScreen() {
    * The list, and a row renderer that keeps its identity.
    *
    * `blocksExternalGesture={listRef}` makes each row's drag take precedence
-   * over the list's scroll — without it the scroll claims the pan and rows
+   * over the list's scroll, without it the scroll claims the pan and rows
    * spring back mid-swipe. `renderRow` is memoised because an inline arrow
    * rebuilds every row on each render, which is the same identity problem that
    * has broken this gesture before.
@@ -62,8 +62,8 @@ export default function TasksScreen() {
   /*
    * No "Due" tab, deliberately.
    *
-   * It held a transient slice — today, not a reminder, within a couple of hours
-   * of its moment — which is empty most of the time, and a tab that is usually
+   * It held a transient slice, today, not a reminder, within a couple of hours
+   * of its moment, which is empty most of the time, and a tab that is usually
    * empty teaches you not to open it. Nothing is lost by dropping it: the Due
    * badge still marks urgency on the card itself wherever the task appears, and
    * Home already answers "what is on me now".

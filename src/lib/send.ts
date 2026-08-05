@@ -6,7 +6,7 @@ import { showToast } from '@/lib/toast';
 /**
  * Handing off to the phone's own apps.
  *
- * Aria never sends anything itself — it writes the draft, then opens Mail /
+ * Aria never sends anything itself, it writes the draft, then opens Mail /
  * Gmail / Messages with everything pre-filled so Maya taps send herself.
  */
 
@@ -26,7 +26,7 @@ function dialable(phone: string): string {
  * A number WhatsApp will accept, or nothing.
  *
  * WhatsApp only takes full international numbers, digits only, no leading zero.
- * Anything else doesn't degrade — it invalidates the whole link, and WhatsApp
+ * Anything else doesn't degrade, it invalidates the whole link, and WhatsApp
  * opens purely to say "this link couldn't be opened". A number saved in
  * national format ("0802 338 3108") is the common case: the country code
  * simply isn't in the contact, and guessing one would message a stranger. Far
@@ -42,7 +42,7 @@ function whatsappNumber(phone?: string): string {
   } else if (digits.startsWith('00')) {
     digits = digits.slice(2); // 00 is the international prefix
   } else if (digits.startsWith('0')) {
-    return ''; // national format — country unknown, so don't guess
+    return ''; // national format, country unknown, so don't guess
   }
 
   return digits.length >= 8 ? digits : '';
@@ -138,7 +138,7 @@ export async function openWhatsAppDraft({
   const text = encodeURIComponent(body);
 
   // wa.me first. It's a universal link, so iOS still hands it straight to the
-  // installed app, and WhatsApp parses it reliably — unlike the whatsapp://
+  // installed app, and WhatsApp parses it reliably, unlike the whatsapp://
   // scheme, which rejects multi-line text with "this link couldn't be opened".
   const webUrl = recipient
     ? `https://wa.me/${recipient}?text=${text}`
@@ -166,7 +166,7 @@ export async function openCall({
   return copyFallback(notes, 'Phone');
 }
 
-// Subject building lives in lib/email-subject.ts — pure, so it can be tested
+// Subject building lives in lib/email-subject.ts, pure, so it can be tested
 // without a native runtime. Re-exported here because callers already import it
 // from this module.
 export { emailSubject, normaliseSubject } from '@/lib/email-subject';

@@ -89,7 +89,7 @@ export default function RebalanceScreen() {
    *
    * This screen was the way around both. It writes the date and the time
    * directly, so "Ease your week" would happily move a task to nine o'clock
-   * this morning — quietly re-creating the overdue task the screen exists to
+   * this morning, quietly re-creating the overdue task the screen exists to
    * relieve. A guard in two of three places is not a guard.
    */
   const draftIsPast =

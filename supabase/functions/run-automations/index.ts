@@ -1,14 +1,14 @@
 /**
  * The thing Aria could not do before: act while the app is closed.
  *
- * `runAutomation` in the app is called from exactly one place — a screen — so a
+ * `runAutomation` in the app is called from exactly one place, a screen, so a
  * birthday email scheduled for Friday sat on the device until the student
  * opened it, which is precisely the moment they did not need an assistant. This
  * runs on a schedule instead (see 004_schedule_automations.sql) and sends
  * without a device involved.
  *
- * Deno, not React Native. Nothing here can import from `src/` — different
- * runtime, no bundler, no path aliases — so the couple of rules it shares with
+ * Deno, not React Native. Nothing here can import from `src/`, different
+ * runtime, no bundler, no path aliases, so the couple of rules it shares with
  * the app are restated below with a pointer to the original. The security suite
  * asserts they have not drifted apart.
  *
@@ -22,8 +22,8 @@
  *   · the key is read from the Edge Function's own environment, never from a
  *     file, and never from anything Expo bundles;
  *   · it is never sent to a client, echoed in a response, or logged;
- *   · this function does exactly one job with it — send email automations that
- *     are due — and has no other entry point;
+ *   · this function does exactly one job with it, send email automations that
+ *     are due, and has no other entry point;
  *   · `EXPO_PUBLIC_*` is the prefix that reaches the app bundle, and nothing
  *     here uses it. The security suite fails if a service_role key ever appears
  *     under `src/`, and now also if one is given a public prefix anywhere.
@@ -39,7 +39,7 @@ const CRON_SECRET = Deno.env.get('ARIA_CRON_SECRET');
  * How many automations one tick will send.
  *
  * A bound rather than a performance tweak: a bug that made everything look due
- * at once — a clock skew, a bad backfill — should cost a bounded number of
+ * at once, a clock skew, a bad backfill, should cost a bounded number of
  * emails and show up in the next tick, not empty the table into somebody's
  * inbox in one go. Anything left over is still due a minute later.
  */
@@ -62,7 +62,7 @@ const EMAIL = /^[^\s@,;:<>"]+@[^\s@,;:<>"]+\.[^\s@,;:<>"]+$/;
  *
  * Character-for-character identical to the app's on purpose. The security suite
  * pulls this function body out of this file, runs it against the real one, and
- * fails if the two ever disagree — a copy that quietly drifts is worse than no
+ * fails if the two ever disagree, a copy that quietly drifts is worse than no
  * copy, because the app-side test would still be green.
  */
 function normaliseSubject(text: string): string {
@@ -80,7 +80,7 @@ interface AutomationRow {
 }
 
 /**
- * The columns the send needs, and deliberately no others — see the claim.
+ * The columns the send needs, and deliberately no others, see the claim.
  *
  * `user_id` earns its place: the entitlement check below is per-account, and
  * without it this function cannot tell whose automation it is holding.
@@ -92,7 +92,7 @@ const SEND_COLUMNS = 'id,user_id,task_id,task_title,to_email,subject,body';
  *
  * Both columns, never just `auto_send`. Pro can lapse while the stored
  * preference stays true, and reading the preference alone would keep sending
- * for an account that stopped paying for it — the same rule `autoSendEnabled`
+ * for an account that stopped paying for it, the same rule `autoSendEnabled`
  * enforces in the app, restated here because this process cannot import it.
  *
  * Fails closed. A profile row that cannot be read, or a request that errors,
@@ -125,7 +125,7 @@ function db(path: string, init: RequestInit = {}) {
 }
 
 /**
- * Record how one automation went. Terminal — nothing moves out of these.
+ * Record how one automation went. Terminal, nothing moves out of these.
  *
  * Filtered on `status=eq.sending` even though this run holds the claim, so that
  * the only rows this function can ever write a verdict onto are the ones it
@@ -195,7 +195,7 @@ async function sendOne(row: AutomationRow): Promise<{ ok: boolean; error?: strin
       ok: false,
       error:
         res.status === 429
-          ? 'Too many emails just now — not sent'
+          ? 'Too many emails just now, not sent'
           : 'The mail provider rejected it',
     };
   }
@@ -207,7 +207,7 @@ async function sendOne(row: AutomationRow): Promise<{ ok: boolean; error?: strin
  *
  * Marked failed rather than retried. A retry would resend anything that was
  * accepted by Resend a moment before the crash, and a duplicate birthday email
- * is worse than a late one — the student can see this in the report and send it
+ * is worse than a late one, the student can see this in the report and send it
  * themselves. What it must never do is claim to have sent something it cannot
  * confirm.
  */
@@ -220,7 +220,7 @@ async function sweepStuck(): Promise<number> {
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
       status: 'failed',
-      error: 'Interrupted while sending — not confirmed, so not marked as sent',
+      error: 'Interrupted while sending, not confirmed, so not marked as sent',
       updated_at: new Date().toISOString(),
     }),
   });
@@ -231,7 +231,7 @@ async function sweepStuck(): Promise<number> {
 Deno.serve(async (req: Request) => {
   /*
    * Not `verify_jwt`. That accepts any JWT the project signs, and the anon key
-   * is one — it ships inside the app bundle, so "has a valid JWT" is a property
+   * is one, it ships inside the app bundle, so "has a valid JWT" is a property
    * every user of the app already has. This function spends money and emails
    * strangers; it takes a secret only the cron holds.
    *
@@ -241,7 +241,7 @@ Deno.serve(async (req: Request) => {
    * a keyspace nothing can walk. Swap in `crypto.subtle.timingSafeEqual` if this
    * ever guards something a local caller can hammer.
    *
-   * 404, not 401 — an unauthenticated caller learns nothing about whether the
+   * 404, not 401, an unauthenticated caller learns nothing about whether the
    * route is there.
    */
   const offered = req.headers.get('x-aria-cron-secret') ?? '';
@@ -272,7 +272,7 @@ Deno.serve(async (req: Request) => {
   /*
    * Only `channel=eq.email`. SMS and WhatsApp are filtered in the query rather
    * than skipped in the loop, because neither iOS nor Android lets an app send
-   * a message as the user — there is no server-side equivalent to fall back to,
+   * a message as the user, there is no server-side equivalent to fall back to,
    * and a row of either kind reaching the send path could only ever produce a
    * "sent" that did not send. See the note at the top of src/lib/automations.ts.
    */
@@ -301,7 +301,7 @@ Deno.serve(async (req: Request) => {
    */
   const ids = due.map((d) => d.id).join(',');
   // `select` narrows what comes back to the columns the send needs, keeping the
-  // rest — user_id, phone numbers, the recipient's name — out of a payload this
+  // rest, user_id, phone numbers, the recipient's name, out of a payload this
   // function has no use for.
   const claimRes = await db(
     `automations?id=in.(${ids})&status=eq.scheduled&select=${SEND_COLUMNS}`,
@@ -338,7 +338,7 @@ Deno.serve(async (req: Request) => {
          * Not entitled, or the account asked to be consulted first.
          *
          * Back to 'scheduled' rather than 'failed'. Nothing went wrong and
-         * nothing was attempted — the automation is still due and the device
+         * nothing was attempted, the automation is still due and the device
          * picks it up the next time the app is open, which is exactly the
          * behaviour before the cron existed. Marking it failed would tell a
          * student their birthday email had bounced when it had simply been
@@ -368,7 +368,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Counts only. The response goes back to pg_net, which logs it — no
+  // Counts only. The response goes back to pg_net, which logs it, no
   // addresses, subjects or bodies belong in a database log table.
   return Response.json({ swept, claimed: claimed.length, sent, failed, held });
 });

@@ -1,4 +1,4 @@
--- Aria — Supabase schema
+-- Aria, Supabase schema
 -- Run this once in your project's SQL Editor (Supabase dashboard → SQL Editor → New query → paste → Run).
 -- Safe to re-run.
 

@@ -64,7 +64,7 @@ export default function ScheduleScreen() {
       /*
        * Four conditions, and failing any of them did nothing at all.
        *
-       * No toast, no message, no disabled reason — the button simply returned.
+       * No toast, no message, no disabled reason, the button simply returned.
        * That is indistinguishable from the app being broken, and it is the
        * reason a scheduled send appeared to vanish rather than never existing.
        */
@@ -235,7 +235,7 @@ export default function ScheduleScreen() {
               })}
             </View>
 
-            {/* Exactly what will happen — never imply more than the OS allows. */}
+            {/* Exactly what will happen, never imply more than the OS allows. */}
             <View
               className={cn(
                 'flex-row items-start gap-2 rounded-2xl px-3.5 py-3',

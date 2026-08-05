@@ -12,7 +12,7 @@ const OPTIONS: ImagePicker.ImagePickerOptions = {
 };
 
 /**
- * Pick a photo to share. Unlike an avatar this keeps its own proportions —
+ * Pick a photo to share. Unlike an avatar this keeps its own proportions , 
  * cropping someone's anniversary photo to a square would be presumptuous.
  */
 export async function pickPhoto(source: AvatarSource = 'library'): Promise<string | null> {

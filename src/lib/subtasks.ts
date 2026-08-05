@@ -4,7 +4,7 @@ import type { Learner } from '@/lib/learner';
 export interface ChecklistRequest {
   title: string;
   description?: string;
-  /** Who it's for — see lib/learner.ts. Omitted when onboarding was skipped. */
+  /** Who it's for, see lib/learner.ts. Omitted when onboarding was skipped. */
   learner?: Learner;
 }
 
@@ -22,7 +22,7 @@ export async function requestChecklist(req: ChecklistRequest): Promise<string[]>
   }
 }
 
-/** Offline/no-key fallback — a solid generic essay/assignment checklist. */
+/** Offline/no-key fallback, a solid generic essay/assignment checklist. */
 export function localChecklist(req: ChecklistRequest): string[] {
   return [
     'Research the topic and gather sources',

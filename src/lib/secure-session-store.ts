@@ -6,8 +6,8 @@ import { Platform } from 'react-native';
  * Where the Supabase session lives.
  *
  * Previously AsyncStorage, which is plaintext on disk. The refresh token *is*
- * the identity RLS trusts, so anyone who can read the app's sandbox — a rooted
- * device, an unencrypted backup, a forensic extraction — could mint access
+ * the identity RLS trusts, so anyone who can read the app's sandbox, a rooted
+ * device, an unencrypted backup, a forensic extraction, could mint access
  * tokens for that account. The keychain (iOS) and Keystore-backed store
  * (Android) encrypt it at rest instead.
  *

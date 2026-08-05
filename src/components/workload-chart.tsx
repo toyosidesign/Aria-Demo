@@ -26,8 +26,8 @@ type Range = 'day' | 'week' | 'month';
 /**
  * One column of the chart: the tasks it holds and how to name it.
  *
- * The three ranges differ only in how tasks are grouped, so everything below —
- * bars, colours, the heavy warning, the detail panel — is written once against
+ * The three ranges differ only in how tasks are grouped, so everything below , 
+ * bars, colours, the heavy warning, the detail panel, is written once against
  * this shape rather than three times against three shapes.
  */
 interface Bucket {
@@ -37,7 +37,7 @@ interface Bucket {
   /** In the detail panel, where there is room to be clear. */
   label: string;
   tasks: Task[];
-  /** The bucket holding "now" — today, or the current week in month view. */
+  /** The bucket holding "now", today, or the current week in month view. */
   current: boolean;
 }
 
@@ -297,7 +297,7 @@ export function WorkloadChart() {
 
           {/* Expands in place rather than navigating. The bucket can be a block
               of a day or a span of a week, neither of which is a single date to
-              route to — and this was a plain Text before, so tapping "and 7
+              route to, and this was a plain Text before, so tapping "and 7
               more" did nothing at all. */}
           {chosen.tasks.length > COLLAPSED ? (
             <Pressable

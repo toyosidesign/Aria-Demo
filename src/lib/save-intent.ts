@@ -2,7 +2,7 @@
  * Reading "save this" out of ordinary conversation.
  *
  * The guided flow ends with buttons, which is fine when you are already in it.
- * Asked for in a sentence — "save this task", "email that to me" — there is
+ * Asked for in a sentence, "save this task", "email that to me", there is
  * nothing to tap, and Aria used to answer as though it were a general question.
  *
  * Deliberately a small, local matcher rather than another round trip to the
@@ -20,8 +20,8 @@ export type SaveTarget = 'note' | 'doc' | 'email';
  * Does this sentence ask for the work to be kept?
  *
  * Requires both a verb and something to act on, so "I saved the file already"
- * and "email from my tutor" don't trigger it. False negatives are cheap here —
- * the buttons are still on screen — and a false positive derails a
+ * and "email from my tutor" don't trigger it. False negatives are cheap here , 
+ * the buttons are still on screen, and a false positive derails a
  * conversation, so the bar is deliberately on the high side.
  */
 export function wantsSave(text: string): boolean {
@@ -30,7 +30,7 @@ export function wantsSave(text: string): boolean {
   if (!verb) return false;
   const object = /\b(this|that|it|these|task|tasks|list|plan|notes?|doc|document|answers?|work)\b/.test(t);
   if (!object) return false;
-  // "I already saved it", "don't send that" — a request, not a report.
+  // "I already saved it", "don't send that", a request, not a report.
   if (/\b(already|don'?t|do not|didn'?t|no need|stop)\b/.test(t)) return false;
   return true;
 }

@@ -2,7 +2,7 @@
 --
 -- Automations lived only in the Zustand store, which meant a birthday email
 -- scheduled for Friday existed nowhere but one phone. Nothing server-side could
--- see it, so nothing server-side could send it — the app had to be open at the
+-- see it, so nothing server-side could send it, the app had to be open at the
 -- appointed moment, which is the one moment the student did not need an
 -- assistant. This table is the prerequisite for the cron in 004.
 --
@@ -53,7 +53,7 @@ create index if not exists automations_due_idx
   on public.automations (run_at)
   where status = 'scheduled' and channel = 'email';
 
--- Stuck-claim sweep (see 004). Also partial — in a healthy system this index
+-- Stuck-claim sweep (see 004). Also partial, in a healthy system this index
 -- covers zero rows.
 create index if not exists automations_sending_idx
   on public.automations (ran_at)
@@ -70,7 +70,7 @@ create policy "automations are self" on public.automations
 --
 -- Two things can decide an automation is due: the cron, and the device, if the
 -- app happens to be open at the time. Both must be able to try, and exactly one
--- must win — a birthday email sent twice is a worse failure than one sent late.
+-- must win, a birthday email sent twice is a worse failure than one sent late.
 --
 -- So neither of them ever reads a row and then sends it. Both issue the same
 -- conditional update first:

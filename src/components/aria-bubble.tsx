@@ -7,7 +7,7 @@ import { AriaAvatar } from './aria-avatar';
 import { UserAvatar } from './user-avatar';
 import { Text } from './ui/text';
 
-/** A chat bubble in the Aria flow — from Aria (left) or Maya (right). */
+/** A chat bubble in the Aria flow, from Aria (left) or Maya (right). */
 export function AriaBubble({
   from,
   children,

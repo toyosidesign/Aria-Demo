@@ -47,7 +47,7 @@ export function SettingsGroup({
 /**
  * A single row: icon, label, and whatever control sits on the right.
  *
- * Prefer the group's `footnote` for explanations — below the card, full width,
+ * Prefer the group's `footnote` for explanations, below the card, full width,
  * clear of whatever the right-hand control occupies. `description` is the
  * exception, for a row whose text is meant to sit inside the box with it; it
  * only works when the right side holds something narrow, like a single glyph.

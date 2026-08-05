@@ -81,7 +81,7 @@ export default function ForgotPasswordScreen() {
       });
       if (vErr) {
         // One message for a wrong code, an expired code, and a code for an
-        // address that has no account — the three are indistinguishable to the
+        // address that has no account, the three are indistinguishable to the
         // person typing, and telling them apart is what leaks.
         console.warn('[aria] password reset verify failed:', vErr.message);
         setError('That code is not valid or has expired. Request a new one.');
@@ -92,7 +92,7 @@ export default function ForgotPasswordScreen() {
         setError(uErr.message);
         return;
       }
-      // Verifying the code signs the user in — the auth gate hydrates and routes into the app.
+      // Verifying the code signs the user in, the auth gate hydrates and routes into the app.
       router.replace('/');
     } finally {
       setBusy(false);

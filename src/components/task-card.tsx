@@ -48,7 +48,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
       className="rounded-2xl border border-border bg-surface p-4 active:opacity-70">
       <View className="flex-row items-start justify-between gap-3">
         {/* Body weight rather than `subtitle`. A card title is a list item, not
-            a heading — at 17px semibold every card competed with the screen
+            a heading, at 17px semibold every card competed with the screen
             title above it, and a column of them read as a stack of headlines. */}
         <Text
           className="flex-1 font-strong"
@@ -84,7 +84,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
             </Text>
           </View>
         ) : null}
-        {/* Aria wrote something and it's kept on the task — say so, or there's
+        {/* Aria wrote something and it's kept on the task, say so, or there's
             no way to know it exists without opening every task. */}
         {(task.draftSections?.length ?? 0) > 0 ? (
           <View className="flex-row items-center gap-1.5">
@@ -110,7 +110,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
         An assignment runs for days and ends in a document, so the row that
         serves an event serves it badly: a title and a date is exactly what a
         finished piece of work looks like too. The bar says how far along it is
-        and the line under it names the one step that is next — which is the
+        and the line under it names the one step that is next, which is the
         difference between a list entry and something being worked on.
       */}
       {inProgress ? (

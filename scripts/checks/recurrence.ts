@@ -24,7 +24,7 @@ const t = (name: string, fn: () => void) => {
   catch (e) { fail.push(name); console.log(`  ✗ ${name}\n      ${(e as Error).message.split('\n')[0]}`); }
 };
 
-console.log('\nnextOccurrence — plain steps');
+console.log('\nnextOccurrence, plain steps');
 t('daily', () => assert.equal(nextOccurrence('2026-07-30', 'daily'), '2026-07-31'));
 t('weekly', () => assert.equal(nextOccurrence('2026-07-30', 'weekly'), '2026-08-06'));
 t('fortnightly', () => assert.equal(nextOccurrence('2026-07-30', 'fortnightly'), '2026-08-13'));
@@ -43,7 +43,7 @@ t('daily across a month boundary', () =>
 t('daily across a year boundary', () =>
   assert.equal(nextOccurrence('2026-12-31', 'daily'), '2027-01-01'));
 
-console.log('\nnextFutureOccurrence — never lands in the past');
+console.log('\nnextFutureOccurrence, never lands in the past');
 t('a daily task ignored for 2 weeks lands tomorrow, not 2 weeks ago', () => {
   const next = nextFutureOccurrence('2026-07-16', 'daily', '2026-07-30');
   assert.equal(next, '2026-07-31');
@@ -78,7 +78,7 @@ t('each REPEAT_OPTION advances and has a label', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\neffectiveToday — the demo cannot accept a date it draws as overdue');
+console.log('\neffectiveToday, the demo cannot accept a date it draws as overdue');
 
 t('with no simulation, it is the real date', () => {
   const real = new Date();
@@ -105,7 +105,7 @@ t('THE BUG: a day before the simulated today is now rejected', () => {
   assert.equal(picked < today, true, 'must be flagged as past');
 
   // What the old code did: compare against the real date only.
-  assert.equal(picked < iso(real), false, 'old check let this through — that was the bug');
+  assert.equal(picked < iso(real), false, 'old check let this through, that was the bug');
 });
 
 t('a stale demo date behind the real one cannot rewind validation', () => {

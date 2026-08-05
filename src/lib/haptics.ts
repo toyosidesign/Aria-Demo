@@ -20,7 +20,7 @@ export function hapticSuccess() {
 }
 
 /**
- * A press that didn't do what was asked — a form that won't submit yet.
+ * A press that didn't do what was asked, a form that won't submit yet.
  *
  * Distinct from `hapticTap` on purpose: tapping Save and feeling the same thing
  * as any other button reads as "it worked", which is the opposite of what

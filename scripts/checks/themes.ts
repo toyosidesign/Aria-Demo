@@ -54,11 +54,11 @@ for (const name of THEME_NAMES) {
   t(`${name}: accentSoft separates from surface AND bg`, () => {
     // The profile avatar is an accent-soft disc sitting directly on `bg`, while
     // chips and banners sit on `surface`. Tuning against one alone made the
-    // avatar vanish on the light themes — it was within 1.03 of its own page.
+    // avatar vanish on the light themes, it was within 1.03 of its own page.
     const onSurface = ratio(p.accentSoft, p.surface);
     const onBg = ratio(p.accentSoft, p.bg);
-    assert.ok(onSurface >= 1.1, `only ${onSurface.toFixed(3)} against surface — invisible on a card`);
-    assert.ok(onBg >= 1.1, `only ${onBg.toFixed(3)} against bg — invisible on the page`);
+    assert.ok(onSurface >= 1.1, `only ${onSurface.toFixed(3)} against surface, invisible on a card`);
+    assert.ok(onBg >= 1.1, `only ${onBg.toFixed(3)} against bg, invisible on the page`);
   });
 }
 
@@ -95,7 +95,7 @@ console.log('\nsecondary text is legible on tinted panels too');
 for (const name of THEME_NAMES) {
   const p = THEMES[name].palette;
   t(`${name}: muted clears AA on accentSoft as well as surface`, () => {
-    // Tinted panels — the welcome card, the demo invite, the "not now" banner —
+    // Tinted panels, the welcome card, the demo invite, the "not now" banner , 
     // all carry muted body copy. Tuning `muted` against `surface` alone left
     // Linen at 4.46 on its own panel: legible on a card, not on a banner.
     const onPanel = ratio(p.muted, p.accentSoft);
@@ -109,11 +109,11 @@ console.log('\ncharcoal stays neutral');
 t('charcoal has no hue anywhere in its palette', () => {
   // It is the monochrome theme; a cool cast is Midnight's job. The iOS system
   // greys it started from sit ~5 points bluer than red, and the shared
-  // priorityLow was 31 — invisible per swatch, unmistakable across a screen.
+  // priorityLow was 31, invisible per swatch, unmistakable across a screen.
   const p = THEMES.charcoal.palette;
   for (const [role, value] of Object.entries(p)) {
     const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i + 1, i + 3), 16));
-    // The three semantic colours are meant to have hue — they mean something.
+    // The three semantic colours are meant to have hue, they mean something.
     if (['success', 'warning', 'danger', 'priorityMedium', 'priorityHigh'].includes(role)) continue;
     assert.equal(r, g, `${role} ${value}: R and G differ`);
     assert.equal(g, b, `${role} ${value}: carries a ${b - r > 0 ? 'blue' : 'warm'} cast`);

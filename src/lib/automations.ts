@@ -16,7 +16,7 @@ import { WhatsAppIcon } from '@/components/brand-icons';
  *   app to send a message as the user, so the most Aria can do is have the
  *   draft written, addressed and waiting behind one tap at the right moment.
  *
- * The UI must never imply otherwise — a "sent" that didn't send is worse than
+ * The UI must never imply otherwise, a "sent" that didn't send is worse than
  * no automation at all.
  */
 
@@ -35,7 +35,7 @@ export interface Automation {
   taskId: string;
   taskTitle: string;
   channel: AutoChannel;
-  /** ISO datetime — when Aria should act. */
+  /** ISO datetime, when Aria should act. */
   runAt: string;
   toName?: string;
   toEmail?: string;
@@ -100,7 +100,7 @@ export function isPending(a: Automation): boolean {
   return a.status === 'scheduled' || a.status === 'ready';
 }
 
-/** Finished, one way or another — this is what the report is built from. */
+/** Finished, one way or another, this is what the report is built from. */
 export function isFinished(a: Automation): boolean {
   return a.status === 'sent' || a.status === 'done' || a.status === 'failed';
 }

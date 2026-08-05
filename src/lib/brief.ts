@@ -3,7 +3,7 @@
  *
  * An assignment is not a title and a date. It is a deliverable, a deadline, a
  * weighting, the criteria it is marked against and the format rules it has to
- * obey — and every one of those is written down in a document the student
+ * obey, and every one of those is written down in a document the student
  * already has. Typing them back into a form is transcription, which is exactly
  * the work an assistant should be doing.
  *
@@ -16,7 +16,7 @@
  * shown as a chip, and a low one reads as "check this" rather than as a fact.
  *
  * A missing field is not a low-confidence field. It is a gap, and gaps get
- * actions rather than chips — see `GAP_ACTIONS`.
+ * actions rather than chips, see `GAP_ACTIONS`.
  */
 
 export type Confidence = 'high' | 'medium' | 'low';
@@ -47,7 +47,7 @@ export interface BriefFacts {
   /** What it is worth: "40% of the module". */
   weighting?: BriefField;
   criteria?: BriefCriteria;
-  /** Referencing style, file type, font — the rules that lose marks quietly. */
+  /** Referencing style, file type, font, the rules that lose marks quietly. */
   format?: BriefField;
 }
 
@@ -73,7 +73,7 @@ export const CONFIDENCE_LABEL: Record<Confidence, string> = {
  * What to do about a fact the brief does not contain.
  *
  * Three buttons rather than a text box, because a gap is not usually something
- * the student knows and hasn't typed — it is something nobody has told them.
+ * the student knows and hasn't typed, it is something nobody has told them.
  * "Ask tutor" writes the question, "Upload handbook" looks somewhere else it
  * might be written down, and "I know this" is for the case where they do.
  */
@@ -97,7 +97,7 @@ export function briefGaps(facts: BriefFacts | undefined): BriefSlot[] {
   return BRIEF_SLOTS.filter((s) => !hasSlot(facts, s.slot)).map((s) => s.slot);
 }
 
-/** How a slot reads back in a sentence — used by the tutor question. */
+/** How a slot reads back in a sentence, used by the tutor question. */
 const SLOT_QUESTION: Record<BriefSlot, string> = {
   deliverable: 'what exactly we need to hand in',
   deadline: 'when it is due',
@@ -109,7 +109,7 @@ const SLOT_QUESTION: Record<BriefSlot, string> = {
 /**
  * The message that goes to the tutor, written so it can be sent as it stands.
  *
- * One question, named politely, with the assignment it refers to — the thing a
+ * One question, named politely, with the assignment it refers to, the thing a
  * student stalls on is not the asking, it is the wording. Several gaps become
  * one message rather than several, because three emails about one brief is
  * worse for the tutor and less likely to be sent.
@@ -132,7 +132,7 @@ export function tutorQuestion(slots: BriefSlot[], title: string): string {
 /**
  * Priority from what the work is worth, rather than from a question.
  *
- * The flow does not ask an assignment how much it matters — the brief already
+ * The flow does not ask an assignment how much it matters, the brief already
  * said, in the one number the student cares about. A dissertation at 60% is not
  * the same job as a 5% problem sheet, and asking would be asking them to repeat
  * something they just uploaded.
@@ -187,7 +187,7 @@ export interface BriefResponse {
 /**
  * What can be read out of a brief without a model.
  *
- * Only from text — an uploaded PDF is bytes to this reader, so an upload with
+ * Only from text, an uploaded PDF is bytes to this reader, so an upload with
  * no key reaches the card with everything as a gap. That is the correct
  * outcome: five "Ask tutor" buttons is a usable screen, and five invented
  * facts is not.
@@ -204,7 +204,7 @@ export function localBrief(req: BriefRequest): BriefFacts {
 
   // ISO first because it needs no interpretation; then the two written forms
   // people actually use. Anything vaguer ("week 9") is left as a gap on
-  // purpose — a guessed deadline is the one mistake this cannot make.
+  // purpose, a guessed deadline is the one mistake this cannot make.
   const iso = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1];
   const written = text.match(
     /\b(\d{1,2})(?:st|nd|rd|th)?\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/i,

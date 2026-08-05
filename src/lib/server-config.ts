@@ -8,7 +8,7 @@
  * it worked, which is how a dead API key survived unnoticed for a long time
  * (see the comment in app/api/draft+api.ts).
  *
- * So the default is to say so loudly, once, rather than to crash — a demo
+ * So the default is to say so loudly, once, rather than to crash, a demo
  * deliberately run without keys is a legitimate configuration. Set
  * ARIA_STRICT_CONFIG=1 in a real deployment to turn that into a hard failure at
  * startup instead, which is what you want when scripted output reaching a user
@@ -74,8 +74,8 @@ export function checkServerConfig(): void {
 // Is the key any good?
 //
 // `checkServerConfig` above answers "is a key set", which is a different and
-// much weaker question. A placeholder — `ANTHROPIC_API_KEY=sk-ant-...` copied
-// out of a README and never replaced — passes it, boots cleanly, and then every
+// much weaker question. A placeholder, `ANTHROPIC_API_KEY=sk-ant-...` copied
+// out of a README and never replaced, passes it, boots cleanly, and then every
 // route falls back to scripted text. That is exactly how this app ran for
 // weeks: a present, invalid, 24-character key.
 //
@@ -86,7 +86,7 @@ export function checkServerConfig(): void {
 export type KeyStatus =
   | 'unchecked' // hasn't run yet, or no key to check
   | 'ok'
-  | 'invalid' // the API rejected it — 401/403
+  | 'invalid' // the API rejected it, 401/403
   | 'unreachable'; // network trouble; says nothing about the key
 
 let keyStatus: KeyStatus = 'unchecked';
@@ -100,7 +100,7 @@ export function modelKeyStatus(): KeyStatus {
  * Verify the key against the API, once.
  *
  * Deliberately never throws. A verification that can take down the server on a
- * flaky network is worse than the problem it detects — `unreachable` is not
+ * flaky network is worse than the problem it detects, `unreachable` is not
  * `invalid`, and only the latter is the app's fault.
  */
 export async function verifyModelKey(): Promise<KeyStatus> {
@@ -125,7 +125,7 @@ export async function verifyModelKey(): Promise<KeyStatus> {
       return keyStatus;
     }
 
-    // 429, 5xx — the key may be perfectly fine.
+    // 429, 5xx, the key may be perfectly fine.
     keyStatus = 'unreachable';
     console.warn(`[aria] could not verify ANTHROPIC_API_KEY (HTTP ${res.status}); continuing.`);
     return keyStatus;

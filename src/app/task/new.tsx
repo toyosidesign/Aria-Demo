@@ -126,7 +126,7 @@ export default function NewTaskScreen() {
   }>();
   const editing = params.editId ? tasks.find((t) => t.id === params.editId) : undefined;
   /**
-   * Asked to edit a task that isn't there any more — it was completed, deleted,
+   * Asked to edit a task that isn't there any more, it was completed, deleted,
    * or the list was replaced while this screen sat open in the background.
    * Without this the screen silently became an empty "New task" form: the title
    * said the wrong thing, the fields were blank, and there was no way back to
@@ -182,7 +182,7 @@ export default function NewTaskScreen() {
   useEffect(() => {
     const opts = methodOptionsFor(kind);
     setMethod((m) => (opts.includes(m) ? m : defaultMethodFor(kind, contactName.trim().length > 0)));
-    // Contact isn't a dependency — it no longer affects which options exist.
+    // Contact isn't a dependency, it no longer affects which options exist.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind]);
 
@@ -191,7 +191,7 @@ export default function NewTaskScreen() {
   const isCard = method === 'card';
   const isPhoto = method === 'photo';
   const showsSubtasks = kind === 'assignment' || kind === 'project';
-  // A call is only ever "who am I ringing" — nothing else to collect.
+  // A call is only ever "who am I ringing", nothing else to collect.
   const isCallMethod = method === 'call';
   /*
    * A text or an email needs writing too.
@@ -205,7 +205,7 @@ export default function NewTaskScreen() {
 
   // You can't schedule something into the past. Reported against each control
   // separately so the error sits next to whichever one caused it.
-  // The simulated day when the demo is running ahead, the real one otherwise —
+  // The simulated day when the demo is running ahead, the real one otherwise , 
   // otherwise a date the calendar already draws as overdue saves without a word.
   const todayISO = effectiveToday(demoDate);
   const dateInPast = date < todayISO;
@@ -220,7 +220,7 @@ export default function NewTaskScreen() {
    * The exception exists so an overdue task stays editable: you should be able
    * to fix a typo on something late without first rescheduling it. But it was
    * keyed on the date alone, so on an existing task the time was never checked
-   * — toggle a time on, or move it, and a moment that had already gone was
+   *, toggle a time on, or move it, and a moment that had already gone was
    * accepted in silence.
    *
    * Touching *either* half is the signal. Leave both alone and nothing nags;
@@ -238,7 +238,7 @@ export default function NewTaskScreen() {
    *
    * Nothing is marked wrong until then. Reporting a missing title to someone
    * who has only just opened the form is scolding them for not having finished
-   * yet — the moment they ask to save is the moment it becomes true.
+   * yet, the moment they ask to save is the moment it becomes true.
    *
    * The errors below are derived from the values rather than stored, so each
    * one clears itself as soon as its field is filled in.
@@ -251,7 +251,7 @@ export default function NewTaskScreen() {
    *
    * Validity here changes on its own as the clock moves, which nothing else in
    * the form does. Without this, a time picked at 14:59 for 15:00 was still
-   * showing as fine at 15:01 — and worse, `canSave` in the Save button's
+   * showing as fine at 15:01, and worse, `canSave` in the Save button's
    * closure was still `true`, so it saved a moment that had already passed.
    *
    * One timer to the exact instant rather than a poll, and skipped entirely for
@@ -277,7 +277,7 @@ export default function NewTaskScreen() {
    * demands a recipient.
    */
   const titleMissing = title.trim().length === 0;
-  // A call collapses the contact block down to just a number — there is no name
+  // A call collapses the contact block down to just a number, there is no name
   // or email field on screen to require.
   const needsContactName =
     showsContact && !isCallMethod && (kind === 'birthday' || kind === 'anniversary');
@@ -439,14 +439,14 @@ export default function NewTaskScreen() {
 
               Assignment and Project were two words of equal length and equal
               weight, and nothing on the screen said which one a piece of work
-              belonged in — so the choice was a coin toss that changes the whole
+              belonged in, so the choice was a coin toss that changes the whole
               flow behind it. A tile has room for the sentence that decides it;
               a pill does not. `CATEGORY_BLURB` holds the wording.
             */}
             <View className="flex-row flex-wrap gap-2">
               {CATEGORY_KINDS.map((k) => {
                 // The Event tile stands in for the whole family, so it stays lit
-                // — and wears the occasion's icon — while a birthday is selected.
+                //, and wears the occasion's icon, while a birthday is selected.
                 const active = k.value === 'event' ? isEventKind(kind) : kind === k.value;
                 const Icon = KIND_ICON[k.value === 'event' && active ? kind : k.value];
                 return (
@@ -532,7 +532,7 @@ export default function NewTaskScreen() {
 
           <TimeField value={time} onChange={setTime} />
 
-          {/* The alarm switch only exists once there's a time to ring at — say so,
+          {/* The alarm switch only exists once there's a time to ring at, say so,
               rather than leaving a reminder that quietly never chimes. */}
           {!time && kind === 'reminder' ? (
             <Text variant="caption" tone="muted" className="-mt-3">
@@ -576,7 +576,7 @@ export default function NewTaskScreen() {
           ) : null}
 
           {/* Repeat sits with date, time and alarm because it's the last part
-              of "when" — and off by default, since most tasks happen once. */}
+              of "when", and off by default, since most tasks happen once. */}
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-2">
@@ -660,7 +660,7 @@ export default function NewTaskScreen() {
             </View>
           </View>
 
-          {/* One option is not a choice — a reminder skips the question. */}
+          {/* One option is not a choice, a reminder skips the question. */}
           {methodOptions.length > 1 ? (
             <View className="gap-2">
               <Text variant="label" tone="muted">

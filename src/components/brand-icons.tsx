@@ -7,7 +7,7 @@ import { useColors } from '@/lib/colors';
  * Brand marks for the apps Aria hands off to.
  *
  * Lucide dropped brand logos, so a generic speech bubble was standing in for
- * WhatsApp — which reads as "a message", not "this goes to WhatsApp". These are
+ * WhatsApp, which reads as "a message", not "this goes to WhatsApp". These are
  * the real glyphs, used only to label a button that opens that app.
  *
  * Drawn in a single palette ink rather than in brand colour. The shapes are
@@ -65,7 +65,7 @@ export function FacebookIcon({ size = 18, color, style }: BrandIconProps) {
 }
 
 /**
- * Gmail's envelope. Only correct where Gmail is genuinely the destination —
+ * Gmail's envelope. Only correct where Gmail is genuinely the destination , 
  * Aria falls back to the system mail app, so a plain envelope is the honest
  * icon for a button labelled "Mail".
  */

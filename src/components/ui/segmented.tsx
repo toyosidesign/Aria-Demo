@@ -25,7 +25,7 @@ export function Segmented<T extends string>({
    *
    * Four tabs leave roughly 77pt of content each. "Upcoming" needs about 68 of
    * that and fits; a count beside it needs another 16 and does not. Earlier
-   * attempts all treated the symptom — truncating showed "Upcomin…", scaling
+   * attempts all treated the symptom, truncating showed "Upcomin…", scaling
    * shrank only the label that overflowed so one tab sat smaller than its
    * neighbours, and dropping the counts lost information worth keeping.
    *
@@ -46,7 +46,7 @@ export function Segmented<T extends string>({
             /*
              * `elevated`, not `surface`. In light they're the same step so
              * nothing changes, but in dark `surface` is *darker* than this
-             * track — the selected pill sank into the background instead of
+             * track, the selected pill sank into the background instead of
              * lifting off it, which is why the selection was hard to see.
              * `elevated` is the one step that is lighter than the track in
              * both schemes. The border adds an edge so it holds up either way.

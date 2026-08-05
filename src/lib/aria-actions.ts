@@ -18,7 +18,7 @@ export interface AriaAction {
   method?: TaskMethod;
   /** Assignment with subtasks Aria should walk through one at a time. */
   walkthrough?: boolean;
-  /** Nothing left to write — go straight to choosing how it goes out. */
+  /** Nothing left to write, go straight to choosing how it goes out. */
   readyToSend?: boolean;
 }
 
@@ -68,7 +68,7 @@ export const METHOD_LABELS: Record<TaskMethod, string> = {
 export const MESSAGE_METHODS: TaskMethod[] = ['sms', 'email', 'card', 'photo', 'call'];
 
 /**
- * What an event can end in — general, birthday or anniversary alike.
+ * What an event can end in, general, birthday or anniversary alike.
  *
  * Narrower than a plain task's list on purpose: an occasion is marked by
  * reaching someone, so drafting notes and planning steps have no place here.
@@ -89,7 +89,7 @@ export const TASK_METHODS: TaskMethod[] = [
 /**
  * Top-level categories in the Create screen.
  *
- * Birthday and anniversary aren't peers of "Event" — they're occasions *of* an
+ * Birthday and anniversary aren't peers of "Event", they're occasions *of* an
  * event, so they sit underneath it rather than crowding the top row. The kinds
  * themselves stay distinct in the model, because each one changes how Aria
  * handles it: a birthday defaults to a card, an anniversary to a message.
@@ -108,8 +108,8 @@ export const CATEGORY_KINDS: { value: TaskKind; label: string }[] = [
  * "Assignment" and "Project" are the same word to anyone who has not used the
  * app: both are big, both take weeks, and the tile gives no way to tell which
  * one you want. The distinction that actually decides it is where the
- * requirements come from — somebody else wrote them down, or you are writing
- * them yourself — so that is what the line says.
+ * requirements come from, somebody else wrote them down, or you are writing
+ * them yourself, so that is what the line says.
  *
  * The other two are here for symmetry: a row where only half the tiles are
  * explained reads as though the explained ones are the complicated ones.
@@ -132,7 +132,7 @@ export const CATEGORY_BLURB: Record<TaskKind, string> = {
  * nothing about how Aria should handle the thing, which is the only reason the
  * category exists. Removing it from the picker stops new ones being made.
  *
- * The kind itself stays in the model because tasks already carry it — the demo
+ * The kind itself stays in the model because tasks already carry it, the demo
  * seed included. Dropping it from the type would leave those rows referring to
  * a category the app no longer understands, which breaks the icon, the method
  * list and the Aria action for every one of them.
@@ -187,7 +187,7 @@ export const TASK_KINDS: { value: TaskKind; label: string }[] = [
 /**
  * What Aria says the moment a category is chosen.
  *
- * Picking a chip used to do nothing visible — it set a parse hint and changed
+ * Picking a chip used to do nothing visible, it set a parse hint and changed
  * the placeholder, so the burden of knowing what to say next stayed with the
  * student, in a chat where Aria had just gone quiet. Each of these names the
  * one thing that category needs, so the reply can be a fragment ("Sam, next
@@ -248,8 +248,8 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
   /*
    * A card is always a reminder to send, never an offer to write.
    *
-   * The message is authored when the task is created now — the create screen
-   * gives cards, pictures, texts and emails the same drafting field — so by the
+   * The message is authored when the task is created now, the create screen
+   * gives cards, pictures, texts and emails the same drafting field, so by the
    * time this card reaches Today there is nothing left to write. It used to
    * check whether anything had been written and fall back to "Draft the text"
    * if not, which was right when drafting happened afterwards and is now just a
@@ -391,7 +391,7 @@ export function ariaActionFor(task: Task): AriaAction | null {
   // A call needs no drafting: there's nothing to write and Aria can't place it.
   // The task detail shows a reminder and a shortcut to the dialer instead.
   if (task.method === 'call') return null;
-  // Text / email / card is a message flow whatever the category is — an
+  // Text / email / card is a message flow whatever the category is, an
   // assignment can just as easily end in an email to a professor.
   if (isMessageMethod(task.method)) return messageAction(task, who);
   switch (task.kind) {
@@ -432,8 +432,8 @@ export interface DraftRequest {
   /**
    * Say the intent back rather than write anything new.
    *
-   * The project flow's reflect-back card. Mechanically it is a draft — short
-   * text from the model about this piece of work — so it reuses this route
+   * The project flow's reflect-back card. Mechanically it is a draft, short
+   * text from the model about this piece of work, so it reuses this route
    * rather than adding a third one, and prompts, fallbacks and the key check
    * stay in one place. What it must never do is add: a reflection that quietly
    * invents a goal is worse than none, because the card exists to be agreed
@@ -544,7 +544,7 @@ export function localFallbackDraft(req: DraftRequest): string {
        * Every other fallback in this file writes something plausible. This one
        * must not: the card asks "have I understood you", and a scripted
        * paraphrase would be Aria agreeing with itself. Quoting what was given
-       * and naming what is missing is the same job done truthfully — and the
+       * and naming what is missing is the same job done truthfully, and the
        * confidence chip beside it is computed from exactly this poverty of
        * input, so the two agree.
        */

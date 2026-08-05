@@ -68,7 +68,7 @@ export interface WorkHandlers {
  *
  * The brief already exists. Everything on this screen after an upload was read
  * out of it rather than typed, so anything that makes uploading look like the
- * advanced option — a small link, a row of equals — costs the student the
+ * advanced option, a small link, a row of equals, costs the student the
  * entire feature. Typing it in is still there, one line down, for the
  * assignment that arrived as a sentence in a lecture.
  */
@@ -97,7 +97,7 @@ export function BriefStep({ draft, on }: { draft: FlowDraft; on: WorkHandlers })
       <Text variant="caption" tone="faint">
         {project
           ? 'Or just type what it is below. PDF, image or text if you have one.'
-          : 'Or paste the brief below. PDF, image or text — I read the criteria too.'}
+          : 'Or paste the brief below. PDF, image or text, I read the criteria too.'}
       </Text>
     </View>
   );
@@ -115,7 +115,7 @@ const CONFIDENCE_TONE: Record<Confidence, 'muted' | 'accent' | 'danger'> = {
  * What the brief says, with Aria's certainty attached to each line.
  *
  * A gap is not shown as an empty value. It is shown as three things the student
- * can do about it, because "weighting: —" is a shrug and "Ask tutor" is a way
+ * can do about it, because "weighting: , " is a shrug and "Ask tutor" is a way
  * out. The three are deliberately different in kind: ask the person who knows,
  * look somewhere else it might be written down, or tell Aria yourself.
  */
@@ -155,7 +155,7 @@ export function ExtractionCard({ draft, on }: { draft: FlowDraft; on: WorkHandle
         );
       })}
 
-      {/* One button, and it says what happens next rather than "Continue" —
+      {/* One button, and it says what happens next rather than "Continue" , 
           the plan is the thing they are actually here for. */}
       <Button
         title={gaps.length ? 'Carry on without those' : 'Looks right'}
@@ -187,7 +187,7 @@ const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 /**
  * What the week already holds, read rather than asked for.
  *
- * The calendar is the first answer because it is already true — anything Aria
+ * The calendar is the first answer because it is already true, anything Aria
  * has to ask for is a thing the student has to remember, and they are here to
  * stop holding it all in their head. The fixed hours question is asked once and
  * kept (`settings.fixedDays`), because "I have lectures on Mondays" does not
@@ -269,7 +269,7 @@ export function CommitmentsStep({
  * Two things are deliberately visible rather than implied. The buffer is a row,
  * because reserved time that nobody can see is time that gets scheduled over.
  * And a struck step stays on screen with a line through it, because "I'm not
- * doing that" is a decision worth being able to reverse — a plan that silently
+ * doing that" is a decision worth being able to reverse, a plan that silently
  * loses rows when tapped is one nobody taps.
  */
 export function PlanPreview({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
@@ -369,7 +369,7 @@ function shortDate(iso: string): string {
  *
  * Nothing else renders until this is answered, and that is the feature. The
  * second button is not a skip: saying you cannot state it yet is a real answer
- * that makes working it out the first task — which is what was actually true
+ * that makes working it out the first task, which is what was actually true
  * all along.
  */
 export function DefinitionGate({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
@@ -434,7 +434,7 @@ export function ReflectCard({ draft, on }: { draft: FlowDraft; on: WorkHandlers 
  *
  * Everybody can list what they are doing. The list people actually return to is
  * the one saying what they decided not to do, three weeks later when it starts
- * looking necessary again — so it is collected here, kept on the task, and
+ * looking necessary again, so it is collected here, kept on the task, and
  * written into the document rather than left in a conversation.
  */
 export function ScopeStep({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
@@ -528,7 +528,7 @@ function ScopeList({
  * "Finish the draft by the 14th" moves. "Send the draft to Sam on the 14th"
  * does not, because someone is expecting it. So every milestone gets a field
  * for the thing that makes it happen, and one left empty is flagged with an
- * offer rather than accepted quietly — a null here is the single best predictor
+ * offer rather than accepted quietly, a null here is the single best predictor
  * of the date slipping.
  */
 export function MilestonesStep({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
@@ -572,7 +572,7 @@ export function MilestonesStep({ draft, on }: { draft: FlowDraft; on: WorkHandle
             </Text>
           ) : (
             /* The offer, made where the null is rather than in a summary at the
-               end — this is the moment they can still answer it. */
+               end, this is the moment they can still answer it. */
             <View className="flex-row items-center gap-2 pt-1">
               <Text variant="caption" tone="danger" className="flex-1">
                 Nothing forces this one.
@@ -594,7 +594,7 @@ export function MilestonesStep({ draft, on }: { draft: FlowDraft; on: WorkHandle
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="Milestone — what's true when it's hit"
+          placeholder="Milestone: what's true when it's hit"
           placeholderTextColor={c.faint}
           className="min-h-[44px] rounded-xl border border-border bg-surface px-3 py-2.5"
           style={{ color: c.ink }}
@@ -602,7 +602,7 @@ export function MilestonesStep({ draft, on }: { draft: FlowDraft; on: WorkHandle
         <TextInput
           value={forcing}
           onChangeText={setForcing}
-          placeholder="What forces it — a review, a demo, someone waiting"
+          placeholder="What forces it: a review, a demo, someone waiting"
           placeholderTextColor={c.faint}
           className="min-h-[44px] rounded-xl border border-border bg-surface px-3 py-2.5"
           style={{ color: c.ink }}
@@ -646,7 +646,7 @@ export function MilestonesStep({ draft, on }: { draft: FlowDraft; on: WorkHandle
  * The Guide is reachable from the plan preview, the definition gate, the
  * milestones step and an offer after two rollovers. If it were a link in one
  * place and a button in another, nobody would learn that they are the same
- * door — so this is the only way it is ever drawn, and the label varies while
+ * door, so this is the only way it is ever drawn, and the label varies while
  * the shape and the compass do not.
  */
 export function GuideButton({ onPress, label = 'Guide' }: { onPress: () => void; label?: string }) {
@@ -714,7 +714,7 @@ export function GuideDirections({
   const c = useColors();
   const guide = draft.guide;
 
-  // Nothing to go on. Said plainly, with the one thing that would fix it —
+  // Nothing to go on. Said plainly, with the one thing that would fix it , 
   // four generic directions would have been worse than this.
   if (guide?.needs) {
     return (
@@ -779,7 +779,7 @@ export function GuideDirections({
 
       {guide?.fallback ? (
         <Text variant="caption" tone="faint">
-          These are the general shapes — I couldn&apos;t reach the model just now.
+          These are the general shapes, I couldn&apos;t reach the model just now.
         </Text>
       ) : null}
 

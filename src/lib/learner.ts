@@ -6,7 +6,7 @@
  * there (and untestable in plain Node).
  */
 
-/** What onboarding collected. Every field optional — every question skips. */
+/** What onboarding collected. Every field optional, every question skips. */
 export interface Learner {
   /** Studying, employed, or running their own thing. */
   role?: 'student' | 'employed' | 'independent';
@@ -18,7 +18,7 @@ export interface Learner {
   /**
    * How they asked to be taught.
    *
-   * No longer collected — onboarding dropped the question. Kept because
+   * No longer collected, onboarding dropped the question. Kept because
    * accounts that answered it before still carry the value, and throwing away
    * a stated preference to tidy a type would be a worse trade than an unused
    * branch.
@@ -60,7 +60,7 @@ export function describeLearner(l: Learner | undefined): string {
    * Every branch used to open "You are helping a student", because the only
    * question asked was what they were studying. A freelancer got their work
    * broken down as though it were coursework, and the vocabulary pitched at
-   * someone being taught — which is the wrong register for the person who is
+   * someone being taught, which is the wrong register for the person who is
    * the expert in the room.
    */
   const field = l.studying?.trim();
