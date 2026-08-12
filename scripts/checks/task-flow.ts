@@ -35,6 +35,8 @@ import {
   needsContact,
   nextStep,
   promptFor,
+  submissionReminder,
+  DEFAULT_SUBMIT_TIME,
   reopen,
   startFlow,
   toTaskInput,
@@ -854,6 +856,87 @@ test('task-flow and aria-actions agree on what an event is', () => {
   for (const kind of ['assignment', 'project', 'reminder', 'general'] as TaskKind[]) {
     assert.equal(isEventKind(kind), false, `${kind} is not an occasion`);
   }
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Work starts, rather than being scheduled and left');
+
+test('an accepted plan is followed by handing in, then by starting', () => {
+  /*
+   * The change that separates work from an occasion. An event is a date with
+   * something to do on it, so scheduling it is the whole job. An assignment
+   * accepted and then left alone is a plan nobody started, and the fortnight
+   * between accepting a plan and beginning it is exactly where the time goes.
+   */
+  for (const kind of ['assignment', 'project'] as TaskKind[]) {
+    const seen = walk(kind);
+    const plan = seen.indexOf('planPreview');
+    assert.ok(plan > -1, `${kind} must still show the plan`);
+    assert.equal(seen[plan + 1], 'submitWhen', `${kind}: handing in comes straight after the plan`);
+    assert.equal(seen[plan + 2], 'startNow', `${kind}: then the offer to begin`);
+    assert.equal(seen[seen.length - 1], 'done');
+  }
+});
+
+test('handing in becomes its own reminder, with an alarm and a day', () => {
+  /*
+   * Finishing the work and handing it in are two jobs, and the second is the
+   * one people lose. A reminder is the category built for exactly that: one
+   * job, one hour, an alarm as the point of it. Folding it into the assignment
+   * would hide the moment of submission behind a task already closed in
+   * somebody's head.
+   */
+  const d: FlowDraft = {
+    ...startFlow('assignment'),
+    title: 'Cold War essay',
+    facts: { deadline: { value: '2026-09-25', confidence: 'high' } },
+    submitWhen: 'day-before',
+  };
+  const r = submissionReminder(d)!;
+  assert.equal(r.date, '2026-09-24', 'the day before means the day before');
+  assert.equal(r.time, DEFAULT_SUBMIT_TIME);
+  assert.match(r.title, /Hand in: Cold War essay/);
+  // It says where the thing to hand in actually is. A bare "hand it in" sends
+  // somebody hunting for the document at the worst possible moment.
+  assert.match(r.description, /The document is on "Cold War essay"/);
+
+  assert.equal(submissionReminder({ ...d, submitWhen: 'deadline-day' })!.date, '2026-09-25');
+  assert.equal(
+    submissionReminder({ ...d, submitWhen: 'custom', submitDate: '2026-09-20', submitTime: '16:30' })!.date,
+    '2026-09-20',
+  );
+  assert.equal(
+    submissionReminder({ ...d, submitWhen: 'custom', submitDate: '2026-09-20', submitTime: '16:30' })!.time,
+    '16:30',
+  );
+});
+
+test('nothing to hand in produces no reminder', () => {
+  // A project with no deadline has no submission, and inventing a date for one
+  // would put an alarm on a day nobody chose.
+  const noDeadline: FlowDraft = { ...startFlow('project'), title: 'Design system' };
+  assert.equal(submissionReminder(noDeadline), null);
+});
+
+test('the offer to begin names the first step', () => {
+  const d: FlowDraft = {
+    ...startFlow('assignment'),
+    title: 'Cold War essay',
+    plan: [
+      { title: 'Read the sources', due: '2026-09-06' },
+      { title: 'Submission buffer: 2 days', due: '2026-09-25', buffer: true },
+    ],
+  };
+  assert.match(promptFor('startNow', d), /Read the sources/);
+  // And says something useful when there is no plan to name a step from.
+  assert.match(promptFor('startNow', startFlow('assignment')), /make a start/i);
+});
+
+test('choosing to start later is an answer, not a failure', () => {
+  const later = { ...startFlow('assignment'), startedNow: false };
+  assert.match(ackFor('startNow', later) ?? '', /plan says when to start/i);
+  // Starting now needs no acknowledgement: the work opening is the answer.
+  assert.equal(ackFor('startNow', { ...later, startedNow: true }), null);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

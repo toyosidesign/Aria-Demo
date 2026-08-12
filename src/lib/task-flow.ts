@@ -21,6 +21,9 @@
  * renders whatever it is told to and holds no opinion of its own.
  */
 
+import { addDays, parseISO } from 'date-fns';
+
+import { toISODate } from '@/lib/dates';
 import {
   BRIEF_SLOTS,
   briefGaps,
@@ -73,6 +76,8 @@ export type FlowStep =
   | 'scope' // what's in, and the out-list they'll come back to
   | 'milestones' // each with a forcing function
   | 'planPreview' // the plan, backwards from the deadline. Accept lives here
+  | 'submitWhen' // when the finished thing gets handed in, as its own reminder
+  | 'startNow' // begin the first step now, rather than scheduling the whole thing
   // ── The Guide, reachable from several of the above ────────────────────────
   | 'guideAsk' // the one narrowing question
   | 'guideDirections' // three or four ways forward
@@ -147,6 +152,14 @@ export interface FlowDraft {
   /** The list they will come back to. Kept, and kept visible. */
   scopeOut?: string[];
   milestones?: { title: string; due?: string; forcing?: string }[];
+  /** When the finished thing gets handed in, as its own reminder. */
+  submitWhen?: SubmitWhen;
+  /** The day, when they picked one themselves. */
+  submitDate?: string;
+  /** The hour it should chime. */
+  submitTime?: string;
+  /** True when they chose to begin the first step straight away. */
+  startedNow?: boolean;
   /** The Guide, when it is open. See `nextStep`, it is a detour, not a step. */
   guide?: GuideState;
   /** Answers to anything drilled into, kept so they reach the saved task. */
@@ -441,6 +454,82 @@ export function nextStep(d: FlowDraft): FlowStep {
  */
 export const WORK_ACCEPTS_AT: FlowStep = 'planPreview';
 
+/**
+ * ── Work does not end at "saved" ─────────────────────────────────────────────
+ *
+ * An event is a date with something to do on it, so scheduling it is the whole
+ * job. Work is not: an assignment accepted and then left alone is a plan
+ * nobody started, and the gap between accepting a plan and beginning it is
+ * exactly where a fortnight goes.
+ *
+ * So the two questions after the plan are the ones that turn a plan into work
+ * that has started.
+ *
+ * `submitWhen` hands the ending to the category built for it. Handing in is not
+ * part of writing, it is a five-minute job on a particular day at a particular
+ * time, which is precisely what a reminder is, so it becomes its own reminder
+ * with an alarm rather than a footnote on a task that will be finished by then.
+ *
+ * `startNow` opens the first step immediately. The plan says work begins today
+ * often enough that offering to begin it is the honest next question, and the
+ * answer costs one tap either way.
+ */
+
+/** When the finished thing gets handed in. */
+export type SubmitWhen = 'deadline-day' | 'day-before' | 'custom';
+
+export const SUBMIT_OPTIONS: { value: SubmitWhen; label: string; hint: string }[] = [
+  { value: 'day-before', label: 'The day before', hint: 'Nothing left to do on the day itself.' },
+  { value: 'deadline-day', label: 'On the day', hint: 'A few hours before it is due.' },
+  { value: 'custom', label: 'Another time', hint: 'Pick the day and the hour.' },
+];
+
+/** The default hour to hand something in: late morning, not last thing at night. */
+export const DEFAULT_SUBMIT_TIME = '10:00';
+
+/**
+ * The reminder that carries the submission.
+ *
+ * A separate task on purpose, and of the kind that exists for exactly this: it
+ * has one job, it happens at a specific hour, an alarm is the point of it, and
+ * it survives the assignment being finished early. Folding it into the
+ * assignment would put the moment of handing in behind a task somebody has
+ * already mentally closed.
+ *
+ * Returns null when there is nothing to remind anybody about, which is a real
+ * case: a project with no deadline has no submission.
+ */
+export function submissionReminder(
+  d: FlowDraft,
+): { title: string; date: string; time: string; description: string } | null {
+  const deadline = workDeadline(d);
+  if (!deadline) return null;
+  const when = d.submitWhen ?? 'day-before';
+  const date =
+    when === 'custom' && d.submitDate
+      ? d.submitDate
+      : when === 'day-before'
+        ? dayBefore(deadline)
+        : deadline;
+  return {
+    title: `Hand in: ${flowTitle(d)}`,
+    date,
+    time: d.submitTime ?? DEFAULT_SUBMIT_TIME,
+    /*
+     * Says where the thing to hand in actually is.
+     *
+     * A reminder that says "hand it in" and nothing else makes somebody go
+     * looking for the document at the worst possible moment.
+     */
+    description: `The document is on "${flowTitle(d)}". I assemble it the day before, so it should be waiting for you.`,
+  };
+}
+
+/** The day before, as a calendar day. */
+function dayBefore(date: string): string {
+  return toISODate(addDays(parseISO(date), -1));
+}
+
 function nextWorkStep(d: FlowDraft): FlowStep {
   if (!d.answered.brief) return 'brief';
   // Uploading usually names the work. Only ask when it didn't, or when they
@@ -454,6 +543,8 @@ function nextWorkStep(d: FlowDraft): FlowStep {
     // backwards from, so this is the one question that has to be asked.
     if (!workDeadline(d) && !d.answered.date) return 'date';
     if (!d.answered.planPreview) return 'planPreview';
+    if (!d.answered.submitWhen) return 'submitWhen';
+    if (!d.answered.startNow) return 'startNow';
     return 'done';
   }
 
@@ -474,6 +565,8 @@ function nextWorkStep(d: FlowDraft): FlowStep {
   // a day to sit on, so it gets the one question an assignment gets for free.
   if (!workDeadline(d) && !d.answered.date) return 'date';
   if (!d.answered.planPreview) return 'planPreview';
+  if (!d.answered.submitWhen) return 'submitWhen';
+  if (!d.answered.startNow) return 'startNow';
   return 'done';
 }
 
@@ -594,6 +687,20 @@ export function promptFor(step: FlowStep, d: FlowDraft): string {
       return "What's in, and what are you deliberately not doing?";
     case 'milestones':
       return 'What are the checkpoints? Each one needs something that forces it to happen.';
+    case 'submitWhen':
+      /*
+       * Asked as a separate thing, because it is a separate thing.
+       *
+       * Finishing the work and handing it in are two jobs, and the second one
+       * is the one people lose. It gets its own reminder with its own alarm, so
+       * it survives the assignment being finished a week early and mentally
+       * closed.
+       */
+      return 'When do you want to hand it in? I\'ll set a reminder with an alarm.';
+    case 'startNow':
+      return d.plan?.length
+        ? `First step is "${d.plan.find((p) => !p.buffer)?.title ?? 'the first one'}". Want to make a start now?`
+        : 'Want to make a start now?';
     case 'planPreview':
       return d.kind === 'assignment'
         ? 'Here it is, working back from the deadline. Change anything, then accept.'
@@ -716,6 +823,15 @@ export function ackFor(step: FlowStep, d: FlowDraft): string | null {
     }
     case 'plan':
       return d.checklist?.length ? `That's ${d.checklist.length} things to work through.` : null;
+    case 'submitWhen': {
+      const r = submissionReminder(d);
+      return r ? `Reminder set for ${r.date} at ${r.time}. That one is just the handing in.` : null;
+    }
+    case 'startNow':
+      // Saying "later" is a real answer and gets a real acknowledgement: the
+      // plan already says which day it starts, so nothing was lost by not
+      // starting now.
+      return d.startedNow ? null : 'No problem. The plan says when to start, and I will remind you.';
     case 'who':
       return d.who ? `${d.who}, got it.` : null;
     case 'contact':

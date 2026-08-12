@@ -69,7 +69,7 @@ is easy to get wrong.
 npm run security-check     59 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
-npm run check:flow         67 checks   # the conversational task setup
+npm run check:flow         72 checks   # the conversational task setup
 npm run check:plan         25 checks   # backwards planning, rollovers, briefs
 npm run check:review       42 checks   # the tier line, the Pro day, work ahead, assembly
 ```
@@ -507,6 +507,29 @@ switch on the essentials screen is "send at the scheduled time", which exists
 only on Pro; asked the other way round that screen would either hide the switch
 or show a control whose availability was undecided. It is also the earliest
 point where the question means anything.
+
+### 7a. Work starts, rather than being scheduled, 2026-08-12
+
+An assignment used to end where an event ends: accepted, saved, come back on the
+day. That is right for an occasion, which is a date with something to do on it,
+and wrong for work, because a plan accepted and left alone is a plan nobody
+started. The fortnight between accepting a plan and beginning it is exactly
+where the time goes.
+
+Two steps now follow the plan preview, for both work kinds.
+
+**`submitWhen`** hands the ending to the category built for it. Finishing the
+work and handing it in are two jobs, and the second is the one people lose: an
+essay finished on Tuesday and due Friday is mentally closed by Wednesday. So
+submission becomes **its own reminder task**, high priority, alarm on, defaulting
+to the day before, and carrying a description that says where the document is.
+`submissionReminder` returns null when there is no deadline, so a project
+without one gets no invented alarm.
+
+**`startNow`** offers to begin the first step immediately, naming it, and routes
+straight to `/aria/[taskId]`, the screen that already walks work step by step.
+Saying "later" is a real answer with a real acknowledgement: the plan already
+says which day it starts.
 
 ### 8a. What Pro is, rebuilt 2026-08-05
 

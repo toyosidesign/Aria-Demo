@@ -14,6 +14,7 @@ import { Pressable, TextInput, View } from 'react-native';
 
 import { Choice, InfoChip, PANEL_SHELL, Pill } from '@/components/flow-controls';
 import { MonthCalendar } from '@/components/month-calendar';
+import { TimeField } from '@/components/time-field';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import {
@@ -29,7 +30,14 @@ import { useColors } from '@/lib/colors';
 import { formatFull } from '@/lib/dates';
 import { NARROWING } from '@/lib/guide';
 import { hapticSelect } from '@/lib/haptics';
-import { guideModeFor, type FlowDraft, type FlowStep } from '@/lib/task-flow';
+import {
+  DEFAULT_SUBMIT_TIME,
+  SUBMIT_OPTIONS,
+  guideModeFor,
+  workDeadline,
+  type FlowDraft,
+  type FlowStep,
+} from '@/lib/task-flow';
 
 /**
  * The steps that only an assignment or a project has.
@@ -787,6 +795,85 @@ export function GuideDirections({
         <Choice label={busy ? 'Thinking…' : 'None of these'} busy={busy} onPress={onAgain} />
         <Choice label="Close" onPress={onClose} />
       </View>
+    </View>
+  );
+}
+
+/**
+ * When the finished thing gets handed in.
+ *
+ * Its own question, and its own reminder afterwards, because finishing the work
+ * and handing it in are two jobs and the second is the one people lose. The
+ * default is the day before: nothing left to do on the day itself is worth more
+ * than the few extra hours, and somebody who disagrees is one tap from saying so.
+ */
+export function SubmitWhenStep({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
+  const [custom, setCustom] = useState(false);
+  const [date, setDate] = useState(workDeadline(draft) ?? draft.date ?? '');
+  const [time, setTime] = useState<string | null>(DEFAULT_SUBMIT_TIME);
+
+  if (custom) {
+    return (
+      <View className={PANEL_SHELL}>
+        <MonthCalendar value={date} onSelect={setDate} />
+        <TimeField value={time} onChange={setTime} />
+        <Button
+          title="Remind me then"
+          block
+          onPress={() =>
+            on.onAnswer(
+              { submitWhen: 'custom', submitDate: date, submitTime: time ?? DEFAULT_SUBMIT_TIME },
+              'submitWhen',
+            )
+          }
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View className={PANEL_SHELL}>
+      {SUBMIT_OPTIONS.map((o) => (
+        <Pressable
+          key={o.value}
+          onPress={() => {
+            hapticSelect();
+            if (o.value === 'custom') {
+              setCustom(true);
+              return;
+            }
+            on.onAnswer({ submitWhen: o.value, submitTime: DEFAULT_SUBMIT_TIME }, 'submitWhen');
+          }}
+          className="gap-0.5 rounded-xl border border-border bg-surface p-3 active:opacity-70">
+          <Text variant="small" className="font-strong">
+            {o.label}
+          </Text>
+          <Text variant="caption" tone="muted">
+            {o.hint}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The offer to begin, which is the point of the whole change.
+ *
+ * A plan accepted and left alone is a plan nobody started. The first step is
+ * named rather than described, because "make a start" is a decision about
+ * effort and "Read the sources" is a decision about the next twenty minutes.
+ */
+export function StartNowStep({ draft, on }: { draft: FlowDraft; on: WorkHandlers }) {
+  const first = (draft.plan ?? []).find((s) => !s.buffer && !s.struck);
+  return (
+    <View className={PANEL_SHELL}>
+      <Choice
+        label={first ? `Start: ${first.title}` : 'Make a start now'}
+        primary
+        onPress={() => on.onAnswer({ startedNow: true }, 'startNow')}
+      />
+      <Choice label="Later, it is on the plan" onPress={() => on.onAnswer({ startedNow: false }, 'startNow')} />
     </View>
   );
 }

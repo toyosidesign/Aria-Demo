@@ -24,6 +24,8 @@ import {
   GuideDirections,
   MilestonesStep,
   PlanPreview,
+  StartNowStep,
+  SubmitWhenStep,
   ReflectCard,
   ScopeStep,
   type WorkHandlers,
@@ -174,6 +176,8 @@ export function TaskFlowPanel({
     if (step === 'scope') return <ScopeStep draft={draft} on={handlers} />;
     if (step === 'milestones') return <MilestonesStep draft={draft} on={handlers} />;
     if (step === 'planPreview') return <PlanPreview draft={draft} on={handlers} />;
+    if (step === 'submitWhen') return <SubmitWhenStep draft={draft} on={handlers} />;
+    if (step === 'startNow') return <StartNowStep draft={draft} on={handlers} />;
     if (step === 'guideAsk') {
       return <GuideAsk draft={draft} onFocus={guide.onFocus} onClose={guide.onClose} />;
     }

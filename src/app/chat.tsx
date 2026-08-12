@@ -31,21 +31,22 @@ import {
   closeGuide,
   flowDocument,
   flowSteps,
+  flowTitle,
   guideModeFor,
   isTypedStep,
   isWorkKind,
-  flowTitle,
   nextStep,
   openGuide,
   promptFor,
   reflectConfidence,
   reopen,
   startFlow,
+  submissionReminder,
   titleFromText,
   toTaskInput,
-  workDeadline,
   type FlowDraft,
   type FlowStep,
+  workDeadline,
 } from '@/lib/task-flow';
 import { briefSummary, tutorQuestion, type BriefFacts, type BriefSlot } from '@/lib/brief';
 import { pickBriefDocument, readImageAsDocument } from '@/lib/documents';
@@ -834,11 +835,53 @@ export default function ChatScreen() {
     setFlowStep('who');
     setFocus(null);
     hapticSuccess();
+
+    /*
+     * Handing in gets its own reminder, and its own alarm.
+     *
+     * Work and submission are two jobs, and the second is the one people lose:
+     * an essay finished on Tuesday and due Friday is mentally closed by
+     * Wednesday. A reminder is the category built for exactly this, one job at
+     * one hour, so it goes in as its own task rather than as a note on
+     * something already ticked off in somebody's head.
+     */
+    const submit = isWorkKind(flow.kind) ? submissionReminder(flow) : null;
+    if (submit) {
+      addTask({
+        title: submit.title,
+        date: submit.date,
+        time: submit.time,
+        priority: 'high',
+        kind: 'reminder',
+        method: 'remind',
+        alarm: true,
+        description: submit.description,
+      });
+    }
+
     // Says where it went, not just that it worked. "Saved" on its own leaves
     // the student wondering which of the app's lists now holds it.
     addChatMessage(
-      mk('aria', `Done. "${title}" is saved and in your queue. You'll find it on the Tasks page.`),
+      mk(
+        'aria',
+        submit
+          ? `Done. "${title}" is on your Tasks page, and I've set a reminder to hand it in on ${formatFull(submit.date)} at ${formatTime(submit.time)}.`
+          : `Done. "${title}" is saved and in your queue. You'll find it on the Tasks page.`,
+      ),
     );
+
+    /*
+     * And straight into the work, when they said yes.
+     *
+     * The whole reason the flow no longer ends at "saved": a plan accepted and
+     * left alone is a plan nobody started. `/aria/[taskId]` is the screen that
+     * already walks an assignment step by step, so beginning now is a
+     * navigation rather than a new surface.
+     */
+    if (flow.startedNow) {
+      router.push(`/aria/${id}` as Href);
+      return;
+    }
     // Offered only when there is something worth taking out of the app.
     if (doc) {
       lastWork.current = { id, title, body: doc };
