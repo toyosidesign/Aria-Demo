@@ -28,6 +28,7 @@ import {
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
 import { DEFAULT_REVIEW_TIME, syncDailyReview } from '@/lib/daily-brief';
 import { sampleDataPresent } from '@/lib/demo';
+import type { Source } from '@/lib/source';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/themes';
 import { showToast } from '@/lib/toast';
 import { uuidv4 } from '@/lib/id';
@@ -207,6 +208,15 @@ export interface ChatMessage {
    * with no seam. This is the seam.
    */
   divider?: string;
+  /**
+   * The pages behind a researched answer.
+   *
+   * Persisted with the message rather than held in memory: the thread outlives
+   * the session, and an answer that could be checked yesterday and cannot be
+   * checked today is the worst of both. Absent on answers from memory, which is
+   * how the screen knows not to imply a provenance that does not exist.
+   */
+  sources?: Source[];
 }
 
 /** A titled block of content Aria drafted (e.g. one essay section). */

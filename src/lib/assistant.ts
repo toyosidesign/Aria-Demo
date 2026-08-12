@@ -2,6 +2,7 @@ import { addDays, parseISO } from 'date-fns';
 
 import { toISODate } from '@/lib/dates';
 import { offlineAnswer } from '@/lib/offline-answer';
+import type { Source } from '@/lib/source';
 
 // Re-exported so existing callers keep one import site for chat behaviour.
 export { offlineAnswer } from '@/lib/offline-answer';
@@ -30,6 +31,13 @@ export interface AssistantTurn {
 export interface AssistantResponse {
   reply: string;
   tasks: ParsedTask[];
+  /**
+   * Where a searched answer came from, when Aria looked it up.
+   *
+   * Absent on remembered answers, and that absence is meaningful: it is how the
+   * chat knows not to imply provenance the answer does not have.
+   */
+  sources?: Source[];
   /** True when produced by the local parser (no API key / error). */
   fallback?: boolean;
 }
@@ -100,18 +108,23 @@ export function detectSmallTalk(message: string): string | null {
  * the world. Narrow it again as each of those becomes possible.
  */
 export const TESTING_NOTICE =
-  "I can't go and do things out in the world yet \u2014 booking, ordering, paying or browsing live websites. That part is still being built. I can talk anything through with you, and set up whatever needs doing: tell me something like \u201cremind me to submit my lab report on Friday at 5pm\u201d and I'll take care of it.";
+  "I can't go and do things out in the world yet: booking, ordering or paying. That part is still being built. I can look things up for you, talk anything through, and set up whatever needs doing: tell me something like \u201cremind me to submit my lab report on Friday at 5pm\u201d and I'll take care of it.";
 
 /**
- * The same limit, said where a task asks Aria to go and find things out.
+ * Said when notes came out of memory rather than off the web.
  *
- * Kept next to TESTING_NOTICE so the two can't drift into promising different
- * things. Research is the sharpest case: the screen is named for looking things
- * up, so without saying this, notes written from general knowledge read as
- * sourced findings a student might hand in unchecked.
+ * Aria can search now, so the old blanket "I cannot research this" was a lie in
+ * the ordinary case. What is still true is the exception: no key, a failed
+ * search, a model that answered without looking. Those produce notes that look
+ * identical to researched ones, which is exactly when somebody hands an
+ * unchecked claim to a marker.
+ *
+ * So this is said *after* the notes and only when no search ran, and its
+ * counterpart is the source list under the ones that were researched. Between
+ * them, every set of notes on that screen says where it came from.
  */
-export const OUT_OF_SCOPE_NOTICE =
-  "One thing first: I'm in a testing phase, so I can't go and research this properly yet. No searching the web, no reading sources. That part is still being built. What I give you below comes from general knowledge, so treat it as a starting point and check anything you rely on.";
+export const FROM_MEMORY_NOTICE =
+  "One thing about those notes: they came from what I already know, not from anything I read just now. No sources to point you at, so treat them as a starting point and check anything you lean on.";
 
 /**
  * Said when a typed question falls outside the preselected set.
@@ -160,11 +173,16 @@ export function wantsRealWorldAction(message: string): boolean {
    * with their work is the entire point of the product.
    *
    * What's left is what Aria still genuinely cannot do, reach out and
-   * *transact*. Booking, ordering, paying, browsing the live web. Promising
-   * those would be a lie; refusing to explain something is just a waste.
+   * *transact*. Booking, ordering, paying. Promising those would be a lie;
+   * refusing to explain something is just a waste.
+   *
+   * Searching came off this list when it started working. "Google it" and
+   * "search the web" are now requests Aria can simply carry out, and answering
+   * them with an apology for not being able to was the same bug as before,
+   * wearing the previous limit's clothes.
    */
   if (looksLikeTask(t)) return false;
-  return /\b(book|order|buy|purchase|pay for|reserve|browse the|google it|search the web)\b/.test(t);
+  return /\b(book|order|buy|purchase|pay for|reserve)\b/.test(t);
 }
 
 // ---------------------------------------------------------------------------

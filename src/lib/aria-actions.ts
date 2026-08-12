@@ -1,3 +1,4 @@
+import type { Source } from '@/lib/source';
 import { defaultMethodFor, type Task, type TaskKind, type TaskMethod } from '@/store/aria-store';
 import { postJson } from '@/lib/api-client';
 import type { Learner } from '@/lib/learner';
@@ -466,6 +467,16 @@ export interface DraftResponse {
   message: string;
   /** True when the server returned a scripted fallback (no API key / error). */
   fallback?: boolean;
+  /** Set when the notes were researched: the pages behind them. */
+  sources?: Source[];
+  /**
+   * Whether a search actually ran.
+   *
+   * Distinct from having sources: a model can search and cite nothing, and it
+   * can decline to search at all. The Research screen says different things in
+   * those two cases, because "I looked this up" has to be true when it is said.
+   */
+  searched?: boolean;
 }
 
 /** Client helper: call the server route, with a local fallback if it fails. */

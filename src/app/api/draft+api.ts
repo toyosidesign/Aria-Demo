@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { describeLearner } from '@/lib/learner';
 import { protectedRoute } from '@/lib/api-auth';
+import { askWithSearch } from '@/lib/web-search';
 import { DraftSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
 import {
@@ -176,6 +177,37 @@ export const POST = protectedRoute(DraftSchema, limitAi, async (body) => {
 
   try {
     const client = new Anthropic();
+
+    /*
+     * Research reads the web; everything else on this route does not.
+     *
+     * `research` is the request the Research screen makes, and it is the one
+     * case here where being out of date is the failure: a student is looking
+     * something up to use it. A birthday card, an email, a reflect-back are all
+     * about this person's own situation, and a search there would spend money
+     * and seconds to add nothing.
+     *
+     * A failed search returns null and falls through to the ordinary call
+     * below, so the notes still arrive, just without sources.
+     */
+    if (body.research) {
+      const found = await askWithSearch(client, {
+        system: `${systemFor(body.senderName, body.senderContext)}
+
+Search before you write. Return notes a student can use: short paragraphs or short lines, the specific facts, figures, dates and names, and who says each one. Prefer sources somebody could cite. Where the sources disagree, say so rather than picking a side. Where you could not find something, say that plainly instead of filling the gap from memory. Never write sentences they could hand in as their own argument.`,
+        prompt: buildPrompt(body),
+        maxTokens: 1600,
+      });
+      if (found) {
+        return Response.json({
+          message: found.text,
+          fallback: false,
+          sources: found.sources,
+          searched: found.searched,
+        } satisfies DraftResponse);
+      }
+    }
+
     // Cast: keep the current wire format (adaptive thinking + effort) even if
     // the installed SDK's local types lag behind.
     const msg = (await client.messages.create({

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { protectedRoute } from '@/lib/api-auth';
+import { askWithSearch } from '@/lib/web-search';
 import { AssistantSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
 import { localParse, type AssistantResponse, type AssistantTurn } from '@/lib/assistant';
@@ -59,6 +60,8 @@ Rules:
 - reply: when you prepared a task, one or two short warm sentences describing it for ${me} to review. Do NOT say it's already added. Mention the day naturally ("for Friday").
 - reply, when it is a question: the actual answer. Two or three sentences, specific and useful, no preamble, no offer to add it to a list unless they asked. A question with an empty tasks array is a completely normal turn and is not a failure.
 - Never repeat a previous reply. If ${me} asks something you have already answered, answer the new part or say what is still unclear.
+- lookUp: true when answering properly needs something you cannot know from memory: anything current or recent, prices, dates, deadlines, who holds a role now, what a specific organisation or course says, statistics, or anything ${me} implies is time-sensitive. Also true when being out of date would matter more than being slow. False for everything else, including tasks to add, small talk, and questions about ${me}'s own list. When it is true, keep reply short: it will be replaced by a researched answer.
+- lookUpQuery: what to search for, as somebody would type it into a search engine. Empty string when lookUp is false.
 - If the message contains no task to create, return an empty tasks array.
 - Do NOT invent tasks ${me} didn't ask for.
 - In the reply text, do not use em dashes or long hyphens as separators; use commas, periods, or colons instead.`;
@@ -69,6 +72,8 @@ const SCHEMA = {
   additionalProperties: false,
   properties: {
     reply: { type: 'string' },
+    lookUp: { type: 'boolean' },
+    lookUpQuery: { type: 'string' },
     tasks: {
       type: 'array',
       items: {
@@ -96,7 +101,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ['reply', 'tasks'],
+  required: ['reply', 'lookUp', 'lookUpQuery', 'tasks'],
 } as const;
 
 function extractText(msg: Anthropic.Message): string {
@@ -142,10 +147,38 @@ export const POST = protectedRoute(AssistantSchema, limitAi, async (body) => {
     }
 
     const text = extractText(msg);
-    const parsed = JSON.parse(text) as AssistantResponse;
+    const parsed = JSON.parse(text) as AssistantResponse & { lookUp?: boolean; lookUpQuery?: string };
     if (typeof parsed.reply !== 'string' || !Array.isArray(parsed.tasks)) {
       throw new Error('bad shape');
     }
+
+    /*
+     * A second call, only when the first one said the answer needs looking up.
+     *
+     * Search costs money and seconds, and most messages here are somebody
+     * adding a task. Asking the model to flag the ones that need current
+     * information keeps the common case a single call, and it is a better judge
+     * of "would being out of date matter here" than any keyword list this file
+     * could hold.
+     *
+     * The searched answer replaces the remembered one rather than sitting
+     * beside it. Two answers to one question is worse than either.
+     */
+    if (parsed.lookUp) {
+      const found = await askWithSearch(client, {
+        system: `You are Aria, answering a question for ${body.senderName?.trim() || 'the person you help'}. Today is ${body.today}.
+
+Search before you answer. Give the actual answer in two to four sentences, specific, no preamble, no bullet points, no offer to add anything to a list. Say what the answer is and when it was true. If the sources disagree or you could not find it, say that plainly rather than picking one. Do not use em dashes.`,
+        prompt: parsed.lookUpQuery?.trim() || body.message,
+      });
+      if (found) {
+        parsed.reply = found.text;
+        parsed.sources = found.sources;
+      }
+    }
+
+    delete parsed.lookUp;
+    delete parsed.lookUpQuery;
     return Response.json(parsed satisfies AssistantResponse);
   } catch (err) {
     console.error('[aria] assistant: Claude call failed, using local parsing:', err);

@@ -14,6 +14,8 @@ import Animated, {
 
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
+import { SourceList } from '@/components/source-list';
+import type { Source } from '@/lib/source';
 import { HeaderButton } from '@/components/header-button';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -80,6 +82,8 @@ type Msg = {
   flowPrompt?: boolean;
   /** Renders as a labelled rule rather than a bubble. */
   divider?: string;
+  /** Set when Aria looked the answer up: the pages it read. */
+  sources?: Source[];
 };
 
 /** Build a pre-filled Create-task route from a parsed task. */
@@ -120,12 +124,14 @@ const mk = (
   text: string,
   pending?: ParsedTask[],
   fallback?: boolean,
+  sources?: Source[],
 ): Msg => ({
   id: uuidv4(),
   from,
   text,
   pending,
   fallback,
+  sources,
 });
 
 /** A question the setup flow asked. Marked so a stranded thread is detectable. */
@@ -1035,7 +1041,22 @@ export default function ChatScreen() {
     // understood the message fine and the notice would just be in the way.
     const reply =
       res.tasks.length === 0 && wantsRealWorldAction(trimmed) ? TESTING_NOTICE : res.reply;
-    addChatMessage(mk('aria', reply, res.tasks.length ? res.tasks : undefined, res.fallback));
+    /*
+     * Sources ride with the reply, and only with the reply Aria researched.
+     *
+     * The notice replaces the reply when Aria cannot do the thing being asked,
+     * and attaching the sources of an answer nobody is reading would be
+     * citation theatre: links under a sentence they did not support.
+     */
+    addChatMessage(
+      mk(
+        'aria',
+        reply,
+        res.tasks.length ? res.tasks : undefined,
+        res.fallback,
+        reply === res.reply ? res.sources : undefined,
+      ),
+    );
   }
 
   function startVoice() {
@@ -1112,6 +1133,13 @@ export default function ChatScreen() {
                 <Text variant="caption" tone="faint" className="pl-10">
                   scripted fallback, the model was not called
                 </Text>
+              ) : null}
+              {/* Indented to the bubble, because they belong to that answer and
+                  not to the conversation. */}
+              {m.sources?.length ? (
+                <View className="pl-10">
+                  <SourceList sources={m.sources} />
+                </View>
               ) : null}
               {m.pending?.length
                 ? m.pending.map((t, i) => (

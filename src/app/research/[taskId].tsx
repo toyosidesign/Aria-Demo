@@ -22,23 +22,33 @@ import {
   ALL_SUGGESTIONS_USED,
   FOLLOW_UP_NO_CHANGE,
   OFF_SCRIPT_NOTICE,
-  OUT_OF_SCOPE_NOTICE,
+  FROM_MEMORY_NOTICE,
   detectSmallTalk,
 } from '@/lib/assistant';
 import { useColors } from '@/lib/colors';
 import { exportWork } from '@/lib/export';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
+import { SourceList } from '@/components/source-list';
+import type { Source } from '@/lib/source';
 import { showToast } from '@/lib/toast';
 import { useAriaStore } from '@/store/aria-store';
 
-type Msg = { id: string; from: 'aria' | 'maya'; kind: 'text' | 'notes'; text: string };
+type Msg = {
+  id: string;
+  from: 'aria' | 'maya';
+  kind: 'text' | 'notes';
+  text: string;
+  /** The pages behind these notes, when Aria read any. */
+  sources?: Source[];
+};
 
 let msgId = 0;
-const mk = (from: Msg['from'], kind: Msg['kind'], text: string): Msg => ({
+const mk = (from: Msg['from'], kind: Msg['kind'], text: string, sources?: Source[]): Msg => ({
   id: `r${msgId++}`,
   from,
   kind,
   text,
+  sources,
 });
 
 /**
@@ -117,7 +127,16 @@ export default function ResearchScreen() {
     // moment someone asked a question, and Save to draft would keep only the
     // answer.
     setNotes((prev) => (instruction && prev ? `${prev}\n\n${res.message}` : res.message));
-    push(mk('aria', 'notes', res.message));
+    /*
+     * Where these notes came from, said with the notes themselves.
+     *
+     * Researched notes carry their sources; notes written from memory carry the
+     * caveat instead. It is said after rather than before because a warning
+     * that arrives ahead of the work is one nobody has a reason to read yet,
+     * and this one is only true some of the time.
+     */
+    push(mk('aria', 'notes', res.message, res.sources));
+    if (!res.searched) push(mk('aria', 'text', FROM_MEMORY_NOTICE));
 
     // `asked` hasn't caught up with this turn yet, so the current question is
     // excluded by hand. Without it Aria points at suggestions that are gone.
@@ -141,9 +160,6 @@ export default function ResearchScreen() {
   useEffect(() => {
     if (startedRef.current || !task || !sub) return;
     startedRef.current = true;
-    // Said before anything is produced, not after. A caveat that arrives under
-    // finished-looking notes is one nobody reads.
-    push(mk('aria', 'text', OUT_OF_SCOPE_NOTICE));
     push(mk('aria', 'text', `Let’s dig into “${sub.title}.” Give me a second.`));
     research();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,6 +278,11 @@ export default function ResearchScreen() {
                   Research notes
                 </Text>
                 <Text className="leading-6">{m.text}</Text>
+                {/* Inside the notes card, because they are part of the notes.
+                    Saving the notes to the draft keeps the text; the links stay
+                    here, which is the honest split: a document somebody hands in
+                    should not carry Aria's browsing history. */}
+                {m.sources?.length ? <SourceList sources={m.sources} /> : null}
               </Animated.View>
             ) : (
               <AriaBubble key={m.id} from={m.from}>

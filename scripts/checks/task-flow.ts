@@ -49,6 +49,7 @@ import {
 } from '@/lib/task-flow';
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
+import { dedupeSources, hostOf } from '@/lib/source';
 import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
 import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
 import type { TaskKind } from '@/store/aria-store';
@@ -1224,6 +1225,133 @@ test('a typed answer lands on the right field', () => {
   });
   // A tap step typed into: nothing, rather than a wrong field.
   assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A searched answer can be checked');
+
+test('the same page cited four times is one source', () => {
+  /*
+   * A model cites the page it is using once per sentence, so a two-line answer
+   * routinely carries four citations to one article. Listed raw, that reads as
+   * four independent sources agreeing, which is the opposite of what happened.
+   */
+  const out = dedupeSources([
+    { title: 'Fees 2026', url: 'https://uni.ac.uk/fees' },
+    { title: 'Fees 2026', url: 'https://uni.ac.uk/fees#tuition' },
+    { title: 'Fees', url: 'https://uni.ac.uk/fees/' },
+    { title: 'Loans', url: 'https://gov.uk/loans' },
+  ]);
+  assert.equal(out.length, 2, 'fragments and trailing slashes are the same page');
+  assert.deepEqual(
+    out.map((s) => s.url),
+    ['https://uni.ac.uk/fees', 'https://gov.uk/loans'],
+  );
+});
+
+test('a wall of links is not evidence', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    title: `Page ${i}`,
+    url: `https://example${i}.com/a`,
+  }));
+  assert.equal(dedupeSources(many).length, 4, 'capped');
+});
+
+test('a source with no title still shows who published it', () => {
+  /*
+   * Deciding whether to trust a claim is mostly deciding who said it, so a
+   * missing title must never leave a blank row: the host stands in.
+   */
+  const [s] = dedupeSources([{ title: '', url: 'https://www.BBC.co.uk/news/x?utm=1' }]);
+  assert.equal(s.title, 'bbc.co.uk');
+  assert.equal(hostOf('https://www.gov.uk/student-finance'), 'gov.uk');
+});
+
+test('a blank url is dropped rather than shown', () => {
+  assert.deepEqual(dedupeSources([{ title: 'Nowhere', url: '  ' }]), []);
+});
+
+test('Aria no longer apologises for being unable to search', () => {
+  /*
+   * The notice said "no searching the web, no reading sources" and was shown
+   * before every research pass. It is now false in the ordinary case, and a
+   * product that disclaims a feature it has is worse than one that never had
+   * it. What replaced it is said only when no search actually ran.
+   */
+  // Read as text: lib/assistant.ts reaches the store, and anything importing
+  // that dies without a React Native runtime. Same rule as work-client.ts.
+  const lib = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/assistant.ts'), 'utf8');
+  assert.doesNotMatch(lib, /No searching the web, no reading sources/i);
+  assert.match(lib, /FROM_MEMORY_NOTICE[\s\S]{0,200}came from what I already know/i);
+  assert.doesNotMatch(lib, /browsing live websites/i);
+});
+
+test('asking Aria to look something up is no longer refused', () => {
+  /*
+   * "Google it" used to return the limits notice. It is a request Aria can now
+   * simply carry out, and the notice is reserved for what is still true:
+   * booking, ordering, paying.
+   */
+  const lib = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/assistant.ts'), 'utf8');
+  const trigger = /return \/\\b\(([^)]+)\)\\b\/\.test\(t\);/.exec(lib);
+  assert.ok(trigger, 'the real-world-action trigger list is still there to check');
+  const words = trigger![1];
+  for (const gone of ['browse the', 'google it', 'search the web']) {
+    assert.ok(!words.includes(gone), `"${gone}" is something Aria can now do`);
+  }
+  for (const kept of ['book', 'order', 'pay for']) {
+    assert.ok(words.includes(kept), `"${kept}" is still genuinely out of reach`);
+  }
+});
+
+test('the route decides per message whether to search, and says how', () => {
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/assistant+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /lookUp/, 'the model flags what needs looking up');
+  assert.match(route, /required: \['reply', 'lookUp', 'lookUpQuery', 'tasks'\]/);
+  assert.match(route, /askWithSearch/, 'and the flag actually triggers a search');
+});
+
+test('only research reads the web on the draft route', () => {
+  /*
+   * A birthday card does not improve with citations, and a search on every
+   * draft would spend money and seconds to add nothing. Research is the one
+   * request on that route where being out of date is the failure.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /if \(body\.research\) \{/, 'gated on the research flag');
+  // Against the call site, not the import, which is naturally at the top.
+  const gate = route.indexOf('if (body.research)');
+  assert.ok(gate > 0 && gate < route.indexOf('askWithSearch(client'), 'the gate comes first');
+});
+
+test('a failed search costs the citations, never the answer', () => {
+  /*
+   * The API answers 200 with an error object inside the result block instead of
+   * a list of results, so code that assumes a list loses the whole answer to a
+   * crash over a search that merely did not run.
+   */
+  const lib = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/web-search.ts'),
+    'utf8',
+  );
+  assert.match(lib, /if \(!Array\.isArray\(content\)\)/, 'a non-list result is handled');
+  assert.match(lib, /return null/, 'and a failed call returns null for the caller to fall back');
+  assert.match(lib, /pause_turn/, 'a long answer is resumed rather than truncated');
+  assert.match(lib, /max_uses/, 'with a ceiling on how many searches one answer runs');
+  /*
+   * The tool version is a deliberate choice, not a default left lying around.
+   * The newer `_20260209` variant returns no citations at all, which was
+   * measured rather than assumed, and losing them is silent: the answers go on
+   * looking exactly as good with nothing behind them.
+   */
+  assert.match(lib, /web_search_20250305/, 'the variant that returns citations');
+  assert.doesNotMatch(lib, /type: 'web_search_20260209'/, 'not the one that drops them');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
