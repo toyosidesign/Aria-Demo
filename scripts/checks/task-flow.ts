@@ -50,6 +50,7 @@ import {
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
 import { dedupeSources, hostOf } from '@/lib/source';
+import { handInReadiness } from '@/lib/ready';
 import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
 import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
 import type { TaskKind } from '@/store/aria-store';
@@ -1225,6 +1226,71 @@ test('a typed answer lands on the right field', () => {
   });
   // A tap step typed into: nothing, rather than a wrong field.
   assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Aria does not assume work is finished');
+
+test('one section of a six-part project is not ready to hand in', () => {
+  /*
+   * Reported as Aria assuming somebody wants to schedule a project when they
+   * are nowhere near done. Scheduling is the ending, and offering an ending to
+   * somebody a sixth of the way through says Aria thinks they have finished. At
+   * best that is noise; at worst they take it, set a date, and stop.
+   */
+  const r = handInReadiness({
+    subtasks: [{ done: true }, ...Array.from({ length: 5 }, () => ({ done: false }))],
+    draftSections: [{}],
+  });
+  assert.equal(r.ready, false);
+  assert.equal(r.blocker, '5 of 6 steps still open', 'counted, so they know how far off they are');
+});
+
+test('every step ticked and something written is ready', () => {
+  const r = handInReadiness({ subtasks: [{ done: true }, { done: true }], draftSections: [{}] });
+  assert.equal(r.ready, true);
+  assert.equal(r.blocker, undefined);
+});
+
+test('ticked steps with nothing written are not ready', () => {
+  /*
+   * A plan can be checked off by somebody working outside the app, and the
+   * document that went out would then be empty. Ticks say the work happened;
+   * sections say Aria has something to hand over.
+   */
+  const r = handInReadiness({ subtasks: [{ done: true }], draftSections: [] });
+  assert.equal(r.ready, false);
+  assert.equal(r.blocker, 'nothing written yet');
+});
+
+test('a piece of work with no steps at all rests on what was written', () => {
+  assert.equal(handInReadiness({ draftSections: [{}] }).ready, true);
+  assert.equal(handInReadiness({}).ready, false);
+});
+
+test('one step, singular; the count never reads like a template', () => {
+  assert.equal(handInReadiness({ subtasks: [{ done: false }] }).blocker, '1 of 1 step still open');
+});
+
+test('the ending is offered at the end, and stays reachable before it', () => {
+  /*
+   * Not simply hidden. A deadline is often known long before the work is done,
+   * and refusing to take one would be its own kind of wrong. So when work is
+   * left the loud button is the work, and scheduling stays underneath.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /readiness\.ready \? \(/, 'the ending is gated on being finished');
+  assert.match(screen, /Keep going: \$\{upNext\.title\}/, 'and the work is what it offers instead');
+  assert.match(screen, /Set when it goes out anyway/, 'with the ending still reachable');
+
+  const task = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(task, /handInReadiness\(task\)/, 'the task screen asks the same question');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
