@@ -28,8 +28,7 @@ import { useAriaStore } from '@/store/aria-store';
  * calling it one would read as the app assuming you were late.
  */
 export default function RescheduleScreen() {
-  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
-  const handIn = mode === 'handin';
+  const { id } = useLocalSearchParams<{ id: string }>();
   const task = useAriaStore((s) => s.tasks.find((t) => t.id === id));
   const demoDate = useAriaStore((s) => s.demoDate);
   const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
@@ -64,16 +63,8 @@ export default function RescheduleScreen() {
      * the moment somebody actually has to act is the submission, and that is
      * the one worth being interrupted for.
      */
-    if (handIn) updateTask(task!.id, { alarm: Boolean(time) });
     hapticSuccess();
-    showToast(
-      handIn
-        ? time
-          ? `Going out ${formatFull(date)} at ${formatTime(time)}`
-          : `Going out ${formatFull(date)}`
-        : 'Moved',
-      'check',
-    );
+    showToast('Moved', 'check');
     router.back();
   }
 
@@ -82,7 +73,7 @@ export default function RescheduleScreen() {
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
         <HeaderButton icon={X} onPress={() => router.back()} />
         <Text variant="subtitle" className="flex-1">
-          {handIn ? 'When does it go out?' : 'Reschedule'}
+          Reschedule
         </Text>
       </View>
 
@@ -95,15 +86,14 @@ export default function RescheduleScreen() {
             {task.title}
           </Text>
           <Text tone="muted">
-            {handIn
-              ? 'Pick the day and the hour it has to be in by. I will chime then.'
-              : `Currently ${formatFull(task.date)}${task.time ? ` · ${formatTime(task.time)}` : ''}`}
+            Currently {formatFull(task.date)}
+            {task.time ? ` · ${formatTime(task.time)}` : ''}
           </Text>
         </View>
 
         <View className="gap-2">
           <Text variant="label" tone="muted">
-            {handIn ? 'Due' : 'New date'}
+            New date
           </Text>
           <MonthCalendar value={date} onSelect={setDate} />
         </View>
@@ -122,7 +112,7 @@ export default function RescheduleScreen() {
 
       <View className="border-t border-border px-4 pb-6 pt-3">
         <Button
-          title={handIn ? 'Set when it goes out' : 'Move task'}
+          title="Move task"
           block
           size="lg"
           disabled={past}

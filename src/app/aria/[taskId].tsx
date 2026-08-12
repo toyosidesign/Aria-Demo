@@ -779,16 +779,34 @@ export default function AriaFlowScreen() {
                   }}
                 />
               ) : null}
-              {/* Still open once Aria has finished its part: the work is saved
-                  but the task isn't over until the user says so. */}
+              {/*
+                Work is put down until the day it is needed, not ticked off.
+
+                "Mark complete" was the wrong question at the end of a piece of
+                work. An essay written on Tuesday is done, not finished: it still
+                has to go in on Friday, and ticking it off closes the one thing
+                that would have reminded anybody. Everything else Aria finishes,
+                a card, a message, is genuinely over when it is sent, so those
+                keep completing here.
+              */}
               {phase === 'done' && task.status === 'todo' ? (
-                <Button
-                  title="Mark complete"
-                  leftIcon={<CheckCircle2 size={19} color={c.accentInk} />}
-                  block
-                  size="lg"
-                  onPress={markComplete}
-                />
+                isAssignmentKind ? (
+                  <Button
+                    title="Schedule for later"
+                    leftIcon={<CalendarClock size={19} color={c.accentInk} />}
+                    block
+                    size="lg"
+                    onPress={() => router.push(`/hand-in/${task.id}` as Href)}
+                  />
+                ) : (
+                  <Button
+                    title="Mark complete"
+                    leftIcon={<CheckCircle2 size={19} color={c.accentInk} />}
+                    block
+                    size="lg"
+                    onPress={markComplete}
+                  />
+                )
               ) : null}
               {/*
                 What happens to the work Aria just produced, in two real options.

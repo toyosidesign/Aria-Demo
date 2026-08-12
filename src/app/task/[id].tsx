@@ -373,7 +373,7 @@ export default function TaskDetailScreen() {
               <Button
                 title={task.time ? 'Change when it goes out' : 'Set when it goes out'}
                 variant={task.time ? 'secondary' : 'primary'}
-                onPress={() => router.push(`/reschedule?id=${task.id}&mode=handin` as Href)}
+                onPress={() => router.push(`/hand-in/${task.id}` as Href)}
               />
             </Card>
           </View>
