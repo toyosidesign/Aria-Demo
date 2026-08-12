@@ -1,6 +1,11 @@
 import { addDays, parseISO } from 'date-fns';
 
 import { toISODate } from '@/lib/dates';
+import { offlineAnswer } from '@/lib/offline-answer';
+
+// Re-exported so existing callers keep one import site for chat behaviour.
+export { offlineAnswer } from '@/lib/offline-answer';
+
 import { defaultMethodFor, type Priority, type TaskKind, type TaskMethod } from '@/store/aria-store';
 import { postJson } from '@/lib/api-client';
 
@@ -303,12 +308,20 @@ export function localParse(message: string, today: string, focus?: TaskKind): As
   }
 
   if (!focus && !looksLikeTask(message)) {
-    return {
-      reply:
-        "I'm here to help you stay on top of things. Tell me something to add, like “remind me to submit my lab report on Friday”.",
-      tasks: [],
-      fallback: true,
-    };
+    /*
+     * The offline answer to a question, and why it says what it says.
+     *
+     * This is the line somebody sees when the model could not be reached: no
+     * session, no key, no network. It used to be one fixed sentence inviting
+     * them to add a task, which is not an answer to "how long should the
+     * introduction be", and repeating it verbatim to every question is what
+     * made Aria look broken rather than offline.
+     *
+     * A scripted reply cannot answer the question. What it can do is be honest
+     * that it is not answering, which is the difference between an assistant
+     * that is unavailable and one that is stupid.
+     */
+    return { reply: offlineAnswer(message), tasks: [], fallback: true };
   }
 
   const title = cleanTitle(message);

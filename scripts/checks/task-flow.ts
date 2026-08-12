@@ -48,6 +48,7 @@ import {
   type FlowStep,
 } from '@/lib/task-flow';
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
+import { offlineAnswer } from '@/lib/offline-answer';
 import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
 import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
 import type { TaskKind } from '@/store/aria-store';
@@ -1223,6 +1224,60 @@ test('a typed answer lands on the right field', () => {
   });
   // A tap step typed into: nothing, rather than a wrong field.
   assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A question gets an answer, not a menu');
+
+test('the offline reply never repeats itself across different questions', () => {
+  /*
+   * Reported as "Aria is repeating itself and cannot answer real questions".
+   * The cause was one fixed sentence returned for every message that did not
+   * look like a task: an invitation to add something, which is not an answer to
+   * "how long should the introduction be", and identical every time, which is
+   * what made an offline assistant look like a broken one.
+   */
+  const answers = [
+    offlineAnswer('how long should the introduction be?'),
+    offlineAnswer('what should I say to my tutor?'),
+    offlineAnswer('is the essay meant to have a conclusion?'),
+    offlineAnswer('thoughts on my structure'),
+  ];
+  assert.equal(new Set(answers).size, answers.length, 'four questions, four different replies');
+  for (const a of answers) {
+    assert.ok(a.length > 40, 'a reply short enough to be a slogan is a deflection');
+    assert.doesNotMatch(a, /remind me to submit my lab report/, 'the old canned line is gone');
+  }
+});
+
+test('it says it cannot answer, rather than pretending the question was a task', () => {
+  /*
+   * The honest failure. A scripted reply cannot answer a question; what it can
+   * do is say so, which is the difference between an assistant that is
+   * unavailable and one that is stupid.
+   */
+  const a = offlineAnswer('what is the difference between a thesis and an argument?');
+  assert.match(a, /can't|cannot/i, 'it admits what is happening');
+  assert.doesNotMatch(a, /^Here.s what I.ve got/, 'and never claims to have prepared a task');
+});
+
+test('the model is told to answer questions, not only to capture tasks', () => {
+  /*
+   * The system prompt opened "Your job in this chat is to turn what they say
+   * into calendar tasks", which is what the model then did to a question. Both
+   * behaviours are named now, and answering is first.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/assistant+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /1\. ANSWER/, 'answering is a stated job');
+  assert.match(route, /2\. CAPTURE/, 'and capturing is the other');
+  assert.ok(
+    route.indexOf('1. ANSWER') < route.indexOf('2. CAPTURE'),
+    'answering comes first, because it is what people notice',
+  );
+  assert.match(route, /Never repeat a previous reply/);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

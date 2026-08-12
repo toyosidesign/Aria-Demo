@@ -95,6 +95,15 @@ export async function requireUser(request: Request): Promise<string | null> {
   }
 }
 
+/**
+ * Development, decided from the environment rather than from `__DEV__`.
+ *
+ * `__DEV__` is a Metro global. It exists in the bundle and does not exist when
+ * this module is imported directly by a check suite in plain Node, where
+ * referencing it is a ReferenceError that fails seven security checks at once.
+ */
+const isDev = process.env.NODE_ENV !== 'production';
+
 /** 401 in the same shape the routes already use for errors. */
 export const unauthorized = (): Response =>
   Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -139,10 +148,34 @@ export function protectedRoute<T extends z.ZodTypeAny>(
 
   return async (request: Request): Promise<Response> => {
     const userId = await requireUser(request);
-    if (!userId) return unauthorized();
+    if (!userId) {
+      /*
+       * Say it out loud in development.
+       *
+       * A 401 here is invisible from the phone: the caller catches it and falls
+       * back to scripted text, which reads like a real answer. That is the
+       * project's standing failure mode, and it cost a day when a chat that
+       * repeated the same sentence turned out to be an unauthenticated request
+       * rather than a bad model. The terminal is where somebody is already
+       * looking when they wonder why Aria sounds stupid.
+       */
+      if (isDev) {
+        const route = new URL(request.url).pathname;
+        console.warn(
+          `[aria] 401 on ${route}: no valid session on the request. ` +
+            'The caller will fall back to scripted text, which looks like a bad answer rather than a signed-out app.',
+        );
+      }
+      return unauthorized();
+    }
 
     const limited = quota(userId);
-    if (!limited.ok) return tooManyRequests(limited);
+    if (!limited.ok) {
+      // Same reasoning: a throttled request degrades to scripted text, and
+      // "Aria got worse for an hour" is not a diagnosis anybody can act on.
+      if (isDev) console.warn(`[aria] rate limited: ${new URL(request.url).pathname}`);
+      return tooManyRequests(limited);
+    }
 
     const body = await parseBody(request, schema, maxBytes);
     if (!body) return badRequest();
