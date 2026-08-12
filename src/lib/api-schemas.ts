@@ -90,6 +90,16 @@ export const AssistantSchema = z.object({
  */
 
 /** POST /api/subtasks */
+/**
+ * Nothing to send, and that is the point.
+ *
+ * The health route asks the server about itself, so an empty object is the
+ * whole request. It still goes through the same validation as everything else:
+ * a route that accepts any body because it happens to ignore the body is one
+ * exception away from being the hole.
+ */
+export const HealthSchema = z.object({}).strict();
+
 export const ChecklistSchema = z.object({
   title: z.string().min(1).max(300),
   description: z.string().max(4000).optional(),

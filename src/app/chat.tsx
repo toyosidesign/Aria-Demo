@@ -14,6 +14,7 @@ import Animated, {
 
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
+import { ScriptedNote } from '@/components/scripted-note';
 import { SourceList } from '@/components/source-list';
 import type { Source } from '@/lib/source';
 import { HeaderButton } from '@/components/header-button';
@@ -1124,16 +1125,11 @@ export default function ChatScreen() {
             ) : (
             <View key={m.id} className="gap-2">
               <AriaBubble from={m.from}>{m.text}</AriaBubble>
-              {/* Which one answered, development only.
-                  The scripted fallback is written to read like a real reply, so
-                  there is otherwise nothing to tell them apart. That is what let
-                  a dead API key survive weeks of testing: every response looked
-                  right. Stripped from release builds. */}
-              {__DEV__ && m.fallback ? (
-                <Text variant="caption" tone="faint" className="pl-10">
-                  scripted fallback, the model was not called
-                </Text>
-              ) : null}
+              {/* Which one answered, development only. Now the shared
+                  component, because the same marker belongs on notes, drafts
+                  and plans, and three copies of one sentence is how two of them
+                  quietly stop matching. */}
+              <ScriptedNote show={m.fallback} className="pl-10" />
               {/* Indented to the bubble, because they belong to that answer and
                   not to the conversation. */}
               {m.sources?.length ? (

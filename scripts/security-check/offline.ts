@@ -509,6 +509,51 @@ await test('every API route on disk is declared through protectedRoute', () => {
   }
 });
 
+await test('an outage can be told apart from Aria being bad at its job', () => {
+  /*
+   * The standing failure mode of this project, checked rather than remembered.
+   *
+   * Every AI route falls back to scripted text that reads like the real thing,
+   * which is right for a demo and is also how a rejected API key survived weeks
+   * of testing and a signed-out session later read as "Aria is repeating
+   * itself". Both times the only symptom was Aria seeming stupid.
+   *
+   * So there has to be somewhere in the app that says which is happening.
+   */
+  const health = path.join(ROOT, 'src/app/api/health+api.ts');
+  assert.ok(existsSync(health), 'the app must be able to ask whether the model is reachable');
+
+  const src = readFileSync(health, 'utf8');
+  assert.match(src, /protectedRoute\(/, 'and it is authenticated like every other route');
+  assert.match(src, /modelKeyStatus/, 'reporting the verdict the server already reached');
+
+  const copy = readFileSync(path.join(ROOT, 'src/lib/health.ts'), 'utf8');
+  for (const state of ["'signed-out'", "'rejected'", "'no-key'", "'offline'"]) {
+    assert.ok(copy.includes(state), `${state} is one of the ways replies go scripted`);
+  }
+
+  const settings = readFileSync(path.join(ROOT, 'src/app/(tabs)/settings.tsx'), 'utf8');
+  assert.match(settings, /checkHealth/, 'and a screen actually says it');
+});
+
+await test('scripted output is marked wherever it is shown', () => {
+  /*
+   * Notes, drafts and chat replies all have stand-ins behind them. Notes are
+   * the sharpest case: they read as findings, and findings get handed in.
+   */
+  for (const screen of [
+    'src/app/chat.tsx',
+    'src/app/research/[taskId].tsx',
+    'src/app/aria/[taskId].tsx',
+  ]) {
+    const src = readFileSync(path.join(ROOT, screen), 'utf8');
+    assert.match(src, /ScriptedNote/, `${screen} must mark scripted output`);
+  }
+  // One component, so the wording cannot drift apart between three screens.
+  const note = readFileSync(path.join(ROOT, 'src/components/scripted-note.tsx'), 'utf8');
+  assert.match(note, /__DEV__/, 'a release build does not explain its internals to a student');
+});
+
 await test('only the upload route may raise the body ceiling', () => {
   /*
    * `MAX_UPLOAD_BYTES` is a real loosening of the allocation bound every other

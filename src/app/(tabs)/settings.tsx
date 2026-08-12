@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
+import { BrainCircuit, CircleAlert, Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
 import { DemoDateBar } from '@/components/demo-date-bar';
@@ -14,12 +14,33 @@ import { Text } from '@/components/ui/text';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
 import { formatLong, formatTime, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
+import { checkHealth, healthCopy, type Brain } from '@/lib/health';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
 import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
 
 export default function SettingsScreen() {
   const c = useColors();
+
+  /*
+   * Asked on open, and again whenever this screen comes back into view.
+   *
+   * The answer changes underneath the app: a key is added and the server
+   * restarted, a session expires, the wifi drops. A verdict fetched once at
+   * launch and then trusted forever would be the same stale-and-confident
+   * failure this row exists to expose.
+   */
+  const [brain, setBrain] = useState<Brain>('unsure');
+  useEffect(() => {
+    let live = true;
+    void checkHealth().then((h) => {
+      if (live) setBrain(h.brain);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const health = healthCopy(brain);
   // The theme actually on screen, whether that came from a pick or from the
   // device. Turning "match my device" off hands over exactly this one.
   const activeTheme = useTheme();
@@ -88,6 +109,37 @@ export default function SettingsScreen() {
         // the next begins with a grey heading: at 22 the two ran together.
         contentContainerStyle={{ paddingBottom: 40, gap: 32 }}
         showsVerticalScrollIndicator={false}>
+        {/*
+          What is actually answering, said before anything else.
+
+          This app degrades quietly by design: no key, no session, no network,
+          and every screen still produces text that reads like Aria wrote it.
+          Twice that has been mistaken for Aria being bad at its job, once a
+          rejected API key and once a signed-out session. One line, near the
+          top, is what turns "it feels worse today" into something fixable.
+        */}
+        <View className="gap-3 pt-2">
+          <Text variant="label" tone="muted">
+            Aria right now
+          </Text>
+          <View
+            className={`gap-1 rounded-2xl border p-4 ${
+              health.good ? 'border-border bg-surface' : 'border-danger/40 bg-surface'
+            }`}>
+            <View className="flex-row items-center gap-2">
+              {health.good ? (
+                <BrainCircuit size={15} color={c.accent} />
+              ) : (
+                <CircleAlert size={15} color={c.danger} />
+              )}
+              <Text className="font-strong shrink">{health.title}</Text>
+            </View>
+            <Text variant="small" tone="muted" className="leading-5">
+              {health.detail}
+            </Text>
+          </View>
+        </View>
+
         {/* Appearance */}
         <View className="gap-3 pt-2">
           <Text variant="label" tone="muted">

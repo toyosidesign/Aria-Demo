@@ -28,6 +28,7 @@ import {
 import { useColors } from '@/lib/colors';
 import { exportWork } from '@/lib/export';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
+import { ScriptedNote } from '@/components/scripted-note';
 import { SourceList } from '@/components/source-list';
 import type { Source } from '@/lib/source';
 import { showToast } from '@/lib/toast';
@@ -40,15 +41,24 @@ type Msg = {
   text: string;
   /** The pages behind these notes, when Aria read any. */
   sources?: Source[];
+  /** The scripted stand-in wrote these rather than the model. Dev only. */
+  scripted?: boolean;
 };
 
 let msgId = 0;
-const mk = (from: Msg['from'], kind: Msg['kind'], text: string, sources?: Source[]): Msg => ({
+const mk = (
+  from: Msg['from'],
+  kind: Msg['kind'],
+  text: string,
+  sources?: Source[],
+  scripted?: boolean,
+): Msg => ({
   id: `r${msgId++}`,
   from,
   kind,
   text,
   sources,
+  scripted,
 });
 
 /**
@@ -135,7 +145,7 @@ export default function ResearchScreen() {
      * that arrives ahead of the work is one nobody has a reason to read yet,
      * and this one is only true some of the time.
      */
-    push(mk('aria', 'notes', res.message, res.sources));
+    push(mk('aria', 'notes', res.message, res.sources, res.fallback));
     if (!res.searched) push(mk('aria', 'text', FROM_MEMORY_NOTICE));
 
     // `asked` hasn't caught up with this turn yet, so the current question is
@@ -283,6 +293,9 @@ export default function ResearchScreen() {
                     here, which is the honest split: a document somebody hands in
                     should not carry Aria's browsing history. */}
                 {m.sources?.length ? <SourceList sources={m.sources} /> : null}
+                {/* Notes are the worst place for an unmarked stand-in: they
+                    read as findings, and findings get handed in. */}
+                <ScriptedNote show={m.scripted} className="pt-2" />
               </Animated.View>
             ) : (
               <AriaBubble key={m.id} from={m.from}>
