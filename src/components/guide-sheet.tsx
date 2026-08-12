@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 
 import { Choice, InfoChip } from '@/components/flow-controls';
+import { SourceList } from '@/components/source-list';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
 import { NARROWING, type GuideDirection, type GuideMode } from '@/lib/guide';
+import type { Source } from '@/lib/source';
 import { requestGuide } from '@/lib/work-client';
 import { hapticSelect } from '@/lib/haptics';
 import { useAriaStore, type Task } from '@/store/aria-store';
@@ -41,6 +43,8 @@ export function GuideSheet({
   const [focus, setFocus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [directions, setDirections] = useState<GuideDirection[] | null>(null);
+  /** What Aria read before proposing these, when it read anything. */
+  const [sources, setSources] = useState<Source[] | null>(null);
   const [needs, setNeeds] = useState<string | null>(null);
 
   async function ask(value: string) {
@@ -78,6 +82,7 @@ export function GuideSheet({
         setDirections(null);
       } else {
         setDirections(res.directions);
+        setSources(res.sources ?? null);
         setNeeds(null);
       }
     } finally {
@@ -171,6 +176,15 @@ export function GuideSheet({
               <Button title="Take this one" className="mt-2" onPress={() => take(d)} />
             </View>
           ))}
+
+          {/* Under the directions rather than beside one: the material informed
+              the set, and pinning it to a single option would claim more than
+              is true about which direction rests on what. */}
+          {directions?.length && sources?.length ? (
+            <View className="rounded-2xl border border-border bg-surface p-4">
+              <SourceList sources={sources} />
+            </View>
+          ) : null}
 
           {directions?.length ? (
             <Choice label="None of these. Ask again" onPress={() => void ask(focus ?? 'angle')} />

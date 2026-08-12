@@ -27,6 +27,7 @@
 
 import type { BriefFacts } from '@/lib/brief';
 import type { Learner } from '@/lib/learner';
+import type { Source } from '@/lib/source';
 
 export type GuideMode = 'assignment' | 'project';
 
@@ -99,7 +100,13 @@ export interface GuideRequest {
 }
 
 export type GuideResult =
-  | { kind: 'directions'; directions: GuideDirection[]; fallback?: boolean }
+  | {
+      kind: 'directions';
+      directions: GuideDirection[];
+      fallback?: boolean;
+      /** Set when the directions were informed by something read just now. */
+      sources?: Source[];
+    }
   /** Nothing worth generating from. `ask` is the one thing that would help. */
   | { kind: 'needs'; ask: string; fallback?: boolean };
 

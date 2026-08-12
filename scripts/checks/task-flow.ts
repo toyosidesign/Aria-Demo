@@ -1330,6 +1330,28 @@ test('only research reads the web on the draft route', () => {
   assert.ok(gate > 0 && gate < route.indexOf('askWithSearch(client'), 'the gate comes first');
 });
 
+test('the Guide reads the web, and gates itself when it would be pointless', () => {
+  /*
+   * The Guide is where being out of date costs the most: it is read against a
+   * real brief with a real deadline, and a direction that ignores something
+   * published last month is a week somebody spends on the wrong thing.
+   *
+   * It does not search every time. Run against the two shapes, an essay on the
+   * causes of the English Civil War answered "NOTHING NEW" without searching,
+   * and a report on current AI regulation searched and came back with four
+   * sources. That gate is the model's own, and it has to stay written down or
+   * the screen starts spending a search on every settled topic.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/guide+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /askWithSearch/, 'the Guide looks things up');
+  assert.match(route, /NOTHING NEW/, 'and is told how to decline when it is pointless');
+  assert.match(route, /current\.searched/, 'a declined search must not count as grounding');
+  assert.match(route, /sources: grounding\?\.sources/, 'sources only when something was used');
+});
+
 test('a failed search costs the citations, never the answer', () => {
   /*
    * The API answers 200 with an error object inside the result block instead of

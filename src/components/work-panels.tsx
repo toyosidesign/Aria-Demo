@@ -14,6 +14,7 @@ import { Pressable, TextInput, View } from 'react-native';
 
 import { Choice, InfoChip, PANEL_SHELL, Pill } from '@/components/flow-controls';
 import { MonthCalendar } from '@/components/month-calendar';
+import { SourceList } from '@/components/source-list';
 import { TimeField } from '@/components/time-field';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
@@ -784,6 +785,10 @@ export function GuideDirections({
           </Pressable>
         </View>
       ))}
+
+      {/* Under the set, not against one direction: the material shaped all of
+          them, and pinning it to one would claim more than is true. */}
+      {guide?.sources?.length ? <SourceList sources={guide.sources} /> : null}
 
       {guide?.fallback ? (
         <Text variant="caption" tone="faint">
