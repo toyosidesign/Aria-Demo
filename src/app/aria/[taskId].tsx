@@ -772,6 +772,20 @@ export default function AriaFlowScreen() {
           {/* Primary actions */}
           {phase === 'review' ? (
             <View className="gap-2">
+              {/*
+                Nothing to decline when the button says "Done".
+
+                Accepting a draft no longer sends anything or finishes anything:
+                it asks where the work should live. Sitting a "Not now" beside
+                that offered a refusal to a question that was not being put, and
+                on the one screen where somebody is in the middle of working it
+                read as Aria angling for the exit. Leaving is still a tap away
+                in the corner, and the composer is right there to say what to
+                change instead.
+
+                A send keeps its refusal, because "do not send this to them" is
+                a real answer to a real question.
+              */}
               <View className="flex-row gap-2">
                 <Button
                   title={acceptLabel}
@@ -779,7 +793,9 @@ export default function AriaFlowScreen() {
                   onPress={accept}
                   className="flex-1"
                 />
-                <Button title="Not now" variant="secondary" onPress={decline} />
+                {action.needsSend ? (
+                  <Button title="Not now" variant="secondary" onPress={decline} />
+                ) : null}
               </View>
               {/* Hand the finished draft to Aria to send at a chosen moment. */}
               {action.needsSend ? (
