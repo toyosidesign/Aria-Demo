@@ -70,8 +70,8 @@ npm run security-check     59 checks
 npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
-npm run check:plan         25 checks
-npm run check:review       40 checks   # the tier line, the Pro day, work ahead, assembly   # backwards planning, rollovers, briefs
+npm run check:plan         25 checks   # backwards planning, rollovers, briefs
+npm run check:review       40 checks   # the tier line, the Pro day, work ahead, assembly
 ```
 
 All passing. Run them after any change; they are fast and have caught real
