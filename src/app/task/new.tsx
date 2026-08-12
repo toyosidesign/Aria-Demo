@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import {
   AlarmClock,
   AlignLeft,
@@ -178,6 +178,14 @@ export default function NewTaskScreen() {
   const contactLabel =
     kind === 'birthday' || kind === 'anniversary' ? "Who's it for?" : 'Who to contact (optional)';
   const methodOptions = methodOptionsFor(kind);
+  /**
+   * A new piece of work: the form is a way in, not a record to fill.
+   *
+   * Editing is excluded because an assignment already underway is being
+   * corrected, not started, and dropping somebody into the walkthrough because
+   * they fixed a typo in the title would be an ambush.
+   */
+  const startsWork = isWorkKind(kind) && !editing;
 
   // Keep the selected handling valid as the category changes.
   useEffect(() => {
@@ -372,7 +380,19 @@ export default function NewTaskScreen() {
       updateTask(editing.id, fields);
       showToast('Task updated', 'check');
     } else {
-      addTask(fields);
+      const id = addTask(fields);
+      /*
+       * Straight into the work, rather than back to a list.
+       *
+       * This is the whole point of the shorter form: an assignment set up and
+       * then dropped onto a list is a plan nobody started. `/aria/[taskId]` is
+       * the screen that already works through a piece of work step by step, so
+       * beginning is a navigation rather than a new surface.
+       */
+      if (startsWork) {
+        router.replace(`/aria/${id}` as Href);
+        return;
+      }
     }
     router.back();
   }
@@ -576,6 +596,22 @@ export default function NewTaskScreen() {
           */}
           {isWorkKind(kind) ? handlingSection : null}
 
+          {/*
+            ── Work is not scheduled here ──────────────────────────────────────
+
+            A date, a time, a repeat, a priority and a notes box are the
+            questions you ask about something that happens *at* a moment. A
+            piece of work does not happen at a moment: it gets done over days
+            and then handed in, and the handing in is what has a time.
+
+            Asking for all of it up front is what made setting up an assignment
+            feel like filling in a form before being allowed to start. So work
+            asks two things, what it is and how much help you want, and then
+            begins. When it is ready, the task screen is where you pick the day
+            and time to push it out.
+          */}
+          {isWorkKind(kind) ? null : (
+          <>
           <View className="gap-2">
             <Text variant="label" tone="muted">
               Date
@@ -810,6 +846,8 @@ export default function NewTaskScreen() {
               multiline
             />
           ) : null}
+          </>
+          )}
 
           {/* Breaking work into parts only makes sense for something you sit
               down and do. A text or a call is a single act. */}
@@ -867,7 +905,12 @@ export default function NewTaskScreen() {
           {/* Deliberately not disabled when the form is incomplete. A dead
               button gives no reason and nothing to press against; `save` turns
               the press into an explanation instead. */}
-          <Button title={editing ? 'Save changes' : 'Save task'} block size="lg" onPress={save} />
+          <Button
+            title={editing ? 'Save changes' : startsWork ? 'Start working on it' : 'Save task'}
+            block
+            size="lg"
+            onPress={save}
+          />
         </View>
     </Screen>
   );

@@ -885,6 +885,30 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
   }
 });
 
+test('setting work up does not ask when, only what and how', () => {
+  /*
+   * A date, a time, a repeat, a priority and a notes box are the questions you
+   * ask about something that happens *at* a moment. Work does not happen at a
+   * moment: it is done over days and then handed in, and only the handing in
+   * has an hour. Asking all of it up front is what made starting an assignment
+   * feel like filling in a form before being allowed to begin.
+   */
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  // Everything between the guard and its close is hidden for work.
+  const guard = form.indexOf('{isWorkKind(kind) ? null : (');
+  assert.ok(guard > -1, 'work must skip the scheduling half of the form');
+  const hidden = form.slice(guard, form.indexOf('</>\n          )}', guard));
+  for (const field of ['<MonthCalendar', '<TimeField', 'Priority', 'Repeat', 'Notes (optional)']) {
+    assert.ok(hidden.includes(field), `${field} must be inside the part work skips`);
+  }
+  // And starting is the action, rather than saving something to a list.
+  assert.ok(form.includes("'Start working on it'"), 'the button says what happens next');
+  assert.ok(form.includes('router.replace(`/aria/${id}`'), 'and it goes straight into the work');
+});
+
 test('the create form asks work how before it asks when', () => {
   /*
    * The method decides what the rest of that screen is for: "step by step"

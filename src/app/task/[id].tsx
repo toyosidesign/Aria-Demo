@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import {
   AlarmClock,
   AlignLeft,
@@ -342,6 +342,39 @@ export default function TaskDetailScreen() {
             </Text>
             <Card>
               <Text className="text-[14px] leading-[20px]">{task.description}</Text>
+            </Card>
+          </View>
+        ) : null}
+
+        {/*
+          Finished work is pushed out from here, not scheduled at setup.
+
+          Setting an assignment up asks two questions and then begins, so the
+          day and hour it has to be in by are still unanswered while the work is
+          being done. That is the right order: you know when you will be
+          finished once you have started, and not before. This is where that
+          answer is given, and it is the moment the task becomes something with
+          a deadline and an alarm.
+        */}
+        {isWorkKind(task.kind) && task.status === 'todo' ? (
+          <View className="gap-2">
+            <View className="flex-row items-center gap-1.5">
+              <CalendarClock size={14} color={c.accent} />
+              <Text variant="label" tone="accent">
+                {task.time ? 'Going out' : 'When does it go out?'}
+              </Text>
+            </View>
+            <Card className="gap-3">
+              <Text className="text-[14px] leading-[20px]">
+                {task.time
+                  ? `Due ${formatFull(task.date)} at ${formatTime(task.time)}. I'll chime then, and have the document ready the day before.`
+                  : 'When you know when this has to be in, set it and I\'ll work backwards from it.'}
+              </Text>
+              <Button
+                title={task.time ? 'Change when it goes out' : 'Set when it goes out'}
+                variant={task.time ? 'secondary' : 'primary'}
+                onPress={() => router.push(`/reschedule?id=${task.id}&mode=handin` as Href)}
+              />
             </Card>
           </View>
         ) : null}
