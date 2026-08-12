@@ -1228,6 +1228,45 @@ test('a typed answer lands on the right field', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Nothing offers to end a conversation that is still going');
+
+test('the in-chat Guide offers to carry on, not to close', () => {
+  /*
+   * Reported as Aria adding a close button while somebody was still talking to
+   * it. The Guide is a detour inside a live setup: they are halfway through
+   * putting a piece of work together, they asked for directions, and they are
+   * choosing between them. "Close" reads as an offer to end the exchange, and
+   * nothing is being closed, the setup resumes at the question it left.
+   *
+   * The modal guide sheet on the task screen is deliberately not covered here:
+   * that one really is a sheet, and closing it is what the button does.
+   */
+  const panels = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/components/work-panels.tsx'),
+    'utf8',
+  );
+  assert.match(panels, /const GUIDE_EXIT = 'Carry on without it';/);
+  assert.doesNotMatch(panels, /label="Close"/, 'no panel inside the conversation says Close');
+  assert.doesNotMatch(panels, /Never mind/, 'and none of them says it a second way');
+  // Three exits, one string: a person who learns what it does in one panel
+  // should not have to relearn it in the next.
+  assert.equal((panels.match(/GUIDE_EXIT/g) ?? []).length, 4, 'declared once, used three times');
+});
+
+test('leaving the Guide puts the conversation back where it was', () => {
+  /*
+   * The other half of the same complaint: an exit that ended the thread would
+   * make "carry on" a lie. Closing re-asks the step it came from, so the flow
+   * visibly continues rather than going quiet.
+   */
+  const chat = readFileSync(path.resolve(import.meta.dirname, '../../src/app/chat.tsx'), 'utf8');
+  const fn = /function guideClose\(\)[\s\S]{0,400}?\n  \}/.exec(chat);
+  assert.ok(fn, 'guideClose is still there to check');
+  assert.match(fn![0], /setFlowStep\(closed\.guide!\.from\)/, 'returns to the step it left');
+  assert.match(fn![0], /addChatMessage\(mkPrompt/, 'and re-asks that question out loud');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('A searched answer can be checked');
 
 test('the same page cited four times is one source', () => {
