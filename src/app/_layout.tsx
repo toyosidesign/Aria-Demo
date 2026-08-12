@@ -7,9 +7,9 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { router, Stack, useSegments } from 'expo-router';
+import { router, Stack, useSegments, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { vars } from 'nativewind';
@@ -22,7 +22,9 @@ import { AriaLoading } from '@/components/aria-loading';
 import { ToastHost } from '@/components/toast-host';
 import { setupNotificationHandler } from '@/lib/alarms';
 import { addAutomationTapListener } from '@/lib/automation-notices';
+import { addTaskAlarmTapListener } from '@/lib/alarms';
 import { addDailyReviewTapListener } from '@/lib/daily-brief';
+import { launchRoute } from '@/lib/launch-route';
 import { runWorkAhead, workPassReport } from '@/lib/work-runner';
 import { showToast } from '@/lib/toast';
 import { THEMES, resolveTheme, themeVars, type Palette } from '@/lib/colors';
@@ -125,6 +127,28 @@ export default function RootLayout() {
   useEffect(() => addAutomationTapListener(() => router.push('/aria/run')), []);
   // The morning prompt opens the day it is about, not wherever the app was left.
   useEffect(() => addDailyReviewTapListener(() => router.push('/review')), []);
+  // A tapped task alarm opens that task. It used to open nothing in particular,
+  // because the alarm did not say which task it was about.
+  useEffect(() => addTaskAlarmTapListener((id) => router.push(`/task/${id}`)), []);
+
+  /*
+   * And the tap that started the app.
+   *
+   * The listeners above register at startup, by which point a launch tap has
+   * already been delivered, so it was silently dropped and people landed on
+   * whatever the auth gate chose: "Get started" from cold, or the last tab they
+   * had open. Deliberately waits for the gate to finish first, or the route
+   * would be replaced a moment later by the gate's own redirect.
+   */
+  const launchHandled = useRef(false);
+  useEffect(() => {
+    if (!hydrated || !authReady || !signedIn || !onboarded) return;
+    if (launchHandled.current) return;
+    launchHandled.current = true;
+    void launchRoute().then((route) => {
+      if (route) router.push(route as Href);
+    });
+  }, [hydrated, authReady, signedIn, onboarded]);
 
   // Supabase session → drives signedIn/onboarded and hydrates the local cache.
   useEffect(() => {

@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+import { DAILY_REVIEW_KIND } from '@/lib/notification-routes';
+
 /**
  * The prompt that starts the Pro day.
  *
@@ -39,8 +41,9 @@ function getNotifs(): NotificationsModule | null {
   return notifs;
 }
 
-/** Marks the one notification as the daily review, so a tap can be routed. */
-export const DAILY_REVIEW_KIND = 'daily-review';
+// The kind lives in lib/notification-routes.ts with the other two, so the
+// module that routes taps can name all three without importing any of them.
+export { DAILY_REVIEW_KIND } from '@/lib/notification-routes';
 
 const ID_KEY = 'aria-daily-review-v1';
 const CHANNEL_ID = 'aria-daily-review';

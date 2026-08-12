@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform } from 'react-native';
 
+import { TASK_ALARM_KIND } from '@/lib/notification-routes';
 import { showToast } from '@/lib/toast';
 import type { Task } from '@/store/aria-store';
 
@@ -69,6 +70,29 @@ export function setNotificationsEnabled(on: boolean) {
 }
 export function notificationsEnabled() {
   return notificationsOn;
+}
+
+/**
+ * Route a tap on a task alarm, while the app is running.
+ *
+ * The cold-start case is handled by `launchRoute` in lib/notification-routes.ts:
+ * a listener registered at startup has already missed the tap that caused the
+ * startup.
+ */
+export function addTaskAlarmTapListener(onTap: (taskId: string) => void): () => void {
+  const N = getNotifs();
+  if (!N) return () => {};
+  try {
+    const sub = N.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as
+        | { kind?: string; taskId?: string }
+        | undefined;
+      if (data?.kind === TASK_ALARM_KIND && data.taskId) onTap(data.taskId);
+    });
+    return () => sub.remove();
+  } catch {
+    return () => {};
+  }
 }
 
 // taskId -> scheduled notification id, so we can cancel/reschedule.
@@ -229,6 +253,16 @@ export async function syncTaskAlarm(
         title: `⏰ ${task.title}`,
         body: task.contactName ? `Reminder for ${task.contactName}` : 'Aria reminder',
         sound: 'default',
+        /*
+         * Which task this is about.
+         *
+         * Without it a tapped alarm could only open the app, and the app
+         * opened wherever its own startup logic decided: the sign-in screen on
+         * a cold start, or whichever tab was last used. Somebody tapped a
+         * reminder about a birthday and landed on "No finished tasks yet",
+         * which reads as the reminder having been about nothing.
+         */
+        data: { kind: TASK_ALARM_KIND, taskId: task.id },
       },
       trigger: {
         type: N.SchedulableTriggerInputTypes.DATE,

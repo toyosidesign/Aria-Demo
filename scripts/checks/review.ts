@@ -23,6 +23,7 @@ import {
   runAtFor,
 } from '@/lib/daily-review';
 import { TIERS, can, tierOf } from '@/lib/entitlements';
+import { routeForNotification } from '@/lib/notification-routes';
 import { WORK_AHEAD_DAYS, WORK_AHEAD_LIMIT, workAhead, workAheadReport } from '@/lib/work-ahead';
 import { catchUp, catchUpReport } from '@/lib/plan';
 import {
@@ -396,6 +397,37 @@ test('when it no longer fits, it says so rather than pretending', () => {
   assert.equal(result.tight, true);
   assert.match(catchUpReport(result, 'Essay'), /no longer fits/i);
   assert.match(catchUpReport({ steps: [], moved: 0, tight: false }, 'Essay'), /on track/i);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A tapped notification lands on what it was about');
+
+test('each kind of notification knows where it goes', () => {
+  /*
+   * Reported from a phone: a tapped task reminder opened "Get started", and
+   * another opened "No finished tasks yet". Neither screen had anything to do
+   * with the reminder. The cause was that a task alarm carried no data at all,
+   * so a tap could only launch the app and the app went wherever its startup
+   * logic decided.
+   */
+  assert.equal(routeForNotification({ kind: 'task-alarm', taskId: 'abc' }), '/task/abc');
+  assert.equal(routeForNotification({ kind: 'daily-review' }), '/review');
+  assert.equal(routeForNotification({ kind: 'automation', automationId: 'a1' }), '/aria/run');
+});
+
+test('a payload that means nothing routes nowhere', () => {
+  /*
+   * Null rather than a fallback to the home screen: sending an unrecognised
+   * notification somewhere plausible looks exactly like a tap that did nothing,
+   * and hides that something was scheduled this build no longer understands.
+   */
+  assert.equal(routeForNotification(undefined), null);
+  assert.equal(routeForNotification({}), null);
+  assert.equal(routeForNotification({ kind: 'something-else' }), null);
+  // Half a payload is not a destination: a task alarm with no task cannot open
+  // a task, and guessing one would open somebody else's.
+  assert.equal(routeForNotification({ kind: 'task-alarm' }), null);
+  assert.equal(routeForNotification({ kind: 'automation' }), null);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

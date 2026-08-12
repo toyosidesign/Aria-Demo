@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { AUTOMATION_KIND } from '@/lib/notification-routes';
 import { parseISO } from 'date-fns';
 import { Platform } from 'react-native';
 
@@ -66,7 +68,7 @@ export function addAutomationTapListener(onTap: (automationId: string) => void):
       const data = response.notification.request.content.data as
         | { kind?: string; automationId?: string }
         | undefined;
-      if (data?.kind === 'automation' && data.automationId) onTap(data.automationId);
+      if (data?.kind === AUTOMATION_KIND && data.automationId) onTap(data.automationId);
     });
     return () => sub.remove();
   } catch {
@@ -132,7 +134,7 @@ export async function scheduleAutomationNotice(automation: Automation) {
           ? `Emailing ${who} about “${automation.taskTitle}”.`
           : `Your ${meta.label.toLowerCase()} to ${who} is written and addressed. Tap to send it.`,
         sound: 'default',
-        data: { automationId: automation.id, kind: 'automation' },
+        data: { automationId: automation.id, kind: AUTOMATION_KIND },
       },
       trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: when },
     });

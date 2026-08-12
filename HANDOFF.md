@@ -71,7 +71,7 @@ npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
 npm run check:plan         25 checks   # backwards planning, rollovers, briefs
-npm run check:review       40 checks   # the tier line, the Pro day, work ahead, assembly
+npm run check:review       42 checks   # the tier line, the Pro day, work ahead, assembly
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -665,6 +665,17 @@ a grade they cannot recover.
 ---
 
 ## Traps
+
+**A notification has to say what it is about.** Task alarms carried no data, so
+tapping one could only launch the app and the app went wherever startup decided:
+"Get started" from cold, or whichever tab was last open. The vocabulary now
+lives in `lib/notification-routes.ts` (pure, so `check:review` holds the
+mapping) and the native half in `lib/launch-route.ts`. Two moments need
+handling and they are easy to get out of step: a tap while the app runs, and a
+tap that *launches* it. The second is delivered only through
+`getLastNotificationResponseAsync`, is consumed once so a relaunch does not
+replay it, and waits for the auth gate to finish or the gate's redirect
+overwrites it.
 
 **Persisted state is per-person or per-device, and confusing them has caused the
 same bug three times**, theme, demo offer, onboarding, each time a value set by
