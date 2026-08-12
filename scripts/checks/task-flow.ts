@@ -1229,6 +1229,44 @@ test('a typed answer lands on the right field', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('A toast is sized to the sentence it carries');
+
+test('the toast text can be narrower than it wants to be', () => {
+  /*
+   * Reported as the reload toast running out of its container. `maxWidth` on
+   * the pill bounds the pill; the Text inside kept its full intrinsic width and
+   * ran straight out the side, because a flex child does not shrink unless it
+   * is told it may. These toasts carry real sentences, "X is assembled, 1,203
+   * words. 2 things to look at before you send it", so this is not a rare case.
+   */
+  const host = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/components/toast-host.tsx'),
+    'utf8',
+  );
+  assert.match(host, /className="shrink font-strong/, 'the text may be smaller than its content');
+  assert.match(host, /maxWidth: '90%'/, 'and the pill is still bounded');
+  assert.match(host, /numberOfLines=\{3\}/, 'three lines, then an ellipsis');
+  assert.doesNotMatch(host, /numberOfLines=\{1\}/, 'one line truncated the reports that matter');
+});
+
+test('nothing is offered to decline when the button says Done', () => {
+  /*
+   * Accepting a draft no longer sends or finishes anything, it asks where the
+   * work should live, so a "Not now" beside it refused a question nobody asked.
+   * A send keeps its refusal: "do not send this to them" is a real answer.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  const row = /<View className="flex-row gap-2">[\s\S]{0,700}?<\/View>/.exec(
+    screen.slice(screen.indexOf('{/* Primary actions */}')),
+  );
+  assert.ok(row, 'the primary action row is still there to check');
+  assert.match(row![0], /action\.needsSend \? \(/, 'the refusal is gated on there being a send');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Aria does not assume work is finished');
 
 test('one section of a six-part project is not ready to hand in', () => {

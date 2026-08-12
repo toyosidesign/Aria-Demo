@@ -64,8 +64,22 @@ export function ToastHost() {
         opacity,
         transform: [{ translateY }],
       }}>
+      {/*
+        Sized to the sentence, not to the hope that every sentence is short.
+
+        A toast here can carry a real report, "X is assembled, 1,203 words. 2
+        things to look at before you send it", and this row had no way to be
+        narrower than that text: `maxWidth` bounded the pill while the Text kept
+        its full intrinsic width and ran straight out the side of it. `shrink`
+        is what lets the text be smaller than it wants to be, and without it a
+        `maxWidth` on the parent is advice the child can ignore.
+
+        Three lines, then an ellipsis. One line truncated the reports that
+        matter most; unbounded, a long one would cover the screen it is
+        reporting on.
+      */}
       <View
-        className="flex-row items-center gap-2 rounded-full px-4 py-3"
+        className="flex-row items-start gap-2 rounded-3xl px-4 py-3"
         style={{
           backgroundColor: c.ink,
           shadowColor: '#000',
@@ -75,8 +89,12 @@ export function ToastHost() {
           elevation: 6,
           maxWidth: '90%',
         }}>
-        <Icon size={16} color={c.bg} />
-        <Text className="font-strong" style={{ color: c.bg }} numberOfLines={1}>
+        {/* Nudged to sit on the first line's baseline once the text wraps. */}
+        <Icon size={16} color={c.bg} style={{ marginTop: 2 }} />
+        <Text
+          className="shrink font-strong leading-5"
+          style={{ color: c.bg }}
+          numberOfLines={3}>
           {message}
         </Text>
       </View>
