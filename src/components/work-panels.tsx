@@ -678,6 +678,22 @@ export function GuideButton({ onPress, label = 'Guide' }: { onPress: () => void;
 }
 
 /** The one narrowing question, before anything is generated. */
+/**
+ * Leaving the Guide, said as returning rather than as closing.
+ *
+ * The Guide is a detour inside a conversation that is still going: somebody is
+ * halfway through setting a piece of work up, they asked for directions, and
+ * now they are choosing. Labelling the way out "Close" made Aria look like it
+ * was offering to end the exchange while they were still in the middle of it,
+ * which was the report. Nothing is being closed. The setup carries on at the
+ * question it left, so that is what the button says.
+ *
+ * One constant for all three exits, because a person who learns what this does
+ * in one panel should not have to relearn it in the next, and three separate
+ * strings is how two of them end up saying different things.
+ */
+const GUIDE_EXIT = 'Carry on without it';
+
 export function GuideAsk({ draft, onFocus, onClose }: {
   draft: FlowDraft;
   onFocus: (value: string) => void;
@@ -693,7 +709,7 @@ export function GuideAsk({ draft, onFocus, onClose }: {
       </View>
       <Pressable onPress={onClose} hitSlop={8} className="self-center active:opacity-60">
         <Text variant="caption" tone="muted">
-          Never mind
+          {GUIDE_EXIT}
         </Text>
       </Pressable>
     </View>
@@ -731,7 +747,7 @@ export function GuideDirections({
         <Text variant="small" tone="muted">
           Add it below and ask me again.
         </Text>
-        <Choice label="Close" onPress={onClose} />
+        <Choice label={GUIDE_EXIT} onPress={onClose} />
       </View>
     );
   }
@@ -798,7 +814,7 @@ export function GuideDirections({
 
       <View className="flex-row gap-2">
         <Choice label={busy ? 'Thinking…' : 'None of these'} busy={busy} onPress={onAgain} />
-        <Choice label="Close" onPress={onClose} />
+        <Choice label={GUIDE_EXIT} onPress={onClose} />
       </View>
     </View>
   );
