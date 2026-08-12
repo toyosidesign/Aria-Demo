@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aria: from a PDF brief to a plan I can start today</title>
+<meta name="description" content="A product case study: turning an assignment brief students already have into a dated plan, worked through the five design thinking phases.">
+<!--
+  Self-contained on purpose.
+
+  No stylesheet, no script, no font and no image is fetched from anywhere, so
+  this file opens by double-clicking, works with the network off, and can be
+  emailed or dropped on any static host. Keep it that way: the moment it needs
+  a CDN it stops being something you can just send to somebody.
+-->
+<style>
+  /* ── Tokens ────────────────────────────────────────────────────────────────
+     Cool slate rather than the warm cream every case study seems to use, and
+     taken from the product itself: this page and the app should look related.
+     Light is the ground; dark is defined once, in tokens, so every component
+     below styles through them and never inside a media query. */
+  :root{
+    --paper:#F2F4F8;
+    --card:#FFFFFF;
+    --ink:#10141B;
+    --muted:#5A6478;
+    --faint:#8A94A8;
+    --rule:#D7DDE7;
+    --accent:#333D56;
+    --accent-soft:#DEE4ED;
+    --signal:#8E3B34;      /* constraints, and anything not yet proven */
+    --signal-soft:#F3E4E2;
+    --shadow:0 1px 2px rgba(16,20,27,.05), 0 12px 32px rgba(16,20,27,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --paper:#0E1218;
+      --card:#161C26;
+      --ink:#EDF0F5;
+      --muted:#A3ADC0;
+      --faint:#78839A;
+      --rule:#252D3C;
+      --accent:#B9C3D8;
+      --accent-soft:#222B3C;
+      --signal:#D98C84;
+      --signal-soft:#2C1F1E;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0E1218;
+    --card:#161C26;
+    --ink:#EDF0F5;
+    --muted:#A3ADC0;
+    --faint:#78839A;
+    --rule:#252D3C;
+    --accent:#B9C3D8;
+    --accent-soft:#222B3C;
+    --signal:#D98C84;
+    --signal-soft:#2C1F1E;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:17px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{max-width:44rem;margin:0 auto;padding:clamp(2rem,6vw,4.5rem) clamp(1.1rem,5vw,2rem) 5rem}
+
+  /* ── Type scale ──────────────────────────────────────────────────────────
+     A serif for anything that states something, sans for anything that
+     explains it, mono for anything that is data. Three roles, no more. */
+  h1,h2,h3,.eyebrow{text-wrap:balance}
+  h1{
+    font-family:ui-serif,Georgia,"Times New Roman",serif;
+    font-size:clamp(2rem,5.5vw,2.9rem);
+    line-height:1.12;
+    letter-spacing:-.021em;
+    font-weight:600;
+    margin:.6rem 0 .9rem;
+  }
+  h2{
+    font-family:ui-serif,Georgia,serif;
+    font-size:clamp(1.35rem,3.4vw,1.65rem);
+    line-height:1.25;
+    letter-spacing:-.014em;
+    font-weight:600;
+    margin:0;
+  }
+  h3{
+    font-size:.94rem;
+    letter-spacing:.005em;
+    font-weight:700;
+    margin:0 0 .3rem;
+  }
+  p{margin:0 0 1.05rem}
+  p:last-child{margin-bottom:0}
+  strong{font-weight:650}
+  em{font-style:italic;color:var(--muted)}
+
+  .eyebrow{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.7rem;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin:0;
+  }
+  .lede{font-size:1.12rem;color:var(--muted);margin:0 0 2rem;max-width:36rem}
+
+  /* ── Header facts ────────────────────────────────────────────────────────
+     A definition grid rather than prose: a recruiter reads this block and
+     decides whether to read the rest, so it has to be scannable in seconds. */
+  .facts{
+    display:grid;
+    grid-template-columns:8.5rem 1fr;
+    gap:.55rem 1.4rem;
+    padding:1.4rem 1.5rem;
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    margin:0 0 3rem;
+  }
+  .facts dt{
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.7rem;
+    letter-spacing:.11em;
+    text-transform:uppercase;
+    color:var(--faint);
+    padding-top:.28rem;
+  }
+  .facts dd{margin:0;font-size:.97rem;line-height:1.5}
+  @media (max-width:34rem){
+    .facts{grid-template-columns:1fr;gap:.15rem 0;padding:1.2rem 1.2rem}
+    .facts dd{margin-bottom:.85rem}
+    .facts dd:last-child{margin-bottom:0}
+  }
+
+  .tag{
+    display:inline-block;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.68rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:.18rem .5rem;
+    border-radius:5px;
+    background:var(--accent-soft);
+    color:var(--accent);
+    font-weight:700;
+  }
+
+  /* ── Phases ──────────────────────────────────────────────────────────────
+     Numbered because design thinking genuinely is a sequence: the order is
+     information, not decoration. */
+  .phase{
+    display:grid;
+    grid-template-columns:3.1rem 1fr;
+    gap:0 1.3rem;
+    padding:2.4rem 0;
+    border-top:1px solid var(--rule);
+  }
+  .phase-num{
+    font-family:ui-serif,Georgia,serif;
+    font-size:1.5rem;
+    font-weight:600;
+    color:var(--faint);
+    font-variant-numeric:tabular-nums;
+    line-height:1.3;
+  }
+  .phase-body>.eyebrow{margin-bottom:.45rem}
+  .phase-body>h2{margin-bottom:.9rem}
+  .ask{
+    font-family:ui-serif,Georgia,serif;
+    font-style:italic;
+    color:var(--muted);
+    margin:-.4rem 0 1.1rem;
+  }
+  @media (max-width:34rem){
+    .phase{grid-template-columns:1fr;gap:.4rem}
+    .phase-num{font-size:1rem}
+  }
+
+  /* ── Small structures ────────────────────────────────────────────────────*/
+  ul{margin:0 0 1.05rem;padding-left:1.1rem}
+  li{margin-bottom:.42rem}
+  li::marker{color:var(--faint)}
+
+  .note{
+    margin:1.3rem 0 0;
+    padding:.95rem 1.1rem;
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:12px;
+    font-size:.9rem;
+    line-height:1.55;
+    color:var(--muted);
+  }
+  .note strong{color:var(--ink)}
+
+  .evidence{
+    margin:1.3rem 0 0;
+    padding-left:.95rem;
+    border-left:2px solid var(--accent);
+    font-size:.9rem;
+    color:var(--muted);
+  }
+  .evidence .eyebrow{margin-bottom:.25rem}
+
+  /* The honesty band. Different colour, on purpose: it is the part a careful
+     reader looks for, and it should be findable at a glance. */
+  .constraint{
+    margin:3rem 0 0;
+    padding:1.5rem 1.6rem;
+    background:var(--signal-soft);
+    border:1px solid var(--signal);
+    border-radius:14px;
+  }
+  .constraint .eyebrow{color:var(--signal)}
+  .constraint h2{font-size:1.25rem;margin:.3rem 0 .8rem}
+  .constraint li::marker{color:var(--signal)}
+
+  .checks{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.5rem;
+    margin:1.2rem 0 0;
+    padding:0;
+    list-style:none;
+  }
+  .checks li{
+    margin:0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.74rem;
+    padding:.3rem .6rem;
+    border:1px solid var(--rule);
+    border-radius:6px;
+    background:var(--card);
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ── The diagram ─────────────────────────────────────────────────────────
+     Drawn rather than described because the decision it shows is spatial: the
+     buffer is reserved off the end first, and the work fills what is left. */
+  figure{margin:1.6rem 0 0;padding:0}
+  .plan-svg{
+    width:100%;
+    height:auto;
+    display:block;
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:12px;
+  }
+  figcaption{
+    margin-top:.6rem;
+    font-size:.83rem;
+    color:var(--faint);
+    line-height:1.5;
+  }
+  .svg-rule{stroke:var(--rule)}
+  .svg-ink{fill:var(--ink)}
+  .svg-muted{fill:var(--muted)}
+  .svg-faint{fill:var(--faint)}
+  .svg-accent-fill{fill:var(--accent)}
+  .svg-accent-soft{fill:var(--accent-soft)}
+  .svg-accent-stroke{stroke:var(--accent)}
+  .svg-label{font-family:ui-sans-serif,system-ui,sans-serif;font-size:11px}
+  .svg-mono{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;letter-spacing:.04em}
+
+  footer{
+    margin-top:3.2rem;
+    padding-top:1.8rem;
+    border-top:1px solid var(--rule);
+    font-size:.9rem;
+    color:var(--muted);
+  }
+  footer h3{color:var(--ink)}
+  a{color:var(--accent);text-underline-offset:2px}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  @media print{
+    body{background:#fff}
+    .phase{break-inside:avoid}
+    .constraint{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Use case · Aria</p>
+    <h1>From a PDF brief to a plan I can start today</h1>
+    <p class="lede">
+      Students do not miss deadlines because they cannot write. They miss them because they
+      start four days too late. The brief already holds everything a plan needs, and every
+      tool asks them to type it in again.
+    </p>
+
+    <dl class="facts">
+      <dt>User</dt>
+      <dd>A second year law student with four assignments open and no idea which to start.</dd>
+
+      <dt>Trigger</dt>
+      <dd>The brief lands in the module portal, usually as a PDF.</dd>
+
+      <dt>Outcome</dt>
+      <dd>
+        A dated plan working back from the deadline, first step pinned, submission time
+        reserved before any work is placed.
+      </dd>
+
+      <dt>My role</dt>
+      <dd>Problem framing, flow design, product copy. Shipped the flow and the test suite that holds it.</dd>
+
+      <dt>Status</dt>
+      <dd><span class="tag">Shipped</span></dd>
+    </dl>
+  </header>
+
+  <main>
+
+    <!-- 1 ─────────────────────────────────────────────────────────────────── -->
+    <section class="phase">
+      <div class="phase-num" aria-hidden="true">01</div>
+      <div class="phase-body">
+        <p class="eyebrow">Empathize</p>
+        <h2>The plan is the work nobody does</h2>
+        <p class="ask">What did I learn about the person before designing anything?</p>
+
+        <p>
+          Watching how students actually handle a new assignment, the pattern was the same
+          every time. The brief gets read once, the deadline goes in a calendar, and nothing
+          else happens for a fortnight. The document holds the deliverable, the deadline, the
+          weighting and the marking criteria. All of it is retyped later, badly, from memory.
+        </p>
+        <p>
+          The assumption I lost early: that people want to be taught how to plan. They do not.
+          They want the plan, and they want it to already exist.
+        </p>
+
+        <div class="evidence">
+          <p class="eyebrow">Evidence</p>
+          Briefs collected from three modules, the workaround recorded end to end: portal, PDF,
+          calendar entry, nothing.
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 ─────────────────────────────────────────────────────────────────── -->
+    <section class="phase">
+      <div class="phase-num" aria-hidden="true">02</div>
+      <div class="phase-body">
+        <p class="eyebrow">Define</p>
+        <h2>A deadline says when to finish, and nothing says when to begin</h2>
+        <p class="ask">What is the problem, stated so it can be solved or failed?</p>
+
+        <p>
+          <strong>Point of view.</strong> A student needs to know when to <em>start</em>,
+          because every tool they own tells them when to finish.
+        </p>
+        <p>
+          <strong>How might we</strong> turn a document they already have into a plan they did
+          not have to build?
+        </p>
+
+        <ul>
+          <li><strong>Success:</strong> the plan states a start date, and reserves submission time as a visible row.</li>
+          <li><strong>Success:</strong> a fact Aria is unsure of is labelled, not presented as certain.</li>
+          <li><strong>Out of scope:</strong> writing the essay. That is a different product and a worse one.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 3 ─────────────────────────────────────────────────────────────────── -->
+    <section class="phase">
+      <div class="phase-num" aria-hidden="true">03</div>
+      <div class="phase-body">
+        <p class="eyebrow">Ideate</p>
+        <h2>Three ways in, and the one the constraint chose</h2>
+        <p class="ask">What else could this have been?</p>
+
+        <ul>
+          <li>
+            <strong>A form.</strong> Fields for deliverable, deadline, weighting, criteria.
+            Rejected: it is transcription, and transcription is the thing being complained about.
+          </li>
+          <li>
+            <strong>A conversation.</strong> Aria asks the same questions one at a time.
+            Rejected here: slower than the form for facts that are already written down, though
+            it is the right shape for an event, where nothing is written down.
+          </li>
+          <li>
+            <strong>Read the document.</strong> Chosen. The student already did the work of
+            obtaining it.
+          </li>
+        </ul>
+
+        <p>
+          The constraint decided it. A PDF cannot be read on the device, so the file has to be
+          sent to a model, and a model can be wrong. That single fact turned confidence into a
+          requirement rather than a nicety: every extracted fact carries how sure Aria is, and
+          a missing fact is never shown as a blank.
+        </p>
+      </div>
+    </section>
+
+    <!-- 4 ─────────────────────────────────────────────────────────────────── -->
+    <section class="phase">
+      <div class="phase-num" aria-hidden="true">04</div>
+      <div class="phase-body">
+        <p class="eyebrow">Prototype</p>
+        <h2>Upload, read back, plan backwards</h2>
+        <p class="ask">What was actually built?</p>
+
+        <ul>
+          <li><strong>Upload the brief.</strong> The primary action, because it is the fastest true path. Filling it in yourself stays available and never becomes the default.</li>
+          <li><strong>Read it back with confidence.</strong> Deliverable, deadline, weighting, marking criteria, format rules. Each one labelled clear, probably, or worth checking.</li>
+          <li><strong>Gaps become buttons.</strong> A missing fact renders as three ways forward: ask the tutor, upload the handbook, I know this.</li>
+          <li><strong>Commitments.</strong> The calendar is read, and the standing weekly ones are asked once.</li>
+          <li><strong>The plan.</strong> Built backwards from the deadline, days shared out by the marking criteria, submission buffer reserved first.</li>
+        </ul>
+
+        <figure>
+          <svg class="plan-svg" viewBox="0 0 620 200" role="img"
+               aria-label="A timeline running from today to the deadline. Two days of submission buffer are reserved at the deadline end first, and four work steps are then placed in the days that remain, sized by their share of the marking criteria.">
+            <!-- baseline -->
+            <line x1="40" y1="120" x2="580" y2="120" class="svg-rule" stroke-width="1"/>
+            <!-- ticks -->
+            <line x1="40" y1="112" x2="40" y2="128" class="svg-rule" stroke-width="1"/>
+            <line x1="580" y1="106" x2="580" y2="134" class="svg-accent-stroke" stroke-width="2"/>
+
+            <text x="40" y="150" class="svg-mono svg-faint">TODAY</text>
+            <text x="580" y="150" class="svg-mono svg-accent-fill" text-anchor="end">DEADLINE</text>
+
+            <!-- buffer, reserved first, drawn at the deadline end -->
+            <rect x="500" y="96" width="80" height="24" rx="5" class="svg-accent-soft"/>
+            <rect x="500" y="96" width="80" height="24" rx="5" fill="none" class="svg-accent-stroke" stroke-width="1.5"/>
+            <text x="540" y="112" class="svg-label svg-accent-fill" text-anchor="middle" font-weight="700">buffer</text>
+
+            <!-- the work, sized by criteria weight -->
+            <rect x="40" y="96" width="150" height="24" rx="5" class="svg-accent-fill" opacity=".16"/>
+            <rect x="196" y="96" width="120" height="24" rx="5" class="svg-accent-fill" opacity=".16"/>
+            <rect x="322" y="96" width="100" height="24" rx="5" class="svg-accent-fill" opacity=".16"/>
+            <rect x="428" y="96" width="66" height="24" rx="5" class="svg-accent-fill" opacity=".16"/>
+
+            <text x="115" y="112" class="svg-label svg-ink" text-anchor="middle">Read the sources</text>
+            <text x="256" y="112" class="svg-label svg-ink" text-anchor="middle">Argument</text>
+            <text x="372" y="112" class="svg-label svg-ink" text-anchor="middle">Write it up</text>
+            <text x="461" y="112" class="svg-label svg-ink" text-anchor="middle">Proof</text>
+
+            <!-- weights above -->
+            <text x="115" y="80" class="svg-mono svg-faint" text-anchor="middle">40% ARGUMENT</text>
+            <text x="256" y="80" class="svg-mono svg-faint" text-anchor="middle">30% ANALYSIS</text>
+            <text x="372" y="80" class="svg-mono svg-faint" text-anchor="middle">20% STRUCTURE</text>
+            <text x="461" y="80" class="svg-mono svg-faint" text-anchor="middle">10% REFS</text>
+
+            <!-- the answer -->
+            <line x1="40" y1="120" x2="40" y2="176" class="svg-accent-stroke" stroke-width="1" stroke-dasharray="3 3"/>
+            <text x="40" y="190" class="svg-label svg-accent-fill" font-weight="700">Start here</text>
+            <text x="500" y="176" class="svg-mono svg-muted" text-anchor="middle">reserved before</text>
+            <text x="500" y="188" class="svg-mono svg-muted" text-anchor="middle">any step is placed</text>
+          </svg>
+          <figcaption>
+            The buffer is reserved off the deadline end first, so an overrunning plan eats its
+            own steps rather than the run up. It is drawn as a row because reserved time nobody
+            can see is time that gets booked over.
+          </figcaption>
+        </figure>
+
+        <div class="note">
+          <strong>The decision a careful person would question.</strong> Why plan backwards at
+          all? Because forwards planning answers "what shall I do first", which is not the
+          question a deadline asks. Working back is the only direction that produces a start
+          date, and the start date is the entire value.
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 ─────────────────────────────────────────────────────────────────── -->
+    <section class="phase">
+      <div class="phase-num" aria-hidden="true">05</div>
+      <div class="phase-body">
+        <p class="eyebrow">Test</p>
+        <h2>Arithmetic that decides when somebody starts working</h2>
+        <p class="ask">How do I know it works?</p>
+
+        <p>
+          This maths decides the day a student begins, so it is asserted rather than eyeballed.
+          The cases covered are the ones nobody wants to reproduce by hand on a phone.
+        </p>
+
+        <ul class="checks">
+          <li>deadline tomorrow</li>
+          <li>deadline already gone</li>
+          <li>more steps than days</li>
+          <li>every useful day taken</li>
+          <li>no steps at all</li>
+          <li>buffer vs. a two day window</li>
+        </ul>
+
+        <p style="margin-top:1.1rem">
+          Testing caught a real defect before anyone met it: a date calculation that shortened
+          the planning horizon by one day for every user east of Greenwich. It now runs in three
+          timezones on every change.
+        </p>
+
+        <div class="evidence">
+          <p class="eyebrow">What I would measure in production</p>
+          Days between plan accepted and first step completed. Share of plans where the buffer
+          survives to the deadline. Share of briefs where a fact was corrected by the student,
+          which is the honest measure of whether the confidence labels are calibrated.
+        </div>
+
+        <div class="note">
+          <strong>Still unproven.</strong> Whether students start on the day the plan says. A
+          demo build has no production cohort, and inventing a number would be worse than
+          admitting that.
+        </div>
+      </div>
+    </section>
+
+    <!-- Running band ───────────────────────────────────────────────────────── -->
+    <section class="constraint">
+      <p class="eyebrow">Constraints and trade-offs</p>
+      <h2>What I gave up, and what I chose not to claim</h2>
+      <ul>
+        <li>
+          <strong>Reading a brief costs money per document.</strong> So extraction is capped,
+          never repeated over an answer that already exists, and the upload is one request
+          rather than a conversation with a file attached to every turn.
+        </li>
+        <li>
+          <strong>A model can be wrong about a deadline.</strong> Confidence is shown on every
+          fact, and a date it cannot resolve is left empty rather than guessed. An invented
+          deadline is the single worst thing this product could do.
+        </li>
+        <li>
+          <strong>When Aria has nothing to go on, it says so.</strong> With only a title, the
+          guide asks for the one thing that would help instead of generating four directions
+          that would fit any essay ever written.
+        </li>
+      </ul>
+    </section>
+
+    <footer>
+      <h3>The same template, applied elsewhere in this product</h3>
+      <p>
+        The daily review and where the paid tier line falls. The guide for a student who is
+        stuck. Swipe to complete, which was two bugs wearing one costume. The project
+        definition of done gate. Onboarding's opening question, which used to decide the
+        answer inside the question.
+      </p>
+      <p style="color:var(--faint);font-size:.85rem;margin-top:1.4rem">
+        Aria is a demo build: an assistant for students that captures work in conversation,
+        plans it against the deadline, and offers to do it. Written as a use case, not as a
+        release note.
+      </p>
+    </footer>
+
+  </main>
+</div>
+</body>
+</html>

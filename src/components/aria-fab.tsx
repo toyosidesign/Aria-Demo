@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/lib/colors';
 import { hapticSelect } from '@/lib/haptics';
 
-/** Floating Aria launcher — bottom-left, opens the chat. The app's namesake button. */
+/** Floating Aria launcher, bottom-left, opens the chat. The app's namesake button. */
 export function AriaFab() {
   const c = useColors();
   const insets = useSafeAreaInsets();

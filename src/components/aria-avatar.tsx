@@ -4,7 +4,7 @@ import { Sparkles } from 'lucide-react-native';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 
-/** Aria's identity mark — a calm accent disc with a spark. */
+/** Aria's identity mark, a calm accent disc with a spark. */
 export function AriaAvatar({ size = 40, className }: { size?: number; className?: string }) {
   const c = useColors();
   return (

@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Aria: a three-minute interactive walkthrough of the assistant, an occasion, an assignment read from its brief, the Guide, and a project.">
+<!--
+  Self-contained on purpose.
+
+  No stylesheet, no script, no font and no image is fetched from anywhere: this
+  file opens by double-clicking it, works with the network off, and can be
+  emailed, zipped or dropped on any static host without a build step. Anyone
+  changing it should keep it that way: the moment it needs a CDN it stops
+  being something you can just send to someone.
+-->
+<style>
+  :root{color-scheme:light dark}
+  body{margin:0;padding:0;background:#E7EAF0;color:#12161E}
+  @media (prefers-color-scheme:dark){body{background:#0E1218;color:#E8ECF3}}
+  img{max-width:100%}
+</style>
+</head>
+<body>
+<title>Aria: interactive demo</title>
+
+<style>
+  :root{
+    --stage:#E7EAF0; --stage-ink:#12161E; --stage-muted:#5A6478; --stage-rule:#CDD4E0;
+    --panel:#FFFFFF;
+    /* Aria's own White theme */
+    --bg:#F4F6F9; --surface:#FFFFFF; --border:#DDE2EB; --ink:#12161E;
+    --muted:#5A6478; --faint:#8A94A8; --accent:#333D56; --accentInk:#FFFFFF;
+    --accentSoft:#DEE4ED; --success:#2F6B4F; --warn:#8A5A1E; --danger:#8E3B34;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --stage:#0E1218; --stage-ink:#E8ECF3; --stage-muted:#97A1B4; --stage-rule:#242C3A; --panel:#161C26; }
+  }
+  :root[data-theme="dark"]{ --stage:#0E1218; --stage-ink:#E8ECF3; --stage-muted:#97A1B4; --stage-rule:#242C3A; --panel:#161C26; }
+  :root[data-theme="light"]{ --stage:#E7EAF0; --stage-ink:#12161E; --stage-muted:#5A6478; --stage-rule:#CDD4E0; --panel:#FFFFFF; }
+
+  /* Aria Midnight, swapped in for the last scene */
+  .phone.midnight{
+    --bg:#12161E; --surface:#1E2534; --border:#262E41; --ink:#EDF0F5;
+    --muted:#A8B2C6; --faint:#75809A; --accent:#BAC3D6; --accentInk:#12161E; --accentSoft:#283145;
+    --danger:#D98C84; --warn:#D6A96A;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--stage);color:var(--stage-ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    gap:1.1rem;padding:1.75rem 1rem 3rem;min-height:100vh;
+  }
+  h1{
+    font-family:ui-serif,Georgia,serif;font-weight:600;letter-spacing:-.02em;
+    font-size:1.5rem;margin:0;text-align:center;
+  }
+  .sub{margin:0;color:var(--stage-muted);font-size:.9rem;text-align:center;max-width:46ch;line-height:1.5}
+
+  /* ---------- phone ---------- */
+  .phone{
+    width:min(370px,92vw);height:740px;max-height:76vh;
+    background:var(--bg);border-radius:38px;
+    border:10px solid #10141B;
+    box-shadow:0 24px 60px rgba(9,13,20,.35);
+    overflow:hidden;position:relative;display:flex;flex-direction:column;
+    transition:background .45s ease;
+  }
+  .notch{height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:.66rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .screen{flex:1;overflow:hidden;position:relative}
+  .pane{position:absolute;inset:0;padding:4px 14px 0;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;opacity:0;transform:translateX(14px);pointer-events:none;
+    transition:opacity .3s ease,transform .3s ease}
+  .pane.on{opacity:1;transform:none;pointer-events:auto}
+
+  .title{font-size:1.32rem;font-weight:700;color:var(--ink);letter-spacing:-.02em;margin:6px 0 0}
+  .label{font-size:.63rem;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 13px;
+    display:flex;flex-direction:column;gap:5px;position:relative;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s}
+  .card .row{display:flex;align-items:center;gap:8px}
+  .card b{font-size:.9rem;color:var(--ink);font-weight:600}
+  .card small{font-size:.74rem;color:var(--faint)}
+  .card.offer{background:var(--accentSoft);border-color:var(--accent);border-radius:22px}
+  .card.done b{text-decoration:line-through;color:var(--muted)}
+
+  /* progress on a piece of work, a title and a date look identical whether
+     it has just been created or just been finished */
+  .bar-track{height:6px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:4px}
+  .bar-fill{height:100%;border-radius:999px;background:var(--accent);transition:width .6s ease}
+  .next{font-size:.72rem;color:var(--muted)}
+
+  .swipe-wrap{position:relative;border-radius:16px;overflow:hidden}
+  .swipe-act{position:absolute;inset:0;display:flex;align-items:center;padding-left:20px;
+    background:var(--success);border-radius:16px;color:#fff;font-size:1.2rem}
+
+  .pill{border:1px solid var(--border);background:var(--surface);color:var(--muted);
+    border-radius:999px;padding:9px 14px;font-size:.78rem;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;min-height:38px}
+  .pill.on{background:var(--accent);border-color:var(--accent);color:var(--accentInk)}
+  .pills{display:flex;flex-wrap:wrap;gap:7px}
+
+  /* rounded-md, not a pill: shape is the affordance, and a confidence chip
+     that someone tries to tap has already failed */
+  .chip{border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;letter-spacing:.01em;
+    background:var(--border);color:var(--muted);white-space:nowrap}
+  .chip.sure{background:var(--accentSoft);color:var(--accent)}
+  .chip.check{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+
+  .bubble{max-width:84%;padding:10px 13px;border-radius:16px;font-size:.83rem;line-height:1.45}
+  .bubble.aria{background:var(--accentSoft);color:var(--ink);border-top-left-radius:5px;align-self:flex-start}
+  .bubble.me{background:var(--accent);color:var(--accentInk);border-top-right-radius:5px;align-self:flex-end}
+  .bubble.file{display:flex;align-items:center;gap:8px;font-weight:600}
+  .thread{display:flex;flex-direction:column;gap:7px;padding-bottom:4px}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px;
+    display:flex;flex-direction:column;gap:9px;margin-bottom:8px}
+  .panel .head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .panel .fact{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .panel .fact:last-of-type{border-bottom:0;padding-bottom:0}
+  .fact .v{font-size:.78rem;color:var(--ink);line-height:1.4}
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal span{aspect-ratio:1;display:grid;place-items:center;font-size:.7rem;color:var(--muted);border-radius:8px}
+  .cal span.sel{background:var(--accent);color:var(--accentInk);font-weight:700}
+  .btn{background:var(--accent);color:var(--accentInk);border:0;border-radius:14px;
+    padding:11px;font-size:.82rem;font-weight:700;text-align:center;min-height:44px;
+    display:flex;align-items:center;justify-content:center;gap:7px}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .btn.guide{background:var(--accentSoft);color:var(--accent);border:1px solid var(--accent);border-radius:999px}
+  .draftbox{border:1px solid var(--border);border-radius:12px;padding:10px;font-size:.8rem;
+    color:var(--ink);background:var(--bg);min-height:64px;line-height:1.45}
+
+  /* the plan, laid out backwards from the deadline */
+  .prow{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;
+    padding:9px 10px;background:var(--bg);transition:border-color .3s,background .3s}
+  .prow .d{width:62px;flex:0 0 62px;font-size:.68rem;font-weight:700;color:var(--muted);
+    font-variant-numeric:tabular-nums;letter-spacing:.01em}
+  .prow .t{font-size:.78rem;color:var(--ink);line-height:1.35}
+  .prow.buffer{background:var(--accentSoft);border-color:var(--accent)}
+  .prow.buffer .d,.prow.buffer .t{color:var(--accent);font-weight:700}
+  .prow.lit{border-color:var(--accent)}
+
+  /* one direction from the Guide: never a suggestion without its price */
+  .gcard{border:1px solid var(--border);border-radius:12px;padding:10px;background:var(--bg);
+    display:flex;flex-direction:column;gap:4px}
+  .gcard b{font-size:.8rem;color:var(--ink)}
+  .gcard span{font-size:.72rem;color:var(--muted);line-height:1.4}
+
+  .scope{display:flex;flex-direction:column;gap:5px}
+  .scope .item{display:flex;gap:7px;align-items:center;font-size:.78rem;color:var(--ink);
+    border:1px solid var(--border);border-radius:10px;padding:7px 9px;background:var(--bg)}
+  .scope .item.out{color:var(--muted)}
+
+  .tabs{flex:0 0 54px;border-top:1px solid var(--border);display:flex;background:var(--surface)}
+  .tabs div{flex:1;display:grid;place-items:center;font-size:.62rem;color:var(--faint);gap:2px;font-weight:600}
+  .tabs div.on{color:var(--accent)}
+
+  .caption{position:absolute;left:0;right:0;bottom:60px;display:flex;justify-content:center;pointer-events:none}
+  .caption span{background:rgba(12,16,24,.9);color:#fff;font-size:.72rem;padding:6px 12px;border-radius:999px;
+    max-width:88%;text-align:center;opacity:0;transition:opacity .3s;line-height:1.4}
+  .caption span.on{opacity:1}
+
+  /* ---------- transport ---------- */
+  .transport{width:min(370px,92vw);display:flex;flex-direction:column;gap:.6rem}
+  .bar{height:4px;background:var(--stage-rule);border-radius:2px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--stage-ink);border-radius:2px}
+  .controls{display:flex;align-items:center;gap:.6rem;justify-content:center}
+  button{font:inherit;cursor:pointer}
+  .ctl{background:var(--panel);border:1px solid var(--stage-rule);color:var(--stage-ink);
+    border-radius:999px;padding:8px 16px;font-size:.8rem;font-weight:600;min-height:40px}
+  .ctl:hover{border-color:var(--stage-ink)}
+  .time{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.74rem;
+    color:var(--stage-muted);font-variant-numeric:tabular-nums;min-width:82px;text-align:center}
+
+  /* chapters: the demo is five scenes, and they are worth jumping between */
+  .chapters{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  .chap{background:transparent;border:1px solid var(--stage-rule);color:var(--stage-muted);
+    border-radius:999px;padding:6px 12px;font-size:.74rem;font-weight:600;min-height:34px}
+  .chap:hover{border-color:var(--stage-ink);color:var(--stage-ink)}
+  .chap[aria-current="true"]{background:var(--stage-ink);border-color:var(--stage-ink);color:var(--stage)}
+  .foot{max-width:48ch;text-align:center;color:var(--stage-muted);font-size:.76rem;line-height:1.55}
+  :focus-visible{outline:2px solid var(--stage-ink);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<h1>Aria: interactive demo</h1>
+<p class="sub">Three minutes through the assistant: an occasion, an assignment read from its brief, the Guide, and a project through its gate. It plays on its own, jump between scenes at any point.</p>
+
+<div class="phone" id="phone">
+  <div class="notch"><span>9:41</span><span>▮▮▮</span></div>
+  <div class="screen">
+
+    <!-- HOME -->
+    <div class="pane" id="p-home">
+      <div class="title">Today</div>
+      <span class="label">Tuesday, 4 August</span>
+      <div class="card offer">
+        <div class="row"><b>Aria · Today</b></div>
+        <b>Email Dr Reyes about the essay</b>
+        <small>Aria can draft it. Tap to see</small>
+      </div>
+      <div class="swipe-wrap" id="swipe">
+        <div class="swipe-act">✓</div>
+        <div class="card" id="swipe-card">
+          <b>Pick up prescription</b>
+          <small>Today · 5:00 PM</small>
+        </div>
+      </div>
+      <span class="label" style="margin-top:6px">Coming up</span>
+      <div class="card"><b>Chemistry lab report</b><small>Friday · due 5:00 PM</small></div>
+      <div class="card"><b>Gym</b><small>Saturday · 9:00 AM</small></div>
+    </div>
+
+    <!-- CHAT -->
+    <div class="pane" id="p-chat">
+      <div class="title" id="chat-title">Aria</div>
+      <div class="thread" id="thread"></div>
+      <div id="flowpanel"></div>
+      <div class="pills" id="kinds" style="margin-top:auto;padding:8px 0">
+        <span class="pill" id="k-bday">Birthday</span>
+        <span class="pill" id="k-assign">Assignment</span>
+        <span class="pill" id="k-project">Project</span>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div class="pane" id="p-tasks">
+      <div class="title">Tasks</div>
+      <span class="label">This week</span>
+      <div class="card" id="t-essay" style="display:none;border-color:var(--accent)">
+        <b>Cold War essay</b>
+        <small>Fri 25 Sep · 40% · steps</small>
+        <div class="bar-track"><div class="bar-fill" id="essay-bar" style="width:6%"></div></div>
+        <div class="next">Next: Read the sources · in 3 days</div>
+      </div>
+      <div class="card" id="t-bday"><b>Sam's birthday</b><small>Mon 10 Aug · 9:00 AM · card · every year</small></div>
+      <div class="card"><b>Chemistry lab report</b><small>Friday · 5:00 PM</small></div>
+      <div class="card done"><b>Pick up prescription</b><small>Completed today</small></div>
+    </div>
+
+  </div>
+
+  <div class="caption"><span id="cap"></span></div>
+
+  <div class="tabs">
+    <div id="tab-home" class="on">Today</div>
+    <div id="tab-tasks">Tasks</div>
+    <div id="tab-chat">Aria</div>
+    <div id="tab-set">Settings</div>
+  </div>
+</div>
+
+<div class="transport">
+  <div class="bar"><i id="prog"></i></div>
+  <div class="controls">
+    <button class="ctl" id="play">Pause</button>
+    <span class="time" id="time">0:00 / 3:05</span>
+    <button class="ctl" id="restart">Restart</button>
+  </div>
+  <div class="chapters" id="chapters"></div>
+</div>
+
+<p class="foot">
+  A faithful prototype of the flow, not a recording of the build. It runs the same
+  sequence the app does, in the same order and the same words, so it can be shared
+  without a device.
+</p>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const phone = $('phone'), cap = $('cap'), thread = $('thread'), flowpanel = $('flowpanel');
+  const TOTAL = 185000;
+
+  function show(pane){
+    ['p-home','p-chat','p-tasks'].forEach(p => $(p).classList.toggle('on', p === pane));
+    const tab = {'p-home':'tab-home','p-chat':'tab-chat','p-tasks':'tab-tasks'}[pane];
+    ['tab-home','tab-tasks','tab-chat','tab-set'].forEach(t => $(t).classList.toggle('on', t === tab));
+  }
+  function say(text){ cap.textContent = text; cap.classList.add('on'); }
+  function quiet(){ cap.classList.remove('on'); }
+  function bubble(from, text, cls){
+    const b = document.createElement('div');
+    b.className = 'bubble ' + from + (cls ? ' ' + cls : '');
+    b.textContent = text;
+    thread.appendChild(b);
+    thread.scrollTop = thread.scrollHeight;
+    $('p-chat').scrollTop = $('p-chat').scrollHeight;
+  }
+  function panel(html){
+    flowpanel.innerHTML = html ? '<div class="panel">' + html + '</div>' : '';
+    $('p-chat').scrollTop = $('p-chat').scrollHeight;
+  }
+  function newThread(kind){
+    thread.innerHTML = ''; panel('');
+    ['k-bday','k-assign','k-project'].forEach(k => $(k).classList.toggle('on', k === kind));
+  }
+
+  const CAL = () => {
+    let out = '';
+    for (let d = 3; d <= 16; d++) out += '<span class="' + (d===10?'sel':'') + '">' + d + '</span>';
+    return '<div class="cal">' + out + '</div>';
+  };
+
+  /* The extraction card: five facts, each with how sure Aria is, and a gap
+     rendered as three ways forward rather than as a blank. */
+  const EXTRACTION = (gapLit) => `
+    <div class="fact"><div class="head"><span class="label">Deliverable</span><span class="chip sure">Clear in the brief</span></div><div class="v">2,000-word essay, submitted as PDF</div></div>
+    <div class="fact"><div class="head"><span class="label">Deadline</span><span class="chip sure">Clear in the brief</span></div><div class="v">Friday 25 September, 5:00 PM</div></div>
+    <div class="fact"><div class="head"><span class="label">Weighting</span><span class="chip sure">Clear in the brief</span></div><div class="v">40% of the module</div></div>
+    <div class="fact"><div class="head"><span class="label">Marked on</span><span class="chip">Probably</span></div><div class="v">Argument (40%) · Analysis (30%) · Structure (20%) · Referencing (10%)</div></div>
+    <div class="fact"><div class="head"><span class="label">Format rules</span><span class="chip check">Not in the brief</span></div>
+      <div class="pills" style="padding-top:4px">
+        <span class="pill${gapLit ? ' on' : ''}">Ask tutor</span><span class="pill">Upload handbook</span><span class="pill">I know this</span>
+      </div>
+    </div>
+    <div class="btn">Carry on without those</div>`;
+
+  const PLAN = (lit) => `
+    <div class="prow${lit==='first'?' lit':''}"><span class="d">Sat 6 Sep</span><span class="t">Read the sources</span></div>
+    <div class="prow${lit==='weight'?' lit':''}"><span class="d">Thu 16 Sep</span><span class="t">Build the argument</span></div>
+    <div class="prow"><span class="d">Sun 20 Sep</span><span class="t">Write it up</span></div>
+    <div class="prow"><span class="d">Tue 23 Sep</span><span class="t">Referencing and proofread</span></div>
+    <div class="prow buffer${lit==='buffer'?' lit':''}"><span class="d">Fri 25 Sep</span><span class="t">Submission buffer: 2 days</span></div>
+    <div class="btn guide">Not sure where to start?</div>
+    <div class="btn">Accept</div>`;
+
+  // The sequence, in the same order the app asks in.
+  const script = [
+    // ── Today ────────────────────────────────────────────────────────────────
+    [0,     () => { show('p-home'); newThread(null); phone.classList.remove('midnight');
+                    $('t-essay').style.display='none'; $('swipe').style.display='';
+                    $('swipe-card').style.opacity='1'; $('swipe-card').style.transform='';
+                    say('Your day, and what Aria can take off it'); }],
+    [6000,  () => say('Drag a card across to finish it')],
+    [7600,  () => { $('swipe-card').style.transform = 'translateX(300px)'; }],
+    [8400,  () => { $('swipe-card').style.opacity = '0'; }],
+    [9200,  () => { $('swipe').style.display='none'; say('Done. One gesture, no second tap'); }],
+
+    // ── An occasion ──────────────────────────────────────────────────────────
+    [12000, () => { show('p-chat'); newThread(null); quiet(); }],
+    [12800, () => { bubble('aria','Hi Toyosi, what do you need?'); say('Pick a category and Aria starts asking'); }],
+    [15000, () => { newThread('k-bday'); bubble('aria','Hi Toyosi, what do you need?'); }],
+    [16000, () => { bubble('aria',"Who's this birthday for?");
+                    panel('<div class="btn">Choose from contacts</div>'); quiet(); }],
+    [19000, () => { bubble('me','Sam'); panel(''); bubble('aria','Sam, got it.'); }],
+    [21000, () => { bubble('aria',"What date is Sam's birthday?"); panel(CAL()); }],
+    [24500, () => { bubble('me','Mon 10 August'); panel(''); }],
+    [25500, () => { bubble('aria','What time? Skip it if the day is enough.');
+                    panel('<div class="pills"><span class="pill on">9:00 AM</span><span class="pill">No time</span></div>'); }],
+    [28000, () => { bubble('me','9:00 AM'); panel(''); }],
+    [29000, () => { bubble('aria','Should I bring this back every year?');
+                    panel('<div class="pills"><span class="pill on">Every year</span><span class="pill">Just the once</span><span class="pill">Every month</span></div>');
+                    say('A birthday repeats. It is never asked about an alarm'); }],
+    [32000, () => { bubble('me','Every year'); bubble('aria','Every year.'); panel(''); }],
+    [34000, () => { bubble('aria','How much does this one matter?');
+                    panel('<div class="pills"><span class="pill">Low</span><span class="pill on">Medium</span><span class="pill">High</span></div>'); quiet(); }],
+    [36500, () => { panel(''); bubble('aria','How should Aria handle it?');
+                    panel(`<div class="btn ghost">Text</div><div class="btn ghost">Email</div><div class="btn ghost">Call</div>
+                           <div class="btn ghost">Picture</div><div class="btn">Card</div><div class="btn ghost">Just remind me</div>`);
+                    say('Six answers, because they are six different jobs'); }],
+    [41000, () => { bubble('me','Card'); panel(''); }],
+    [42000, () => { bubble('aria',"Have I got Sam's details? Pick them from your contacts and I'll fill in the rest.");
+                    panel(`<div class="card" style="background:var(--accentSoft);border-color:var(--accent)">
+                             <b>Sam Okafor</b><small>+44 7700 900112 · sam@example.com</small></div>
+                           <div class="btn">Use these details</div>`);
+                    say('Chosen from contacts, so the fields it filled disappear'); }],
+    [47000, () => { bubble('aria',"Saved Sam's details."); panel(''); quiet(); }],
+    [48500, () => { bubble('aria','Which card?');
+                    panel('<div class="pills"><span class="pill on">🎈 Balloons</span><span class="pill">🎂 Cake</span><span class="pill">✨ Confetti</span></div>'); }],
+    [51500, () => { bubble('aria',"What should the card say? I can draft it if you'd rather.");
+                    panel('<div class="draftbox">Write it yourself, or let Aria draft it…</div><div class="btn ghost">Draft it for me</div>'); }],
+    [55000, () => { panel(`<div class="draftbox">Sam, another year, and somehow still the one who replies to group chats at 3am. Have a brilliant one.</div>
+                           <div class="pills"><span class="pill">Warmer</span><span class="pill on">Funnier</span><span class="pill">Shorter</span></div>`); }],
+    [59500, () => { panel(`<div class="draftbox">Sam! Officially old now. Still the fastest text back in the group chat though. Never change. Have a cracking day.</div>
+                           <div class="pills"><span class="pill">Warmer</span><span class="pill on">Funnier</span><span class="pill">Shorter</span></div>`);
+                    say('Tone changed, without leaving the chat'); }],
+    [63500, () => { bubble('aria',"Here's what I've got. Have a look before I save it.");
+                    panel(`<span class="label">Preview</span><b style="font-size:.92rem;color:var(--ink)">Sam's birthday</b>
+                      <small style="color:var(--muted);font-size:.76rem">Mon 10 Aug · 9:00 AM · Every year · For Sam · Card: Balloons</small>
+                      <div class="draftbox">Sam! Officially old now. Still the fastest text back in the group chat though. Never change.</div>
+                      <div class="btn">Save it</div>`);
+                    say('Nothing is saved until you have seen it'); }],
+    [69500, () => { panel(''); bubble('aria','Done. "Sam’s birthday" is saved and in your queue.'); quiet(); }],
+
+    // ── An assignment ────────────────────────────────────────────────────────
+    [73000, () => { show('p-chat'); newThread('k-assign'); say('An assignment starts from the brief, because the brief exists'); }],
+    [74500, () => { bubble('aria',"Send me the brief and I'll read it. Or fill it in yourself if you'd rather.");
+                    panel(`<div class="btn">Upload the brief</div>
+                           <div class="pills"><span class="pill">Photo of it</span><span class="pill">I'll fill it in</span></div>`); }],
+    [79000, () => { bubble('me','📄 Cold War essay, brief.pdf','file'); panel(''); quiet(); }],
+    [80500, () => { bubble('aria','Let me read it.'); }],
+    [83000, () => { bubble('aria',"Here's what the brief says. Check anything I've marked as unsure.");
+                    panel(EXTRACTION(false));
+                    say('Read out of the PDF, deliverable, deadline, weighting, criteria'); }],
+    [89000, () => { say('Every fact carries how sure Aria is of it'); }],
+    [94000, () => { panel(EXTRACTION(true));
+                    say('A missing one is not a blank. It is three ways to fix it'); }],
+    [99500, () => { panel(''); bubble('aria','One thing still missing.'); quiet(); }],
+    [101000,() => { bubble('aria','What does your week already look like? I plan around it rather than over it.');
+                    panel(`<div class="pills"><span class="pill">S</span><span class="pill on">M</span><span class="pill">T</span><span class="pill on">W</span><span class="pill">T</span><span class="pill">F</span><span class="pill">S</span></div>
+                           <div class="btn">That's my week</div>`);
+                    say('Your calendar is read; only the weekly ones are asked, once'); }],
+    [106500,() => { panel(''); bubble('aria',"I'll plan around the 6 days you've already got something on."); quiet(); }],
+    [108500,() => { bubble('aria','Here it is, working back from the deadline. Change anything, then accept.');
+                    panel(PLAN('first')); say('Backwards from the deadline, so the answer is when to start'); }],
+    [114500,() => { panel(PLAN('weight')); say('Days shared out by what it is marked on, argument is 40%'); }],
+    [120000,() => { panel(PLAN('buffer')); say('The run-up is a row, so nothing gets booked over it'); }],
+    [125500,() => { panel(''); bubble('aria','Done. "Cold War essay" is saved, and step one is pinned.'); quiet(); }],
+    [128000,() => { show('p-tasks'); $('t-essay').style.display='';
+                    say('Work in progress looks different from work that is finished'); }],
+
+    // ── The Guide ────────────────────────────────────────────────────────────
+    [132500,() => { show('p-chat'); newThread('k-assign');
+                    bubble('aria','Here it is, working back from the deadline.');
+                    panel(PLAN(null)); say('Stuck? The same door, everywhere it appears'); }],
+    [136000,() => { panel(''); bubble('aria','Stuck on picking an angle, or on what the angle needs to prove?');
+                    panel('<div class="btn ghost">Picking an angle</div><div class="btn ghost">What it needs to prove</div>');
+                    say('One narrowing question before anything is generated'); }],
+    [140000,() => { bubble('me','Picking an angle'); panel(''); }],
+    [141500,() => { bubble('aria','Four ways you could take this. Each one costs something different.');
+                    panel(`<div class="gcard"><b>Take a position on the 1968 crisis and defend it</b>
+                             <span>Needs: two or three sources that disagree</span>
+                             <span>Costs: you have to commit early and stay consistent</span>
+                             <span class="chip sure" style="align-self:flex-start;margin-top:2px">Marks under Argument</span></div>
+                           <div class="gcard"><b>Compare two cases and explain the difference</b>
+                             <span>Needs: two examples close enough to be comparable</span>
+                             <span>Costs: half the words go on setting the comparison up</span>
+                             <span class="chip sure" style="align-self:flex-start;margin-top:2px">Marks under Analysis</span></div>`);
+                    say('Angles and what each would cost, never the essay itself'); }],
+    [149000,() => { say('Where the rubric rewards it, in the rubric’s own words'); }],
+    [153000,() => { panel(''); bubble('me','Take the first one');
+                    bubble('aria','"Take a position on the 1968 crisis and defend it" it is. I’ll build the plan around that.');
+                    say('The choice flows back into the plan, and the steps change'); }],
+
+    // ── A project ────────────────────────────────────────────────────────────
+    [158000,() => { show('p-chat'); newThread('k-project');
+                    say('A project has nobody’s brief, so the gate is different'); }],
+    [159000,() => { bubble('aria','What does done look like? Nothing else works until that’s decided.');
+                    panel('<div class="btn guide">Help me work it out</div><div class="btn ghost">I can’t say yet</div>'); }],
+    [163000,() => { bubble('me','Done when the three pages are live and someone outside the team can use them.');
+                    panel(''); }],
+    [165000,() => { bubble('aria','Here’s what I think you’re doing. Tell me where I’ve got it wrong.');
+                    panel(`<div class="draftbox">You’re building a small marketing site, three pages, live, and usable by someone outside the team without you explaining it.</div>
+                           <div class="head"><span class="chip">Probably</span><span class="label" style="letter-spacing:.06em">from what you’ve told me</span></div>
+                           <div class="pills"><span class="pill on">That’s it</span><span class="pill">Not quite</span></div>`);
+                    say('Said back, with how sure Aria is that it understood'); }],
+    [170000,() => { panel(`<span class="label">In</span>
+                           <div class="scope"><span class="item">Type scale</span><span class="item">Colour and contrast</span></div>
+                           <span class="label" style="margin-top:4px">Not doing</span>
+                           <div class="scope"><span class="item out">Motion</span><span class="item out">Dark mode</span></div>`);
+                    say('The out-list is the one they come back to in week three'); }],
+    [173000,() => { panel(`<div class="gcard"><b>Share the draft with Sam</b><span>Wed 17 Sep · forced by: Sam is expecting it</span></div>
+                           <div class="gcard" style="border-color:var(--danger)"><b>Tidy the tokens</b><span style="color:var(--danger)">Nothing forces this one.</span></div>`);
+                    say('A milestone with nothing forcing it is the one that moves'); }],
+    [176000,() => { show('p-tasks'); phone.classList.add('midnight'); $('essay-bar').style.width='34%';
+                    say('Four themes, remembered per device'); }],
+    [181000,() => quiet()],
+  ];
+
+  const CHAPTERS = [
+    { label:'Today',      at:0 },
+    { label:'An occasion',at:12000 },
+    { label:'An assignment', at:73000 },
+    { label:'The Guide',  at:132500 },
+    { label:'A project',  at:158000 },
+  ];
+
+  let t0 = performance.now(), paused = false, pausedAt = 0, fired = -1, raf;
+
+  function reset(){
+    fired = -1;
+    $('swipe').style.display=''; $('swipe-card').style.opacity='1'; $('swipe-card').style.transform='';
+    $('t-essay').style.display='none'; $('essay-bar').style.width='6%';
+    newThread(null); phone.classList.remove('midnight'); quiet();
+  }
+
+  /* Jumping runs every earlier beat instantly, so a scene is never entered
+     half-dressed, the same reason the app rebuilds state from the draft
+     rather than from whatever the screen happened to be showing. */
+  function seek(ms){
+    cancelAnimationFrame(raf);
+    reset();
+    for (let i = 0; i < script.length; i++){
+      if (script[i][0] <= ms){ script[i][1](); fired = i; } else break;
+    }
+    t0 = performance.now() - ms; pausedAt = ms; paused = false;
+    $('play').textContent = 'Pause';
+    markChapter(ms);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function markChapter(t){
+    let active = 0;
+    CHAPTERS.forEach((c, i) => { if (c.at <= t) active = i; });
+    [...$('chapters').children].forEach((b, i) =>
+      b.setAttribute('aria-current', String(i === active)));
+  }
+
+  CHAPTERS.forEach((c) => {
+    const b = document.createElement('button');
+    b.className = 'chap'; b.textContent = c.label;
+    b.addEventListener('click', () => seek(c.at));
+    $('chapters').appendChild(b);
+  });
+
+  function frame(now){
+    const t = paused ? pausedAt : now - t0;
+    const clamped = Math.min(t, TOTAL);
+    for (let i = fired + 1; i < script.length; i++){
+      if (script[i][0] <= clamped){ script[i][1](); fired = i; } else break;
+    }
+    $('prog').style.width = (clamped / TOTAL * 100) + '%';
+    markChapter(clamped);
+    const s = Math.floor(clamped / 1000);
+    const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, '0');
+    $('time').textContent = mm + ':' + ss + ' / 3:05';
+    if (t >= TOTAL){ paused = true; pausedAt = TOTAL; $('play').textContent = 'Replay'; return; }
+    raf = requestAnimationFrame(frame);
+  }
+
+  $('play').addEventListener('click', () => {
+    if (pausedAt >= TOTAL){ seek(0); return; }
+    paused = !paused;
+    if (paused){ pausedAt = performance.now() - t0; cancelAnimationFrame(raf); $('play').textContent = 'Play'; }
+    else { t0 = performance.now() - pausedAt; $('play').textContent = 'Pause'; raf = requestAnimationFrame(frame); }
+  });
+
+  $('restart').addEventListener('click', () => seek(0));
+
+  show('p-home');
+  raf = requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

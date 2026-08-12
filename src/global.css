@@ -12,33 +12,54 @@
   --font-serif: Georgia, 'Times New Roman', serif;
 }
 
-/* Calm & focused — semantic color tokens (space-separated RGB for <alpha-value>). */
+/*
+ * One warm-grey ramp, no second hue. Must stay in lockstep with `ramp` and
+ * `palette` in lib/colors.ts, these are the same colours expressed for
+ * className styling, and a drift between them shows up as two slightly
+ * different greys sitting next to each other.
+ *
+ *   50 #FAFAFA   100 #F4F3F6   200 #E5E1EA   300 #D0CBD7   400 #A399B2
+ *  500 #736982   600 #544A63   700 #41394C   800 #28242D   900 #19151E
+ *  950 #09070D
+ */
 @layer base {
   :root {
-    --color-bg: 250 250 248;
-    --color-surface: 255 255 255;
-    --color-elevated: 255 255 255;
-    --color-border: 236 234 228;
-    --color-ink: 27 28 30;
-    --color-muted: 107 110 118;
-    --color-faint: 150 152 158;
-    --color-accent: 59 91 217;
-    --color-accent-soft: 234 238 252;
-    --color-accent-ink: 255 255 255;
+    --color-bg: 249 250 251; /* #F9FAFB */
+    --color-surface: 255 255 255; /* #FFFFFF */
+    --color-elevated: 255 255 255; /* #FFFFFF */
+    --color-border: 234 236 240; /* #EAECF0 */
+    --color-ink: 16 24 40; /* #101828 */
+    --color-muted: 102 112 133; /* #667085 */
+    --color-faint: 152 162 179; /* #98A2B3 */
+    --color-accent: 23 92 211; /* #175CD3 */
+    --color-accent-soft: 239 248 255; /* #EFF8FF */
+    --color-accent-ink: 255 255 255; /* #FFFFFF */
+    --color-priority-low: 152 162 179; /* #98A2B3 */
+    --color-priority-medium: 247 144 9; /* #F79009 */
+    --color-priority-high: 240 68 56; /* #F04438 */
+    --color-success: 2 122 72; /* #027A48 */
+    --color-warning: 181 71 8; /* #B54708 */
+    --color-danger: 217 45 32; /* #D92D20 */
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --color-bg: 13 14 16;
-      --color-surface: 23 25 28;
-      --color-elevated: 30 33 37;
-      --color-border: 38 41 46;
-      --color-ink: 244 243 239;
-      --color-muted: 155 160 168;
-      --color-faint: 118 122 130;
-      --color-accent: 110 134 245;
-      --color-accent-soft: 30 39 64;
-      --color-accent-ink: 255 255 255;
+      --color-bg: 16 24 40; /* #101828 */
+      --color-surface: 29 41 57; /* #1D2939 */
+      --color-elevated: 52 64 84; /* #344054 */
+      --color-border: 52 64 84; /* #344054 */
+      --color-ink: 252 252 253; /* #FCFCFD */
+      --color-muted: 208 213 221; /* #D0D5DD */
+      --color-faint: 152 162 179; /* #98A2B3 */
+      --color-accent: 132 202 255; /* #84CAFF */
+      --color-accent-soft: 25 65 133; /* #194185 */
+      --color-accent-ink: 16 24 40; /* #101828 */
+      --color-priority-low: 102 112 133; /* #667085 */
+      --color-priority-medium: 253 176 34; /* #FDB022 */
+      --color-priority-high: 249 112 102; /* #F97066 */
+      --color-success: 50 213 131; /* #32D583 */
+      --color-warning: 253 176 34; /* #FDB022 */
+      --color-danger: 249 112 102; /* #F97066 */
     }
   }
 }

@@ -1,10 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import { localChecklist, type ChecklistRequest } from '@/lib/subtasks';
+import { protectedRoute } from '@/lib/api-auth';
+import { ChecklistSchema } from '@/lib/api-schemas';
+import { limitAi } from '@/lib/rate-limit';
+import { describeLearner } from '@/lib/learner';
+import { localChecklist } from '@/lib/subtasks';
 
-const SYSTEM = `You help a university student break an assignment into a clear, actionable checklist of topics/sections to work on.
-Given an assignment title (and optional notes), return 5–8 short, concrete items specific to the SUBJECT — the actual topics or sections the student should cover, in a sensible order. Each item is a few words, no numbering, no punctuation at the end.
-Example — "Essay on the history of America": ["Colonial era and settlement", "Road to independence", "The Revolutionary War", "Building the new nation", "Civil War and abolition", "Industrialization and immigration", "Civil rights movement", "Modern America"].`;
+const BASE_SYSTEM = `You help someone break a piece of work into a clear, actionable checklist of topics/sections to work on.
+Given an assignment title (and optional notes), return 5–8 short, concrete items specific to the SUBJECT: the actual topics or sections the student should cover, in a sensible order. Each item is a few words, no numbering, no punctuation at the end, and no dashes or hyphens.
+Example, "Essay on the history of America": ["Colonial era and settlement", "Road to independence", "The Revolutionary War", "Building the new nation", "Civil War and abolition", "Industrialization and immigration", "Civil rights movement", "Modern America"].`;
 
 const SCHEMA = {
   type: 'object',
@@ -23,16 +27,11 @@ function extractText(msg: Anthropic.Message): string {
     .trim();
 }
 
-export async function POST(request: Request): Promise<Response> {
-  let body: ChecklistRequest;
-  try {
-    body = (await request.json()) as ChecklistRequest;
-  } catch {
-    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
+// Authentication, quota and validation are the wrapper's job, so they cannot be
+// forgotten here. See lib/api-auth.ts.
+export const POST = protectedRoute(ChecklistSchema, limitAi, async (body) => {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json({ items: localChecklist(body) });
+    return Response.json({ items: localChecklist(body), fallback: true });
   }
 
   try {
@@ -42,7 +41,10 @@ export async function POST(request: Request): Promise<Response> {
       max_tokens: 1024,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-      system: SYSTEM,
+      // The static prompt plus whatever onboarding learned. A student studying
+      // Law and one studying Physics should not get the same breakdown of "the
+      // effect of the 1998 reforms", and until now they did.
+      system: [BASE_SYSTEM, describeLearner(body.learner)].filter(Boolean).join('\n\n'),
       messages: [
         {
           role: 'user',
@@ -53,12 +55,13 @@ export async function POST(request: Request): Promise<Response> {
     } as any)) as Anthropic.Message;
 
     if (msg.stop_reason === 'refusal') {
-      return Response.json({ items: localChecklist(body) });
+      return Response.json({ items: localChecklist(body), fallback: true });
     }
     const parsed = JSON.parse(extractText(msg)) as { items?: string[] };
     if (!Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error('bad shape');
-    return Response.json({ items: parsed.items });
-  } catch {
-    return Response.json({ items: localChecklist(body) });
+    return Response.json({ items: parsed.items, fallback: false });
+  } catch (err) {
+    console.error('[aria] subtasks: Claude call failed, using local checklist:', err);
+    return Response.json({ items: localChecklist(body), fallback: true });
   }
-}
+});

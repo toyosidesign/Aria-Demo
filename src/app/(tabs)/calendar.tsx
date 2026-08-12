@@ -1,15 +1,16 @@
 import { addDays, addMonths, addWeeks, format, parseISO, startOfWeek } from 'date-fns';
 import { router } from 'expo-router';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
+import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
-import { formatTime, monthMatrix, toISODate, WEEKDAY_LABELS } from '@/lib/dates';
+import { formatTime, monthWeeks, toISODate, WEEKDAY_LABELS } from '@/lib/dates';
 import { KIND_ICON } from '@/lib/kind-icons';
 import { useAriaStore, type Priority, type Task } from '@/store/aria-store';
 
@@ -20,11 +21,10 @@ function priorityDot(p: Priority) {
 }
 
 function agendaSort(a: Task, b: Task) {
-  const at = a.time ?? '';
-  const bt = b.time ?? '';
-  if (!at && bt) return -1; // all-day first
-  if (at && !bt) return 1;
-  return at.localeCompare(bt);
+  // Earliest appointed time first; untimed (all-day) tasks come after timed ones.
+  const at = a.time ?? '99:99';
+  const bt = b.time ?? '99:99';
+  return at < bt ? -1 : at > bt ? 1 : 0;
 }
 
 function AgendaRow({ task }: { task: Task }) {
@@ -35,8 +35,15 @@ function AgendaRow({ task }: { task: Task }) {
     <Pressable
       onPress={() => router.push(`/task/${task.id}`)}
       className="flex-row items-center gap-3 active:opacity-70">
-      <View className="w-16">
-        <Text variant="small" tone={done ? 'faint' : 'muted'} className="font-semibold">
+      {/* Wide enough for the longest time ("12:00 PM") on one line, and pinned to
+          one line regardless: at 64px it wrapped to "4:00" / "PM", which read as
+          a stray indent rather than a time. */}
+      <View className="w-20">
+        <Text
+          numberOfLines={1}
+          variant="small"
+          tone={done ? 'faint' : 'muted'}
+          className="font-strong">
           {task.time ? formatTime(task.time) : 'All day'}
         </Text>
       </View>
@@ -55,18 +62,21 @@ function AgendaRow({ task }: { task: Task }) {
 }
 
 function Agenda({ iso, tasks }: { iso: string; tasks: Task[] }) {
+  const c = useColors();
   return (
-    <View className="gap-1 pt-2">
+    // Sits below a divider, so it needs room above it to read as its own
+    // section rather than as the last row of the grid.
+    <View className="gap-2 pt-5">
       <Text variant="label" tone="muted">
         {format(parseISO(iso), 'EEEE, MMMM d')}
       </Text>
       {tasks.length === 0 ? (
         <View className="items-center gap-2 py-8">
-          <CalendarDays size={22} color="#9aa0aa" />
+          <CalendarDays size={22} color={c.faint} />
           <Text tone="faint">Nothing scheduled</Text>
         </View>
       ) : (
-        <View className="gap-1 pt-1">
+        <View className="gap-1.5 pt-1">
           {tasks.map((t) => (
             <AgendaRow key={t.id} task={t} />
           ))}
@@ -117,10 +127,9 @@ export default function CalendarScreen() {
     setSelected(iso);
   }
 
-  const weekStart = startOfWeek(cursor, { weekStartsOn: 1 });
+  const weekStart = startOfWeek(cursor, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const monthCells = monthMatrix(cursor);
-  const weeks = Array.from({ length: 6 }, (_, i) => monthCells.slice(i * 7, i * 7 + 7));
+  const weeks = monthWeeks(cursor);
 
   const navTitle =
     view === 'month'
@@ -131,17 +140,28 @@ export default function CalendarScreen() {
 
   return (
     <Screen padded>
-      <View className="flex-row items-center justify-between pb-3 pt-2">
+      <View className="flex-row items-center justify-between pb-4 pt-2">
         <Text variant="title">Calendar</Text>
-        <Pressable
-          onPress={goToday}
-          hitSlop={8}
-          className="rounded-full border border-border bg-surface px-3.5 py-1.5 active:opacity-70">
-          <Text variant="small" className="font-semibold">
-            Today
-          </Text>
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={goToday}
+            hitSlop={8}
+            className="rounded-full border border-border bg-surface px-3.5 py-1.5 active:opacity-70">
+            <Text variant="small" className="font-strong">
+              Today
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push(`/task/new?date=${selected}`)}
+            hitSlop={8}
+            accessibilityLabel="Add a task on this day"
+            className="h-9 w-9 items-center justify-center rounded-full bg-accent active:opacity-80">
+            <Plus size={20} color={c.accentInk} />
+          </Pressable>
+        </View>
       </View>
+
+      <SimulatedDateBanner className="mb-4" />
 
       <Segmented<CalView>
         value={view}
@@ -154,7 +174,7 @@ export default function CalendarScreen() {
       />
 
       {/* Nav row */}
-      <View className="flex-row items-center justify-between py-3">
+      <View className="flex-row items-center justify-between py-4">
         <Pressable onPress={() => shift(-1)} hitSlop={8} className="p-1 active:opacity-50">
           <ChevronLeft size={22} color={c.ink} />
         </Pressable>
@@ -169,10 +189,10 @@ export default function CalendarScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}>
         {view === 'month' ? (
-          <View className="gap-1">
+          <View className="gap-2">
             <View className="flex-row">
               {WEEKDAY_LABELS.map((d, i) => (
-                <Text key={i} variant="caption" tone="faint" className="flex-1 text-center font-semibold">
+                <Text key={i} variant="caption" tone="faint" className="flex-1 text-center font-strong">
                   {d}
                 </Text>
               ))}
@@ -194,7 +214,7 @@ export default function CalendarScreen() {
                           isSel ? 'bg-accent' : isToday ? 'bg-accent-soft' : '',
                         )}>
                         <Text
-                          className={cn('text-[15px]', (isToday || isSel) && 'font-bold')}
+                          className={cn('text-[15px]', (isToday || isSel) && 'font-heavy')}
                           tone={isSel ? 'onAccent' : isToday ? 'accent' : cell.inMonth ? 'default' : 'faint'}>
                           {cell.date.getDate()}
                         </Text>
@@ -209,11 +229,11 @@ export default function CalendarScreen() {
                 })}
               </View>
             ))}
-            <View className="mt-1 border-t border-border" />
+            <View className="mt-3 border-t border-border" />
             <Agenda iso={selected} tasks={selectedTasks} />
           </View>
         ) : view === 'week' ? (
-          <View className="gap-2">
+          <View className="gap-3">
             <View className="flex-row">
               {weekDays.map((d) => {
                 const iso = toISODate(d);
@@ -222,7 +242,7 @@ export default function CalendarScreen() {
                 const isToday = iso === demoDate;
                 return (
                   <Pressable key={iso} onPress={() => pick(iso)} className="flex-1 items-center gap-1 py-1">
-                    <Text variant="caption" tone="faint" className="font-semibold">
+                    <Text variant="caption" tone="faint" className="font-strong">
                       {format(d, 'EEEEE')}
                     </Text>
                     <View
@@ -231,7 +251,7 @@ export default function CalendarScreen() {
                         isSel ? 'bg-accent' : isToday ? 'bg-accent-soft' : '',
                       )}>
                       <Text
-                        className={cn('text-[15px]', (isToday || isSel) && 'font-bold')}
+                        className={cn('text-[15px]', (isToday || isSel) && 'font-heavy')}
                         tone={isSel ? 'onAccent' : isToday ? 'accent' : 'default'}>
                         {d.getDate()}
                       </Text>
@@ -245,7 +265,7 @@ export default function CalendarScreen() {
                 );
               })}
             </View>
-            <View className="border-t border-border" />
+            <View className="mt-1 border-t border-border" />
             <Agenda iso={selected} tasks={selectedTasks} />
           </View>
         ) : (

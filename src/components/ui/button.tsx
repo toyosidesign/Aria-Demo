@@ -65,7 +65,7 @@ export function Button({
       ) : (
         <>
           {leftIcon ? <View>{leftIcon}</View> : null}
-          <Text variant={size === 'sm' ? 'small' : 'body'} tone={labelTone[variant!]} className="font-semibold">
+          <Text variant={size === 'sm' ? 'small' : 'body'} tone={labelTone[variant!]} className="font-strong">
             {title}
           </Text>
         </>

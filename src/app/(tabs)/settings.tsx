@@ -1,31 +1,39 @@
-import {
-  Bell,
-  CalendarClock,
-  Info,
-  RotateCcw,
-  Smartphone,
-  Sparkles,
-  Vibrate,
-} from 'lucide-react-native';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
+import { DemoDateBar } from '@/components/demo-date-bar';
+import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
+import { ThemePicker } from '@/components/theme-picker';
+import { ReviewTimeField } from '@/components/review-time-field';
 import { Screen } from '@/components/ui/screen';
-import { Segmented } from '@/components/ui/segmented';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
-import { useColors } from '@/lib/colors';
-import { formatLong } from '@/lib/dates';
+import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
+import { formatLong, formatTime, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
-import { DEFAULT_DEMO_DATE, useAriaStore, type ThemePref } from '@/store/aria-store';
+import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
+import { showToast } from '@/lib/toast';
+import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
 
 export default function SettingsScreen() {
   const c = useColors();
+  // The theme actually on screen, whether that came from a pick or from the
+  // device. Turning "match my device" off hands over exactly this one.
+  const activeTheme = useTheme();
   const settings = useAriaStore((s) => s.settings);
   const setSetting = useAriaStore((s) => s.setSetting);
   const demoDate = useAriaStore((s) => s.demoDate);
-  const setDemoDate = useAriaStore((s) => s.setDemoDate);
+  const simulating = demoDate !== realToday();
+  const matchingDevice = settings.theme === 'system';
+
   const resetDemo = useAriaStore((s) => s.resetDemo);
+  const clearAllData = useAriaStore((s) => s.clearAllData);
+  const replayOnboarding = useAriaStore((s) => s.replayOnboarding);
+  const pro = useAriaStore((s) => s.pro);
+  const setPro = useAriaStore((s) => s.setPro);
 
   function confirmReset() {
     const doReset = () => {
@@ -46,6 +54,28 @@ export default function SettingsScreen() {
     );
   }
 
+  function confirmClearAll() {
+    const doClear = () => {
+      clearAllData();
+      hapticSelect();
+      showToast('Cleared. The planner is yours now.', 'check');
+    };
+    if (Platform.OS === 'web') {
+      doClear();
+      return;
+    }
+    // Named plainly rather than softened: this deletes real work if there is
+    // any, and "Start fresh" on its own doesn't say that out loud.
+    Alert.alert(
+      'Delete everything?',
+      'Every task and contact is removed, including anything you added yourself. Your account and settings stay as they are. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete all', style: 'destructive', onPress: doClear },
+      ],
+    );
+  }
+
   return (
     <Screen padded>
       <View className="pb-2 pt-3">
@@ -54,40 +84,173 @@ export default function SettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40, gap: 22 }}
+        // Sections need clear air now that each one ends in a grey footnote and
+        // the next begins with a grey heading: at 22 the two ran together.
+        contentContainerStyle={{ paddingBottom: 40, gap: 32 }}
         showsVerticalScrollIndicator={false}>
         {/* Appearance */}
-        <View className="gap-2 pt-2">
-          <Text variant="label" tone="muted" className="px-1">
+        <View className="gap-3 pt-2">
+          <Text variant="label" tone="muted">
             Appearance
           </Text>
-          <Segmented<ThemePref>
-            value={settings.theme}
-            onChange={(v) => {
-              setSetting('theme', v);
-              hapticSelect();
-            }}
-            options={[
-              { value: 'system', label: 'System' },
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-          />
-          <Text variant="caption" tone="faint" className="px-1">
-            {settings.theme === 'system'
-              ? 'Follows your device appearance.'
-              : `Always ${settings.theme}.`}
-          </Text>
+
+          {/* A switch, not a two-option segmented control. "Match my device"
+              isn't a colour you pick alongside the others, it's a rule about
+              when to switch, and phrasing it as one of two modes cost a
+              full-width control to say something a toggle says in a row. */}
+          <SettingsGroup>
+            <SettingsRow
+              first
+              label="Match my device"
+              /* Off-state copy says what turning it on would *do*, not just
+                 that it's off. Agreeing to something the app will then do by
+                 itself, change appearance at dusk, only counts if the switch
+                 said so before it was flipped. */
+              description={
+                matchingDevice
+                  ? `Aria changes appearance on its own: ${THEMES[SYSTEM_LIGHT].label} while your device is in light mode, ${THEMES[SYSTEM_DARK].label} in dark.`
+                  : `Staying on ${activeTheme.label}. Turn this on and Aria will switch between light and dark by itself, following your device.`
+              }
+              right={
+                <Switch
+                  value={matchingDevice}
+                  onValueChange={(on) => {
+                    hapticSelect();
+                    // Turning it off keeps whatever is on screen right now, so
+                    // the app doesn't jump to a different look at the moment
+                    // you take control of it.
+                    setSetting('theme', on ? 'system' : activeTheme.name);
+                  }}
+                />
+              }
+            />
+          </SettingsGroup>
+
+          {matchingDevice ? null : (
+            <ThemePicker value={settings.theme} onChange={(v) => setSetting('theme', v)} />
+          )}
         </View>
 
-        {/* Aria */}
-        <SettingsGroup title="Aria">
+        {/* Automation, lead with what it does, not what tier it sits in.
+            "Free plan" told users nothing and hid the feature entirely. */}
+        {/* State goes inside the box in plain words; the footnote says what the
+            feature does. It used to say Pro "isn't open yet", which stopped
+            being true the day it opened, copy that describes availability has
+            to be changed when availability changes. */}
+        <SettingsGroup
+          title="Automation"
+          footnote="Aria Pro: drafts and breakdowns ready before you open the task, plans that re-date themselves when you fall behind, and emails sent at the time you picked. Texts still need your tap.">
           <SettingsRow
             first
-            icon={Sparkles}
-            iconColor={c.accent}
-            label="Proactive help"
-            description="Let Aria surface tasks and offer to act on Today"
+            label="Let Aria send things for you"
+            description={
+              pro
+                ? 'On. I work ahead and send what I am allowed to send.'
+                : 'Aria Pro does the work before you get there. Tap to turn it on.'
+            }
+            onPress={pro ? undefined : () => promptProUpgrade(PRO_PITCH)}
+            showChevron={!pro}
+            right={
+              pro ? (
+                <Text variant="small" tone="accent" className="font-strong">
+                  On
+                </Text>
+              ) : null
+            }
+          />
+          {/*
+            Only rendered with Pro, rather than shown disabled.
+
+            This switch decides whether a real email reaches a real person
+            without anyone seeing it first, so an account that isn't entitled to
+            it should not have it on screen at all, a greyed-out control still
+            advertises the behaviour as one tap away, and `Switch` here has no
+            disabled state to lean on anyway. The row above is the upgrade path.
+
+            Off is not "Aria does nothing": it still drafts, addresses and
+            schedules. Off only means it asks before anything leaves.
+          */}
+          {pro ? (
+            <SettingsRow
+              label="Send without asking"
+              description={
+                autoSendEnabled(settings, pro)
+                  ? 'Aria sends at the scheduled time and tells you afterwards.'
+                  : 'Aria gets everything ready, then asks you before it sends.'
+              }
+              right={
+                <Switch
+                  value={autoSendEnabled(settings, pro)}
+                  onValueChange={(v) => {
+                    hapticSelect();
+                    setSetting('autoSend', v);
+                  }}
+                />
+              }
+            />
+          ) : null}
+          {pro ? (
+            <SettingsRow
+              label="Aria Pro"
+              right={
+                <Text
+                  variant="small"
+                  tone="accent"
+                  className="font-strong"
+                  onPress={() => {
+                    setPro(false);
+                    hapticSelect();
+                  }}>
+                  Cancel
+                </Text>
+              }
+            />
+          ) : null}
+          {/*
+            The morning prompt, and the hour it arrives.
+
+            Pro only, and shown only on Pro, because the review is the thing Pro
+            is: on Free every task hands you its own buttons and there is
+            nothing to approve. Off is a real choice, not a broken feature, so
+            the description says what stops rather than what is missing.
+          */}
+          {pro ? (
+            <SettingsRow
+              label="Ask me to review the day"
+              description={
+                settings.dailyReview
+                  ? `Every morning at ${formatTime(settings.reviewTime)}, I'll show you what today needs and what I can take off your hands.`
+                  : "I won't ask. You can still open the review from Today whenever you want it."
+              }
+              right={
+                <Switch
+                  value={settings.dailyReview}
+                  onValueChange={(v) => {
+                    hapticSelect();
+                    setSetting('dailyReview', v);
+                  }}
+                />
+              }
+            />
+          ) : null}
+          {/* Its own block rather than a row with a control in the right slot:
+              that slot is sized for a switch, and a time picker squeezed into
+              it left the description wrapping to five lines beside it. */}
+          {pro && settings.dailyReview ? (
+            <ReviewTimeField
+              value={settings.reviewTime}
+              onChange={(t) => setSetting('reviewTime', t)}
+            />
+          ) : null}
+        </SettingsGroup>
+
+        {/* Aria */}
+        <SettingsGroup
+          title="Aria"
+          footnote="Aria suggests what it can do on Today. Turn this off and it waits until you ask.">
+          <SettingsRow
+            first
+            label="Let Aria offer to help"
             right={
               <Switch
                 value={settings.proactiveAria}
@@ -98,12 +261,14 @@ export default function SettingsScreen() {
         </SettingsGroup>
 
         {/* General */}
-        <SettingsGroup title="General">
+        {/* One card per toggle, each explained underneath. Three switches sharing
+            a card meant three descriptions squeezed beside three switches. */}
+        <SettingsGroup
+          title="General"
+          footnote="Task alarms and nudges for anything Aria has scheduled.">
           <SettingsRow
             first
-            icon={Bell}
             label="Notifications"
-            description="Remind me when tasks are due"
             right={
               <Switch
                 value={settings.notifications}
@@ -111,10 +276,12 @@ export default function SettingsScreen() {
               />
             }
           />
+        </SettingsGroup>
+
+        <SettingsGroup footnote="Vibrate on taps and confirmations.">
           <SettingsRow
-            icon={Vibrate}
+            first
             label="Haptics"
-            description="Vibrate on taps and confirmations"
             right={
               <Switch value={settings.haptics} onValueChange={(v) => setSetting('haptics', v)} />
             }
@@ -122,38 +289,96 @@ export default function SettingsScreen() {
         </SettingsGroup>
 
         {/* Demo */}
-        <SettingsGroup title="Demo">
+        <View className="gap-2">
+          <Text variant="label" tone="muted">
+            Demo
+          </Text>
+          <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
+            {/* Three tiers, each a step down in both size and contrast: the card's
+                name, then what the date currently is, then the ambient
+                explanation. Previously the explanation was 14px and the status
+                line 13px, both muted, so the least important text was the
+                largest and nothing told them apart. */}
+            <View className="gap-0.5">
+              <Text className="text-[16px] font-strong leading-[23px]">
+                Pretend it&apos;s another day
+              </Text>
+              <Text
+                variant="small"
+                tone={simulating ? 'accent' : 'muted'}
+                className="text-[14px] leading-[20px]">
+                {simulating
+                  ? `Simulating ${formatLong(demoDate)}`
+                  : `On the real date, ${formatLong(demoDate)}`}
+              </Text>
+            </View>
+
+            {/* Same banner as Today and Calendar, so the fix is one tap wherever
+                you notice the date is off. */}
+            <SimulatedDateBanner />
+
+            <Text variant="caption" tone="faint" className="text-[13px] leading-[19px]">
+              Jump to a date where a task is waiting, so you can see how Aria offers to help
+              without waiting for the real day to arrive.
+            </Text>
+            <DemoDateBar compact />
+          </View>
+        </View>
+
+        {/* Self-contained: the text sits in the box with the label, and the red
+            glyph sits on the right where the other rows keep their control. It's
+            the one destructive action here, so it reads as its own thing rather
+            than as another harmless setting. */}
+        <SettingsGroup>
           <SettingsRow
             first
-            icon={CalendarClock}
-            label="Simulated date"
-            description={formatLong(demoDate)}
-            right={
-              demoDate !== DEFAULT_DEMO_DATE ? (
-                <Text
-                  variant="small"
-                  tone="accent"
-                  className="font-semibold"
-                  onPress={() => setDemoDate(DEFAULT_DEMO_DATE)}>
-                  Reset
-                </Text>
-              ) : undefined
-            }
-          />
-          <SettingsRow
-            icon={RotateCcw}
-            iconColor={c.danger}
             label="Reset demo data"
-            description="Restore the original sample tasks"
+            description="Restore the original sample tasks."
+            right={<RotateCcw size={19} color={c.danger} />}
             onPress={confirmReset}
+          />
+          {/* The way *out* of the demo. Reset only ever puts the samples back,
+              so without this the only escape was deleting each task by hand. */}
+          <SettingsRow
+            label="Start fresh"
+            description="Delete every task and contact, and use your own data."
+            right={<Trash2 size={19} color={c.danger} />}
+            onPress={confirmClearAll}
+          />
+          {/* Development only. Onboarding runs once per account, so without
+              this every look at it costs a sign-out, a deleted account and a
+              fresh signup, which is why it's the screen that gets checked
+              least and breaks most. Stripped from release builds. */}
+          {__DEV__ ? (
+            <SettingsRow
+              label="Replay onboarding"
+              description="Development only. Shows the welcome flow again; your answers are kept."
+              right={<Repeat size={19} color={c.muted} />}
+              onPress={() => {
+                hapticSelect();
+                replayOnboarding();
+              }}
+            />
+          ) : null}
+        </SettingsGroup>
+
+        {/* Support */}
+        <SettingsGroup title="Support">
+          {/* Text in the box, chevron on the right: it goes somewhere, so it
+              gets the affordance that says so. */}
+          <SettingsRow
+            first
+            label="Send feedback"
+            description="Share an idea or report an issue, straight to the team."
+            onPress={() => router.push('/support')}
+            showChevron
           />
         </SettingsGroup>
 
         {/* About */}
         <SettingsGroup title="About">
-          <SettingsRow first icon={Info} label="Version" right={<Text tone="muted" variant="small">1.0.0</Text>} />
+          <SettingsRow first label="Version" right={<Text tone="muted" variant="small">1.0.0</Text>} />
           <SettingsRow
-            icon={Smartphone}
             label="Built with"
             right={
               <Text tone="muted" variant="small">
@@ -163,8 +388,9 @@ export default function SettingsScreen() {
           />
         </SettingsGroup>
 
-        <Text variant="caption" tone="faint" className="text-center">
-          Aria plans ahead — and always takes no for an answer.
+        {/* Same line, same treatment as the home screen footer. */}
+        <Text variant="small" tone="faint" className="text-center">
+          Aria plans ahead, and always takes no for an answer.
         </Text>
       </ScrollView>
     </Screen>

@@ -17,16 +17,35 @@ module.exports = {
           soft: 'rgb(var(--color-accent-soft) / <alpha-value>)',
           ink: 'rgb(var(--color-accent-ink) / <alpha-value>)',
         },
-        // Semantic colors that read well in both themes (kept constant).
+        // Theme-aware now rather than fixed: in a single-hue palette these are
+        // steps on the same ramp, so they have to flip with the scheme like
+        // everything else. Hardcoding them left light-theme greys on a near
+        // black background.
         priority: {
-          low: '#64748B',
-          medium: '#D08700',
-          high: '#D6455F',
+          low: 'rgb(var(--color-priority-low) / <alpha-value>)',
+          medium: 'rgb(var(--color-priority-medium) / <alpha-value>)',
+          high: 'rgb(var(--color-priority-high) / <alpha-value>)',
         },
-        success: '#3E9B6B',
-        danger: '#D6455F',
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        warning: 'rgb(var(--color-warning) / <alpha-value>)',
+        danger: 'rgb(var(--color-danger) / <alpha-value>)',
       },
+      /*
+       * Inter, as three real cuts rather than one cut plus fake weights.
+       *
+       * React Native will not pick a heavier file for you: give it
+       * `Inter_400Regular` and `fontWeight: 600` and the OS smears the regular
+       * outline into a synthetic bold, which is muddy at small sizes and is
+       * most of what makes a custom font look "off" in an app.
+       *
+       * So weight is chosen by *family*. `font-strong` and `font-heavy` replace
+       * `font-semibold` and `font-bold` everywhere — the plain Tailwind weight
+       * utilities are the trap, not the fix.
+       */
       fontFamily: {
+        sans: ['Inter_400Regular'],
+        strong: ['Inter_600SemiBold'],
+        heavy: ['Inter_700Bold'],
         rounded: ['System'],
       },
       borderRadius: {

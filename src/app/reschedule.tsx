@@ -4,15 +4,29 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { HeaderButton } from '@/components/header-button';
+import { InlineError } from '@/components/inline-error';
 import { MonthCalendar } from '@/components/month-calendar';
 import { TimeField } from '@/components/time-field';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { formatFull, formatTime } from '@/lib/dates';
+import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
 import { hapticSuccess } from '@/lib/haptics';
+import { showToast } from '@/lib/toast';
 import { useAriaStore } from '@/store/aria-store';
 
+/**
+ * Two jobs, one screen: moving a task, and pushing finished work out.
+ *
+ * They ask for exactly the same two things, a day and an hour, and building a
+ * second calendar for the second one would be two controls to keep in step for
+ * no gain. `mode=handin` changes the words and what happens on save, and
+ * nothing else.
+ *
+ * The words matter though. "Reschedule" is what you do to something that
+ * slipped; setting the moment a finished essay goes in is not a slip, and
+ * calling it one would read as the app assuming you were late.
+ */
 export default function RescheduleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const task = useAriaStore((s) => s.tasks.find((t) => t.id === id));
@@ -22,6 +36,10 @@ export default function RescheduleScreen() {
 
   const [date, setDate] = useState(task?.date ?? demoDate);
   const [time, setTime] = useState<string | null>(task?.time ?? null);
+  // Two ways a moment can be gone: the real clock has passed it, or the demo is
+  // simulating a day after it. The second one used to slip through, so
+  // rescheduling *onto* an already-overdue day was accepted here.
+  const past = date < effectiveToday(demoDate) || isPastMoment(date, time);
 
   if (!task) {
     return (
@@ -35,9 +53,18 @@ export default function RescheduleScreen() {
   }
 
   function save() {
+    if (past) return;
     rescheduleTask(task!.id, date);
     updateTask(task!.id, { time: time ?? undefined });
+    /*
+     * Handing in earns an alarm, and the work does not.
+     *
+     * Setting a deadline on an assignment is a statement about when it is due;
+     * the moment somebody actually has to act is the submission, and that is
+     * the one worth being interrupted for.
+     */
     hapticSuccess();
+    showToast('Moved', 'check');
     router.back();
   }
 
@@ -72,10 +99,25 @@ export default function RescheduleScreen() {
         </View>
 
         <TimeField value={time} onChange={setTime} />
+
+        {/* Moving something into the past just loses it again. */}
+        {past ? (
+          <InlineError className="-mt-3">
+            {`${
+              time ? `${formatTime(time)} on ${formatFull(date)}` : formatFull(date)
+            } has already passed. Pick a later date or time.`}
+          </InlineError>
+        ) : null}
       </ScrollView>
 
       <View className="border-t border-border px-4 pb-6 pt-3">
-        <Button title="Move task" block size="lg" onPress={save} />
+        <Button
+          title="Move task"
+          block
+          size="lg"
+          disabled={past}
+          onPress={save}
+        />
       </View>
     </Screen>
   );

@@ -1,16 +1,17 @@
+import { postJson } from '@/lib/api-client';
+import type { Learner } from '@/lib/learner';
+
 export interface ChecklistRequest {
   title: string;
   description?: string;
+  /** Who it's for, see lib/learner.ts. Omitted when onboarding was skipped. */
+  learner?: Learner;
 }
 
 /** Ask the server to break an assignment into a topic checklist; fall back locally. */
 export async function requestChecklist(req: ChecklistRequest): Promise<string[]> {
   try {
-    const res = await fetch('/api/subtasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    });
+    const res = await postJson('/api/subtasks', req);
     if (!res.ok) throw new Error(`checklist failed: ${res.status}`);
     const data = (await res.json()) as { items?: string[] };
     const items = (data.items ?? []).map((s) => s.trim()).filter(Boolean);
@@ -21,7 +22,7 @@ export async function requestChecklist(req: ChecklistRequest): Promise<string[]>
   }
 }
 
-/** Offline/no-key fallback — a solid generic essay/assignment checklist. */
+/** Offline/no-key fallback, a solid generic essay/assignment checklist. */
 export function localChecklist(req: ChecklistRequest): string[] {
   return [
     'Research the topic and gather sources',
