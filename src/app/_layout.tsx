@@ -41,6 +41,19 @@ SplashScreen.preventAutoHideAsync();
  */
 const MIN_LOADING_MS = 4000;
 
+/**
+ * How long the startup session check may take before the app opens anyway.
+ *
+ * A backstop, not a budget. The check normally settles in well under a second;
+ * this exists so a call that never settles at all cannot pin the loading screen
+ * forever, which is a state with no way out but force-quitting the app.
+ *
+ * Longer than a slow mobile round trip, so a genuinely slow network still gets
+ * its session, and short enough that nobody stares at a logo wondering whether
+ * it has crashed.
+ */
+const AUTH_WATCHDOG_MS = 8000;
+
 function navTheme(c: Palette, dark: boolean) {
   const base = dark ? DarkTheme : DefaultTheme;
   return {
@@ -117,34 +130,62 @@ export default function RootLayout() {
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let sub: { unsubscribe: () => void } | undefined;
+    /*
+     * Nothing here may hold the app at the loading screen.
+     *
+     * `authReady` is one of four gates in front of the whole app, and it used
+     * to be set on the last line of an async block containing two awaits and no
+     * catch: a session read that threw, or a `hydrate` whose network call never
+     * came back, left the splash up permanently with no way out but a restart.
+     * That is exactly what happened on web, where the session is held in memory
+     * and the first read takes a different path.
+     *
+     * Two defences, because the two failures are different. `finally` covers a
+     * rejection, and the timer covers a call that simply never settles.
+     */
+    const watchdog = setTimeout(() => setAuthReady(true), AUTH_WATCHDOG_MS);
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
-      if (session?.user) {
-        setSyncUser(session.user.id);
-        if (__DEV__) console.log('[aria] Supabase session found, sync user set');
-        await useAriaStore.getState().hydrate(session.user.id);
-      }
-      if (__DEV__ && !session?.user) {
-        console.error('[aria] no Supabase session at startup, nothing will sync to the server');
-      }
-      // No session at startup does *not* mean signed out. An expired token, a
-      // refresh that hasn't finished, or no network for a moment all land here,
-      // and clearing on any of them destroyed the device's only copy of the
-      // data. The auth gate below routes to /login either way; the data waits.
-      setAuthReady(true);
-
-      const listener = supabase.auth.onAuthStateChange((event, s) => {
-        if (s?.user) {
-          setSyncUser(s.user.id);
-          void useAriaStore.getState().hydrate(s.user.id);
-          return;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data.session;
+        if (session?.user) {
+          setSyncUser(session.user.id);
+          if (__DEV__) console.log('[aria] Supabase session found, sync user set');
+          await useAriaStore.getState().hydrate(session.user.id);
         }
-        // Only a deliberate sign-out wipes the device. Every other event that
-        // arrives without a session is transient.
-        if (event === 'SIGNED_OUT') useAriaStore.getState().clearLocal();
-      });
-      sub = listener.data.subscription;
+        if (__DEV__ && !session?.user) {
+          console.error('[aria] no Supabase session at startup, nothing will sync to the server');
+        }
+      } catch (err) {
+        // Reported, never fatal. The device already holds its own copy, and the
+        // gate below routes to /login when there is no session.
+        console.warn('[aria] session check failed at startup:', err);
+      } finally {
+        clearTimeout(watchdog);
+        // No session at startup does *not* mean signed out. An expired token, a
+        // refresh that hasn't finished, or no network for a moment all land
+        // here, and clearing on any of them destroyed the device's only copy of
+        // the data. The auth gate below routes to /login either way; the data
+        // waits.
+        setAuthReady(true);
+      }
+
+      try {
+        const listener = supabase.auth.onAuthStateChange((event, s) => {
+          if (s?.user) {
+            setSyncUser(s.user.id);
+            void useAriaStore.getState().hydrate(s.user.id);
+            return;
+          }
+          // Only a deliberate sign-out wipes the device. Every other event that
+          // arrives without a session is transient.
+          if (event === 'SIGNED_OUT') useAriaStore.getState().clearLocal();
+        });
+        sub = listener.data.subscription;
+      } catch (err) {
+        // Losing the listener costs live updates, not the app.
+        console.warn('[aria] could not subscribe to auth changes:', err);
+      }
     })();
     return () => sub?.unsubscribe();
   }, []);

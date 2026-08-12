@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addDays, isSameWeek, parseISO } from 'date-fns';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -47,6 +48,22 @@ import {
   upsertTask,
   upsertTasks,
 } from '@/lib/sync';
+
+/**
+ * True only inside Expo Router's Node render of the web build.
+ *
+ * React Native defines `window`, and so does a browser; Node does not. Mirrors
+ * the same constant in lib/supabase.ts, which skips session storage there for
+ * exactly this reason.
+ */
+const isServerRender = Platform.OS === 'web' && typeof window === 'undefined';
+
+/** A store that forgets everything, for the environment that has nowhere to put it. */
+const noStorage = {
+  getItem: async () => null,
+  setItem: async () => {},
+  removeItem: async () => {},
+};
 
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskKind =
@@ -1422,7 +1439,23 @@ export const useAriaStore = create<AriaState>()(
     }),
     {
       name: 'aria-store-v1',
-      storage: createJSONStorage(() => AsyncStorage),
+      /*
+       * Storage, and the one environment that has none.
+       *
+       * Expo Router server-renders the web build in Node to serve the `/api`
+       * routes, and AsyncStorage's web path reaches for `window` the moment it
+       * is asked to read or write. There is nothing to persist there and nobody
+       * to persist it for, so it gets a store that does nothing: reads come back
+       * empty and writes go nowhere, so the render sees the same defaults a
+       * fresh install would.
+       *
+       * This is not theoretical. Setting the hydration flag unconditionally,
+       * which is what stops the app hanging on the loading screen, made persist
+       * write on the server and took the whole dev server down with
+       * `ReferenceError: window is not defined`. Same guard as
+       * `isServerRender` in lib/supabase.ts, and for the same reason.
+       */
+      storage: createJSONStorage(() => (isServerRender ? noStorage : AsyncStorage)),
       /*
        * ── PERSISTED STATE: what belongs to a PERSON vs a DEVICE ─────────────
        *
@@ -1483,66 +1516,85 @@ export const useAriaStore = create<AriaState>()(
         chat: s.chat,
         lastUserId: s.lastUserId,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
+      /*
+       * Whatever happens here, the app has to open.
+       *
+       * `hydrated` is one of the gates in front of every screen, and
+       * `setHydrated` used to be the last line after five migrations, behind an
+       * early `return` for a missing state. So a storage read that failed, or
+       * any one of those migrations throwing on an old stored shape, left the
+       * loading screen up permanently with no way out but force-quitting.
+       *
+       * The migrations are all best-effort by nature: each one repairs data
+       * from a shape the app no longer writes. Failing to repair is survivable.
+       * Never opening is not.
+       */
+      onRehydrateStorage: () => (state, error) => {
+        try {
+          if (error) console.warn('[aria] could not read stored data, starting fresh:', error);
+          if (!state) return;
 
-        /*
-         * Repair chat ids that collide.
-         *
-         * Messages used to be keyed by a counter that reset on every reload, so
-         * a stored thread can already hold several `c0`s. Fresh ids are uuids
-         * and won't collide, but the rows written before that still would, and
-         * React refuses to render a list with duplicate keys.
-         */
-        const seenIds = new Set<string>();
-        let repaired = false;
-        state.chat = state.chat.map((m) => {
-          if (!seenIds.has(m.id)) {
-            seenIds.add(m.id);
-            return m;
-          }
-          repaired = true;
-          return { ...m, id: uuidv4() };
-        });
-        if (repaired) console.warn('[aria] repaired duplicate chat message ids');
-
-        // Theme names have changed more than once, the setting was
-        // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',
-        // which have since gone. Anything not currently offered is rewritten
-        // rather than left to fall back on every read: a stale value would keep
-        // the picker showing nothing selected.
-        const storedTheme = state.settings.theme as string;
-        const known: string[] = ['system', ...THEME_NAMES];
-        if (!known.includes(storedTheme)) {
-          const wasDark = storedTheme === 'dark' || storedTheme === 'charcoal';
-          state.setSetting('theme', wasDark ? SYSTEM_DARK : SYSTEM_LIGHT);
-        }
-
-        // A previously persisted "today" that now sits in the past is a stale
-        // default (simulated dates are always in the future), snap it to today
-        // so the calendar and everything keyed off "today" stay correct.
-        const today = toISODate(new Date());
-        if (state.demoDate < today) state.setDemoDate(today);
-        setNotificationsEnabled(state.settings.notifications);
-
-        // Fold a pre-existing school/year pair into the single context line.
-        const legacy = state.profile as Partial<{ school: string; year: string }>;
-        if (!state.profile.context && (legacy.school || legacy.year)) {
-          state.updateProfile({
-            context: [legacy.year, legacy.school].filter(Boolean).join(' · '),
+          /*
+           * Repair chat ids that collide.
+           *
+           * Messages used to be keyed by a counter that reset on every reload, so
+           * a stored thread can already hold several `c0`s. Fresh ids are uuids
+           * and won't collide, but the rows written before that still would, and
+           * React refuses to render a list with duplicate keys.
+           */
+          const seenIds = new Set<string>();
+          let repaired = false;
+          state.chat = state.chat.map((m) => {
+            if (!seenIds.has(m.id)) {
+              seenIds.add(m.id);
+              return m;
+            }
+            repaired = true;
+            return { ...m, id: uuidv4() };
           });
-        }
+          if (repaired) console.warn('[aria] repaired duplicate chat message ids');
 
-        // Backfill for installs that signed in before `lastUser` existed, so a
-        // returning user is greeted by name on their next visit rather than
-        // having to sign in once more first. Gated on `signedIn` because the
-        // default profile carries a real-looking name, without that check a
-        // brand-new install would be welcomed back as someone it's never met.
-        if (!state.lastUser && state.signedIn && state.profile.name) {
-          state.rememberUser({ name: state.profile.name, email: state.profile.email });
-        }
+          // Theme names have changed more than once, the setting was
+          // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',
+          // which have since gone. Anything not currently offered is rewritten
+          // rather than left to fall back on every read: a stale value would keep
+          // the picker showing nothing selected.
+          const storedTheme = state.settings.theme as string;
+          const known: string[] = ['system', ...THEME_NAMES];
+          if (!known.includes(storedTheme)) {
+            const wasDark = storedTheme === 'dark' || storedTheme === 'charcoal';
+            state.setSetting('theme', wasDark ? SYSTEM_DARK : SYSTEM_LIGHT);
+          }
 
-        state.setHydrated();
+          // A previously persisted "today" that now sits in the past is a stale
+          // default (simulated dates are always in the future), snap it to today
+          // so the calendar and everything keyed off "today" stay correct.
+          const today = toISODate(new Date());
+          if (state.demoDate < today) state.setDemoDate(today);
+          setNotificationsEnabled(state.settings.notifications);
+
+          // Fold a pre-existing school/year pair into the single context line.
+          const legacy = state.profile as Partial<{ school: string; year: string }>;
+          if (!state.profile.context && (legacy.school || legacy.year)) {
+            state.updateProfile({
+              context: [legacy.year, legacy.school].filter(Boolean).join(' · '),
+            });
+          }
+
+          // Backfill for installs that signed in before `lastUser` existed, so a
+          // returning user is greeted by name on their next visit rather than
+          // having to sign in once more first. Gated on `signedIn` because the
+          // default profile carries a real-looking name, without that check a
+          // brand-new install would be welcomed back as someone it's never met.
+          if (!state.lastUser && state.signedIn && state.profile.name) {
+            state.rememberUser({ name: state.profile.name, email: state.profile.email });
+          }
+
+        } catch (err) {
+          console.warn('[aria] a stored-data migration failed, carrying on:', err);
+        } finally {
+          useAriaStore.getState().setHydrated();
+        }
       },
     },
   ),

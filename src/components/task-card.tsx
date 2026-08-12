@@ -68,16 +68,29 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
         )}
       </View>
 
-      <View className="mt-3 flex-row items-center gap-3">
-        <View className="flex-row items-center gap-1.5">
+      {/*
+        Wraps, and every part of it can shrink.
+
+        This row can hold four things at once: the date and time, the step
+        count, a draft marker and Aria's offer. On a narrow phone that is wider
+        than the card, and as a single non-wrapping row with `ml-auto` on the
+        last item it did not clip, it overflowed, so "Aria can help" sat outside
+        the rounded border. A fourth item now drops to a second line instead.
+      */}
+      <View className="mt-3 flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
+        <View className="min-w-0 shrink flex-row items-center gap-1.5">
           <CalendarDays size={15} color={late ? c.danger : dueToday ? c.warning : c.muted} />
-          <Text variant="small" tone={late ? 'danger' : dueToday ? 'warning' : 'muted'}>
+          <Text
+            variant="small"
+            tone={late ? 'danger' : dueToday ? 'warning' : 'muted'}
+            numberOfLines={1}
+            className="shrink">
             {task.status === 'done' ? formatFull(task.date) : formatRelative(task.date, demoDate)}
             {task.time ? ` · ${formatTime(task.time)}` : ''}
           </Text>
         </View>
         {task.subtasks.length > 0 ? (
-          <View className="flex-row items-center gap-1.5">
+          <View className="shrink-0 flex-row items-center gap-1.5">
             <ListTodo size={15} color={c.muted} />
             <Text variant="small" tone="muted">
               {doneCount}/{task.subtasks.length}
@@ -87,7 +100,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
         {/* Aria wrote something and it's kept on the task, say so, or there's
             no way to know it exists without opening every task. */}
         {(task.draftSections?.length ?? 0) > 0 ? (
-          <View className="flex-row items-center gap-1.5">
+          <View className="shrink-0 flex-row items-center gap-1.5">
             <FileText size={15} color={c.accent} />
             <Text variant="small" tone="accent" className="font-strong">
               Draft
@@ -95,7 +108,7 @@ export function TaskCard({ task, onPress }: { task: Task; onPress?: () => void }
           </View>
         ) : null}
         {canAria ? (
-          <View className="ml-auto flex-row items-center gap-1">
+          <View className="ml-auto shrink-0 flex-row items-center gap-1">
             <AriaAvatar size={18} />
             <Text variant="caption" tone="accent" className="font-strong">
               Aria can help

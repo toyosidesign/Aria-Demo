@@ -7,7 +7,7 @@ import { DemoDateBar } from '@/components/demo-date-bar';
 import { SimulatedDateBanner } from '@/components/simulated-date-banner';
 import { SettingsGroup, SettingsRow } from '@/components/settings-row';
 import { ThemePicker } from '@/components/theme-picker';
-import { TimeField } from '@/components/time-field';
+import { ReviewTimeField } from '@/components/review-time-field';
 import { Screen } from '@/components/ui/screen';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
@@ -233,15 +233,13 @@ export default function SettingsScreen() {
               }
             />
           ) : null}
+          {/* Its own block rather than a row with a control in the right slot:
+              that slot is sized for a switch, and a time picker squeezed into
+              it left the description wrapping to five lines beside it. */}
           {pro && settings.dailyReview ? (
-            <SettingsRow
-              label="When"
-              description="Early enough to matter, before the day has started."
-              right={
-                <View style={{ minWidth: 132 }}>
-                  <TimeField value={settings.reviewTime} onChange={(t) => setSetting('reviewTime', t ?? '08:00')} />
-                </View>
-              }
+            <ReviewTimeField
+              value={settings.reviewTime}
+              onChange={(t) => setSetting('reviewTime', t)}
             />
           ) : null}
         </SettingsGroup>
