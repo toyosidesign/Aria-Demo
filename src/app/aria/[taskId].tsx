@@ -49,7 +49,15 @@ import { useColors } from '@/lib/colors';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
 import { selectNextDue, useAriaStore } from '@/store/aria-store';
 
-type Phase = 'drafting' | 'review' | 'approve' | 'sending' | 'done' | 'declined';
+type Phase =
+  | 'drafting'
+  | 'review'
+  | 'approve'
+  /** Written and accepted: where should it live? */
+  | 'keep'
+  | 'sending'
+  | 'done'
+  | 'declined';
 type Msg = { id: string; from: 'aria' | 'maya'; kind: 'text' | 'draft'; text: string };
 
 const REWRITES = [
@@ -273,7 +281,7 @@ export default function AriaFlowScreen() {
       : 'Check off & finish'
     : action.needsSend
       ? 'Send it'
-      : 'Keep it';
+      : 'Done';
 
   function redraft(instruction: string) {
     if (isWalkthrough) {
@@ -282,6 +290,44 @@ export default function AriaFlowScreen() {
     } else {
       generate(instruction);
     }
+  }
+
+  /** Keep it on the task, which is where Aria's own drafts live. */
+  function keepOnTask() {
+    tap();
+    addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
+    push(mk('maya', 'text', 'Keep it here.'));
+    push(
+      mk(
+        'aria',
+        'text',
+        'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
+      ),
+    );
+    setPhase('done');
+  }
+
+  /**
+   * Out to a document, which is also the way into Notes.
+   *
+   * The share sheet is the phone's own answer to "where does this go": Notes,
+   * Files, Drive, Mail, whatever is installed. Kept on the task as well rather
+   * than instead, because a file somebody saved and then lost track of should
+   * not mean the work has left the app.
+   */
+  function keepAsDocument() {
+    tap();
+    addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
+    push(mk('maya', 'text', 'Put it in a document.'));
+    void exportWork(task!.title, draft);
+    push(
+      mk(
+        'aria',
+        'text',
+        'There you go. Pick Notes, Files, or wherever suits. I’ve kept a copy on the task too, so it isn’t only in that file.',
+      ),
+    );
+    setPhase('done');
   }
 
   function acceptSubtask() {
@@ -331,17 +377,19 @@ export default function AriaFlowScreen() {
       );
       setPhase('approve');
     } else {
-      // Assignment/task (no walkthrough): save the draft as a section.
-      push(mk('maya', 'text', 'Looks good. Keep it.'));
-      addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
-      push(
-        mk(
-          'aria',
-          'text',
-          'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
-        ),
-      );
-      setPhase('done');
+      /*
+       * Accepted, and then asked where it should live.
+       *
+       * It used to save itself onto the task and announce that it had. That is
+       * one destination decided on somebody's behalf, and the destination is
+       * the part they care about: a draft they will come back to belongs on the
+       * task, and a draft they are about to work on elsewhere belongs in their
+       * own notes or a file. Asking costs one tap and removes the copy-and-paste
+       * that followed the old behaviour.
+       */
+      push(mk('maya', 'text', 'That works.'));
+      push(mk('aria', 'text', 'Where would you like it? I can keep it here, or put it in a document.'));
+      setPhase('keep');
     }
   }
 
@@ -658,6 +706,25 @@ export default function AriaFlowScreen() {
                 className={`h-11 w-11 items-center justify-center rounded-full ${hasText ? 'bg-accent active:opacity-80' : 'bg-border'}`}>
                 <Send size={18} color={hasText ? c.accentInk : c.faint} />
               </Pressable>
+            </View>
+          ) : null}
+
+          {/* Accepted, and choosing where it goes. */}
+          {phase === 'keep' ? (
+            <View className="gap-2">
+              <Button
+                title="Keep it on this task"
+                leftIcon={<Check size={18} color={c.accentInk} />}
+                block
+                onPress={keepOnTask}
+              />
+              <Button
+                title="Save it as a document"
+                variant="secondary"
+                leftIcon={<Share2 size={18} color={c.ink} />}
+                block
+                onPress={keepAsDocument}
+              />
             </View>
           ) : null}
 
