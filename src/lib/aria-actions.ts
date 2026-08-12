@@ -74,7 +74,19 @@ export const MESSAGE_METHODS: TaskMethod[] = ['sms', 'email', 'card', 'photo', '
  * reaching someone, so drafting notes and planning steps have no place here.
  */
 export const EVENT_METHODS: TaskMethod[] = ['sms', 'email', 'call', 'photo', 'card', 'remind'];
-export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft', 'remind', 'email', 'sms'];
+/**
+ * What a piece of work can be handled as, and the three that are gone.
+ *
+ * `remind`, `email` and `sms` were on this list, and none of them describe
+ * handling an assignment. "Just remind me" is a reminder, and picking it turned
+ * an essay into a nudge with the breakdown switched off, which is the one thing
+ * Aria is useful for here. Email and text are ways of reaching a person, and the
+ * person an assignment goes to is a submission portal, not a contact.
+ *
+ * What is left is three genuinely different amounts of help: work through it
+ * with me, give me the shape of it, or write a first pass I will rework.
+ */
+export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft'];
 export const TASK_METHODS: TaskMethod[] = [
   'remind',
   'plan',

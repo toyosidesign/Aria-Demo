@@ -859,6 +859,54 @@ test('task-flow and aria-actions agree on what an event is', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('What work can be handled as');
+
+test('an assignment cannot be handled as a reminder, an email or a text', () => {
+  /*
+   * All three were on the list and none of them describe handling a piece of
+   * work. "Just remind me" turned an essay into a nudge with the breakdown
+   * switched off, which is the one thing Aria is useful for here; email and
+   * text are ways of reaching a person, and the recipient of an assignment is a
+   * submission portal.
+   *
+   * Read out of `lib/aria-actions.ts` by source, because that module imports
+   * the store and cannot be loaded here.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  const list = actions.match(/ASSIGNMENT_METHODS: TaskMethod\[\] = \[([^\]]*)\]/);
+  assert.ok(list, 'ASSIGNMENT_METHODS must still exist');
+  const methods = [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(methods, ['steps', 'outline', 'draft'], 'three amounts of help, nothing else');
+  for (const gone of ['remind', 'email', 'sms']) {
+    assert.ok(!methods.includes(gone), `${gone} is not a way of handling work`);
+  }
+});
+
+test('the create form asks work how before it asks when', () => {
+  /*
+   * The method decides what the rest of that screen is for: "step by step"
+   * makes it a breakdown, "draft it" makes it something Aria writes. A calendar
+   * first puts the least consequential question in front of the one that
+   * changes everything after it.
+   */
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  const workHandling = form.indexOf('{isWorkKind(kind) ? handlingSection : null}');
+  const date = form.indexOf('<MonthCalendar');
+  const otherHandling = form.indexOf('{isWorkKind(kind) ? null : handlingSection}');
+  assert.ok(workHandling > -1 && otherHandling > -1, 'both placements must exist');
+  assert.ok(workHandling < date, 'work is asked how before the calendar');
+  assert.ok(otherHandling > date, 'everything else keeps it after the date');
+  // One control, two positions. Two copies drift the moment one gains an option.
+  assert.equal(form.split('How should Aria handle it?').length - 1, 1);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Work starts, rather than being scheduled and left');
 
 test('an accepted plan is followed by handing in, then by starting', () => {

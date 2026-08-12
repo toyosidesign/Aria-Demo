@@ -54,6 +54,7 @@ import {
   TASK_KINDS,
 } from '@/lib/aria-actions';
 import { cn } from '@/lib/cn';
+import { isWorkKind } from '@/lib/task-flow';
 import { isValidEmails } from '@/lib/contacts';
 import { defaultTemplateFor } from '@/lib/cards';
 import {
@@ -410,6 +411,53 @@ export default function NewTaskScreen() {
     );
   }
 
+  /*
+   * ── One control, two positions ────────────────────────────────────────────
+   *
+   * Work asks how it should be handled first; everything else asks it late.
+   * Writing the JSX twice is how two copies drift, one gains an option or a
+   * label and the other quietly does not, so it is named once and placed twice.
+   */
+  const handlingSection = (
+    <>
+            {/* One option is not a choice, a reminder skips the question. */}
+            {methodOptions.length > 1 ? (
+              <View className="gap-2">
+                <Text variant="label" tone="muted">
+                  How should Aria handle it?
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {methodOptions.map((m) => {
+                    const active = method === m;
+                    const Icon = METHOD_ICONS[m];
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => setMethod(m)}
+                        className={cn(
+                          'flex-row items-center gap-2 rounded-full border px-3.5 py-2.5',
+                          active ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
+                        )}>
+                        <Icon size={16} color={active ? c.accent : c.muted} />
+                        <Text
+                          variant="small"
+                          tone={active ? 'accent' : 'muted'}
+                          className="font-strong">
+                          {METHOD_LABELS[m]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <Text variant="caption" tone="muted" className="leading-5">
+                I&apos;ll just remind you at the time you set. Nothing to draft or send.
+              </Text>
+            )}
+    </>
+  );
+
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 pb-2 pt-2">
@@ -516,6 +564,17 @@ export default function NewTaskScreen() {
             returnKeyType="next"
             error={titleError}
           />
+
+          {/*
+            Work is asked how it should be handled before it is asked when.
+
+            The method decides what the rest of the screen is for: "step by
+            step" makes it a breakdown, "draft it" makes it something Aria
+            writes. A calendar first puts the least consequential question in
+            front of the one that changes everything after it, which is the
+            order an event needs and not this one.
+          */}
+          {isWorkKind(kind) ? handlingSection : null}
 
           <View className="gap-2">
             <Text variant="label" tone="muted">
@@ -660,41 +719,8 @@ export default function NewTaskScreen() {
             </View>
           </View>
 
-          {/* One option is not a choice, a reminder skips the question. */}
-          {methodOptions.length > 1 ? (
-            <View className="gap-2">
-              <Text variant="label" tone="muted">
-                How should Aria handle it?
-              </Text>
-              <View className="flex-row flex-wrap gap-2">
-                {methodOptions.map((m) => {
-                  const active = method === m;
-                  const Icon = METHOD_ICONS[m];
-                  return (
-                    <Pressable
-                      key={m}
-                      onPress={() => setMethod(m)}
-                      className={cn(
-                        'flex-row items-center gap-2 rounded-full border px-3.5 py-2.5',
-                        active ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
-                      )}>
-                      <Icon size={16} color={active ? c.accent : c.muted} />
-                      <Text
-                        variant="small"
-                        tone={active ? 'accent' : 'muted'}
-                        className="font-strong">
-                        {METHOD_LABELS[m]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : (
-            <Text variant="caption" tone="muted" className="leading-5">
-              I&apos;ll just remind you at the time you set. Nothing to draft or send.
-            </Text>
-          )}
+
+          {isWorkKind(kind) ? null : handlingSection}
 
           {showsContact ? (
             <ContactField
