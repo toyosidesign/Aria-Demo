@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  FileText,
   Copy,
   Lock,
   Gift,
@@ -35,7 +36,9 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { GuideSheet } from '@/components/guide-sheet';
 import { GuideButton } from '@/components/work-panels';
+import { readyToAssemble } from '@/lib/assemble';
 import { rolloverVerdict } from '@/lib/plan';
+import { isWorkKind } from '@/lib/task-flow';
 import { SendCardSheet } from '@/components/send-card-sheet';
 import { ReminderActions } from '@/components/reminder-actions';
 import { SendPhotoSheet } from '@/components/send-photo-sheet';
@@ -339,6 +342,36 @@ export default function TaskDetailScreen() {
             </Text>
             <Card>
               <Text className="text-[14px] leading-[20px]">{task.description}</Text>
+            </Card>
+          </View>
+        ) : null}
+
+        {/*
+          The assembled document gets its own way in, above the raw sections.
+
+          It is the one thing on this screen with a deadline attached, and it
+          reads differently from the drafts it was built out of: those are
+          working material, this is the thing that gets handed in. Shown for any
+          piece of work whose deadline is close, whether or not a pass has
+          already compiled it, because the screen assembles it fresh anyway.
+        */}
+        {isWorkKind(task.kind) && task.status === 'todo' && readyToAssemble(task.date, demoDate) ? (
+          <View className="gap-2">
+            <View className="flex-row items-center gap-1.5">
+              <FileText size={14} color={c.accent} />
+              <Text variant="label" tone="accent">
+                Ready to hand in
+              </Text>
+            </View>
+            <Card className="gap-3">
+              <Text className="text-[14px] leading-[20px]">
+                I&apos;ve put everything this work produced into one document, named and with a
+                cover sheet. Read it before it goes anywhere.
+              </Text>
+              <Button
+                title="Open the document"
+                onPress={() => router.push(`/assembled/${task.id}`)}
+              />
             </Card>
           </View>
         ) : null}

@@ -1,6 +1,8 @@
 import { requestDraft } from '@/lib/aria-actions';
+import { assemble, factsFromSections, readyToAssemble } from '@/lib/assemble';
 import { catchUp } from '@/lib/plan';
 import { requestChecklist } from '@/lib/subtasks';
+import { isWorkKind } from '@/lib/task-flow';
 import { workAhead, workAheadReport, type WorkItem } from '@/lib/work-ahead';
 import { useAriaStore } from '@/store/aria-store';
 
@@ -36,9 +38,14 @@ export interface WorkPass {
   prepared: WorkItem[];
   /** Plans that had fallen behind and were re-dated. */
   replanned: { taskId: string; title: string; moved: number; tight: boolean }[];
+  /** Documents compiled because their deadline is a day away. */
+  assembled: { taskId: string; title: string; words: number; warnings: number }[];
 }
 
-const EMPTY: WorkPass = { prepared: [], replanned: [] };
+const EMPTY: WorkPass = { prepared: [], replanned: [], assembled: [] };
+
+/** The section an assembled document is kept in, so it is found rather than remade. */
+export const ASSEMBLED_SECTION = 'Assembled document';
 
 /**
  * Prepare what is worth preparing, and re-date what has slipped.
@@ -56,7 +63,7 @@ export async function runWorkAhead(): Promise<WorkPass> {
   if (!store.pro) return EMPTY;
 
   running = true;
-  const pass: WorkPass = { prepared: [], replanned: [] };
+  const pass: WorkPass = { prepared: [], replanned: [], assembled: [] };
   try {
     const today = store.demoDate;
     const queue = workAhead(store.tasks, today);
@@ -121,6 +128,50 @@ export async function runWorkAhead(): Promise<WorkPass> {
         tight: result.tight,
       });
     }
+    /*
+     * And finally the documents whose deadline is a day away.
+     *
+     * Last because it is the only step that wants everything else to have
+     * happened first: a draft prepared earlier in this pass belongs in the
+     * document, and a plan re-dated a moment ago is the one the cover sheet
+     * should report against.
+     *
+     * Assembly writes no words of its own, so it costs nothing and can run for
+     * every piece of work. It replaces its own previous copy rather than
+     * appending, or the task collects a stack of nearly-identical documents.
+     */
+    const store2 = useAriaStore.getState();
+    for (const task of store2.tasks) {
+      if (task.status !== 'todo' || !isWorkKind(task.kind)) continue;
+      if (!readyToAssemble(task.date, today)) continue;
+      const sections = task.draftSections ?? [];
+      const done = assemble({
+        title: task.title,
+        author: store2.profile.name,
+        context: store2.profile.context,
+        deadline: task.date,
+        facts: factsFromSections(sections),
+        sections,
+        steps: task.subtasks,
+      });
+      // Nothing written and nothing planned: a cover sheet on its own is not
+      // worth announcing, and would read as Aria claiming to have done work.
+      if (!done.words) continue;
+      const existing = sections.find((s) => s.title === ASSEMBLED_SECTION);
+      if (existing?.content === done.body) continue;
+      useAriaStore.getState().updateTask(task.id, {
+        draftSections: [
+          ...sections.filter((s) => s.title !== ASSEMBLED_SECTION),
+          { title: ASSEMBLED_SECTION, content: done.body },
+        ],
+      });
+      pass.assembled.push({
+        taskId: task.id,
+        title: task.title,
+        words: done.words,
+        warnings: done.warnings.length,
+      });
+    }
   } catch {
     // Unattended work fails quietly and tries again next time. The alternative
     // is an error toast for something nobody asked for.
@@ -138,6 +189,21 @@ export async function runWorkAhead(): Promise<WorkPass> {
  * make somebody turn the feature off.
  */
 export function workPassReport(pass: WorkPass): string | null {
+  /*
+   * The document leads, when there is one.
+   *
+   * It is the most consequential thing a pass can produce and the one with a
+   * deadline attached, so it is said first rather than buried behind three
+   * drafts and a re-dated plan.
+   */
+  if (pass.assembled.length) {
+    const a = pass.assembled[0];
+    const rest = pass.assembled.length - 1;
+    const others = rest ? ` (and ${rest} more)` : '';
+    return a.warnings
+      ? `"${a.title}" is assembled, ${a.words} words${others}. ${a.warnings} thing${a.warnings === 1 ? '' : 's'} to look at before you send it.`
+      : `"${a.title}" is assembled, ${a.words} words${others}. Nothing looks missing.`;
+  }
   const prepared = workAheadReport(pass.prepared);
   if (!pass.replanned.length) return prepared;
   const behind = pass.replanned.reduce((n, r) => n + r.moved, 0);

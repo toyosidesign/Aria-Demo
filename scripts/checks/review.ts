@@ -25,6 +25,16 @@ import {
 import { TIERS, can, tierOf } from '@/lib/entitlements';
 import { WORK_AHEAD_DAYS, WORK_AHEAD_LIMIT, workAhead, workAheadReport } from '@/lib/work-ahead';
 import { catchUp, catchUpReport } from '@/lib/plan';
+import {
+  ASSEMBLE_LEAD_DAYS,
+  assemble,
+  assembleReport,
+  assembledFilename,
+  countWords,
+  factsFromSections,
+  readyToAssemble,
+  targetWordCount,
+} from '@/lib/assemble';
 import type { Task } from '@/store/aria-store';
 
 let passed = 0;
@@ -386,6 +396,160 @@ test('when it no longer fits, it says so rather than pretending', () => {
   assert.equal(result.tight, true);
   assert.match(catchUpReport(result, 'Essay'), /no longer fits/i);
   assert.match(catchUpReport({ steps: [], moved: 0, tight: false }, 'Essay'), /on track/i);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Assembling the document');
+
+const FACTS = {
+  deliverable: { value: '2,000-word essay, submitted as PDF', confidence: 'high' as const },
+  deadline: { value: '2026-09-25', confidence: 'high' as const },
+  weighting: { value: '40% of the module', confidence: 'high' as const },
+  criteria: {
+    items: [
+      { label: 'Argument', weight: 40 },
+      { label: 'Analysis', weight: 30 },
+      { label: 'Structure', weight: 20 },
+      { label: 'Referencing', weight: 10 },
+    ],
+    confidence: 'medium' as const,
+  },
+  format: { value: 'Harvard referencing, PDF', confidence: 'high' as const },
+};
+
+const SECTIONS = [
+  { title: 'The brief', content: 'Deliverable: 2,000-word essay' },   // working notes
+  { title: 'Introduction', content: 'word '.repeat(300) },
+  { title: 'The argument', content: 'word '.repeat(900) },
+];
+
+test('the document is arrangement, never authorship', () => {
+  /*
+   * Every word came from the task. Nothing here calls a model, which is why it
+   * is instant, free, and defensible: a student can say when each paragraph was
+   * written. A version that generated the missing parts would be the one thing
+   * this product must not do.
+   */
+  const out = assemble({ title: 'Cold War essay', deadline: '2026-09-25', facts: FACTS, sections: SECTIONS });
+  assert.ok(out.body.includes('The argument'), 'written work belongs in the document');
+  assert.ok(!out.body.includes('Deliverable: 2,000-word essay'), 'working notes do not');
+  // 1200 words of prose plus the three words of the two headings, which are
+  // part of the document a marker receives. The cover sheet is not.
+  assert.equal(out.words, 1203, 'the count is the work, not the cover sheet');
+});
+
+test('the cover sheet says who, what, when and what it is marked on', () => {
+  const out = assemble({
+    title: 'Cold War essay', author: 'Maya Chen', context: '2nd year studying History',
+    deadline: '2026-09-25', facts: FACTS, sections: SECTIONS,
+  });
+  for (const expected of ['Maya Chen', '2nd year studying History', 'Worth 40% of the module', 'Argument (40%)', 'Harvard referencing']) {
+    assert.ok(out.body.includes(expected), `the cover sheet must carry: ${expected}`);
+  }
+  assert.match(out.body, /1203 words of 2000/);
+});
+
+test('the file name is one a marker can find again', () => {
+  // A folder of forty files called "Essay.pdf" is the problem this solves.
+  assert.equal(assembledFilename('Cold War essay', 'Maya Chen'), 'Maya Chen - Cold War essay.txt');
+  // Punctuation is stripped rather than escaped: a slash in a title is a path
+  // separator on at least one platform somebody will open this on.
+  assert.equal(assembledFilename('Essay: part 1/2', 'Maya'), 'Maya - Essay part 12.txt');
+  assert.equal(assembledFilename('', undefined), 'Assignment.txt');
+});
+
+test('a word target is read from the brief, commas and all', () => {
+  assert.equal(targetWordCount(FACTS), 2000, '"2,000-word" is one number, not two');
+  assert.equal(targetWordCount({ deliverable: { value: '1500 words', confidence: 'high' } }), 1500);
+  assert.equal(targetWordCount({ deliverable: { value: '10-slide deck', confidence: 'high' } }), undefined);
+  assert.equal(targetWordCount(undefined), undefined);
+});
+
+test('being short is reported as a number, not a percentage', () => {
+  const thin = assemble({
+    title: 'Cold War essay', deadline: '2026-09-25', facts: FACTS,
+    sections: [{ title: 'Introduction', content: 'word '.repeat(400) }],
+  });
+  assert.ok(thin.warnings.some((w) => /1599 words short/.test(w)), 'a number is actionable tonight');
+});
+
+test('nothing written assembles anyway, and says what it is', () => {
+  /*
+   * A student at 11pm needs what exists rather than a refusal. The document is
+   * produced whatever state the work is in, and the warning is what stops a
+   * cover sheet being mistaken for an essay.
+   */
+  const empty = assemble({ title: 'Cold War essay', deadline: '2026-09-25', sections: [] });
+  assert.ok(empty.body.includes('Cold War essay'), 'the cover sheet still exists');
+  assert.equal(empty.words, 0);
+  assert.ok(empty.warnings.some((w) => /nothing written yet/i.test(w)));
+});
+
+test('open steps and missing format rules are surfaced, never fixed silently', () => {
+  const out = assemble({
+    title: 'Cold War essay', deadline: '2026-09-25',
+    facts: { ...FACTS, format: undefined },
+    sections: SECTIONS,
+    steps: [{ title: 'Read the sources', done: true }, { title: 'Referencing', done: false }],
+  });
+  assert.ok(out.warnings.some((w) => /Referencing/.test(w)), 'an open step is worth knowing about');
+  assert.ok(out.warnings.some((w) => /format rules/i.test(w)));
+});
+
+test('a day before the deadline, and not the morning of', () => {
+  /*
+   * The lead time is the feature. Assembling on the day it is due produces the
+   * same document and is no use: the point is having time to read it, fix what
+   * is wrong, and still submit calmly.
+   */
+  assert.equal(ASSEMBLE_LEAD_DAYS, 1);
+  assert.equal(readyToAssemble('2026-09-25', '2026-09-24'), true, 'the day before');
+  assert.equal(readyToAssemble('2026-09-25', '2026-09-25'), true, 'and the day itself');
+  assert.equal(readyToAssemble('2026-09-25', '2026-09-23'), false, 'not two days out');
+  assert.equal(readyToAssemble('2026-09-25', '2026-09-26'), false, 'and never after it has gone');
+});
+
+test('the handover says the size and how much to check', () => {
+  const clean = assemble({
+    title: 'Cold War essay', deadline: '2026-09-25',
+    facts: { ...FACTS, deliverable: undefined },
+    sections: [{ title: 'Introduction', content: 'word '.repeat(50) }],
+    steps: [{ title: 'Done', done: true }],
+  });
+  assert.match(assembleReport(clean), /51 words/);
+  const messy = assemble({ title: 'x', deadline: '2026-09-25', facts: FACTS, sections: SECTIONS });
+  assert.match(assembleReport(messy), /to look at/);
+});
+
+test('the brief is read back off the task, and never guessed', () => {
+  /*
+   * There is no column for the brief, so setup writes it onto the task as the
+   * same readable summary the card showed, and assembly parses that back. The
+   * safety property is what matters: a line it does not recognise produces
+   * nothing rather than something wrong. A missing weighting is a cover sheet
+   * without one; an invented deadline would be the worst bug this app has.
+   */
+  const facts = factsFromSections([
+    { title: 'The brief', content: 'Deliverable: 2,000-word essay\nWeighting: 40% of the module\nMarked on: Argument (40%), Analysis (30%)\nFormat rules: Harvard, PDF' },
+    { title: 'Introduction', content: 'not the brief' },
+  ]);
+  assert.equal(facts?.deliverable?.value, '2,000-word essay');
+  assert.equal(facts?.weighting?.value, '40% of the module');
+  assert.deepEqual(facts?.criteria?.items, [
+    { label: 'Argument', weight: 40 },
+    { label: 'Analysis', weight: 30 },
+  ]);
+  assert.equal(facts?.format?.value, 'Harvard, PDF');
+  // Nothing to read: nothing claimed.
+  assert.equal(factsFromSections([{ title: 'Introduction', content: 'x' }]), undefined);
+  assert.equal(factsFromSections(undefined), undefined);
+  assert.equal(factsFromSections([{ title: 'The brief', content: 'Nonsense with no labels' }]), undefined);
+});
+
+test('words are counted the way a marker counts them', () => {
+  // The apostrophe does not split a word, and the punctuation is not one.
+  assert.equal(countWords("Aria's plan, working back from the deadline."), 7);
+  assert.equal(countWords('   '), 0);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

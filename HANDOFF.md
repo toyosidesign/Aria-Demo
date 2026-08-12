@@ -71,7 +71,7 @@ npm run check:themes       33 checks
 npm run check:recurrence   21 checks
 npm run check:flow         67 checks   # the conversational task setup
 npm run check:plan         25 checks
-npm run check:review       29 checks   # the tier line, the Pro day, work ahead   # backwards planning, rollovers, briefs
+npm run check:review       40 checks   # the tier line, the Pro day, work ahead, assembly   # backwards planning, rollovers, briefs
 ```
 
 All passing. Run them after any change; they are fast and have caught real
@@ -540,11 +540,28 @@ server-side is a queue table and an Edge Function with a sibling already in
 `run-automations`, and nothing in the rules would change: they are pure, and the
 writes go through the same store actions.
 
-**Not built:** `assemble` is declared as a capability and gated, but the
-compiler that produces the document a day before the deadline is still §7's
-open item. Volume limits on Free (a weekly allowance of model actions) are
-deliberately absent rather than faked: the rate limiter is per-account and
-server-side, and a client-side counter would be a limit in name only.
+**Assemble is built** (`lib/assemble.ts`, `app/assembled/[taskId].tsx`). A day
+before the deadline the work runner compiles everything the task produced into
+one document: cover sheet, author, weighting, criteria, format rules, then the
+written sections in the order they were written, named `Author - Title.txt`.
+
+**Nothing in it is written by a model.** Assembly is arrangement, not
+authorship, which is why it costs nothing, runs for every piece of work, and can
+be defended: a student can say when each paragraph was written. It never invents
+a section to fill a gap and never claims a word count it has not got. What is
+missing is reported instead: the gap to the target in words, the steps still
+open, and format rules the brief never gave.
+
+**The brief is parsed back out of the task** (`factsFromSections`). There is no
+column for it, so setup writes the same readable summary the card showed, and
+assembly reads it back. Anything it does not recognise comes back undefined and
+the cover sheet omits it, so the failure mode is a missing weighting rather than
+an invented deadline.
+
+**Not built:** submission to an LMS. The document ends at the share sheet, which
+is the honest end today. A submission that fires early or sends the wrong draft
+costs a grade nobody can recover, so it wants building approval-gated first.
+Volume limits on Free are still deliberately absent rather than faked.
 
 ### 8b. The Pro day, built 2026-08-05
 
