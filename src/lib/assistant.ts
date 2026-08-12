@@ -127,6 +127,18 @@ export const FROM_MEMORY_NOTICE =
   "One thing about those notes: they came from what I already know, not from anything I read just now. No sources to point you at, so treat them as a starting point and check anything you lean on.";
 
 /**
+ * Said when a rewrite came back word for word the same.
+ *
+ * Reported as "Aria is unable to rewrite a note", and it was not a rewrite bug:
+ * the key was dead, the scripted stand-in returned its own text again, and the
+ * screen re-rendered an identical draft with nothing to show anything had
+ * happened. A tap that silently changes nothing is indistinguishable from a
+ * broken button, and saying so costs one line.
+ */
+export const UNCHANGED_NOTICE =
+  "That came back the same as before, so I've left it alone rather than pretend it changed. Tell me what specifically to change and I'll have another go.";
+
+/**
  * Said when a typed question falls outside the preselected set.
  *
  * During the testing phase Aria answers a known list and nothing else, so the

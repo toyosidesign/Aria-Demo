@@ -25,6 +25,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
+import { ScriptedNote } from '@/components/scripted-note';
+import { UNCHANGED_NOTICE } from '@/lib/assistant';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -58,7 +60,14 @@ type Phase =
   | 'sending'
   | 'done'
   | 'declined';
-type Msg = { id: string; from: 'aria' | 'maya'; kind: 'text' | 'draft'; text: string };
+type Msg = {
+  id: string;
+  from: 'aria' | 'maya';
+  kind: 'text' | 'draft';
+  text: string;
+  /** The scripted stand-in answered rather than the model. Shown in dev. */
+  scripted?: boolean;
+};
 
 const REWRITES = [
   { label: 'Warmer', instruction: 'make it warmer and more heartfelt' },
@@ -75,11 +84,12 @@ const ASSIGNMENT_REWRITES = [
 ];
 
 let msgId = 0;
-const mk = (from: Msg['from'], kind: Msg['kind'], text: string): Msg => ({
+const mk = (from: Msg['from'], kind: Msg['kind'], text: string, scripted?: boolean): Msg => ({
   id: `m${msgId++}`,
   from,
   kind,
   text,
+  scripted,
 });
 
 const tap = hapticTap;
@@ -141,8 +151,23 @@ export default function AriaFlowScreen() {
       previousDraft: instruction ? draft : undefined,
     });
     setTyping(false);
+
+    /*
+     * A rewrite that changed nothing is said out loud.
+     *
+     * "Aria is unable to rewrite a note" was reported as a bug and was not one:
+     * the key was dead, the stand-in returned the same text, and the screen
+     * re-rendered the identical draft with no sign anything had happened. A
+     * tweak that silently no-ops is indistinguishable from a broken button.
+     */
+    if (instruction && res.message.trim() === draft.trim()) {
+      push(mk('aria', 'text', UNCHANGED_NOTICE, res.fallback));
+      setPhase('review');
+      return;
+    }
+
     setDraft(res.message);
-    push(mk('aria', 'draft', res.message));
+    push(mk('aria', 'draft', res.message, res.fallback));
     push(
       mk(
         'aria',
@@ -168,8 +193,15 @@ export default function AriaFlowScreen() {
       previousDraft: instruction ? draft : undefined,
     });
     setTyping(false);
+
+    if (instruction && res.message.trim() === draft.trim()) {
+      push(mk('aria', 'text', UNCHANGED_NOTICE, res.fallback));
+      setPhase('review');
+      return;
+    }
+
     setDraft(res.message);
-    push(mk('aria', 'draft', res.message));
+    push(mk('aria', 'draft', res.message, res.fallback));
     push(
       mk(
         'aria',
@@ -643,6 +675,7 @@ export default function AriaFlowScreen() {
                   Draft
                 </Text>
                 <Text className="leading-6">{m.text}</Text>
+                <ScriptedNote show={m.scripted} className="pt-2" />
               </Animated.View>
             ) : (
               <AriaBubble key={m.id} from={m.from}>
