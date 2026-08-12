@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import {
   CalendarClock,
   Check,
@@ -790,16 +790,34 @@ export default function AriaFlowScreen() {
                   onPress={markComplete}
                 />
               ) : null}
+              {/*
+                What happens to the work Aria just produced, in two real options.
+
+                "Save to…" was one button and one destination, and it hid the
+                thing people actually need from a finished piece of work: getting
+                it to somebody at a particular moment. A tutor, a supervisor, a
+                submission address. Saving it is the other half, and they are
+                different acts rather than two names for one.
+              */}
               {phase === 'done' && isAssignmentKind && (task.draftSections?.length ?? 0) > 0 ? (
-                <Button
-                  title="Save to…"
-                  variant="secondary"
-                  leftIcon={<Share2 size={18} color={c.ink} />}
-                  block
-                  onPress={() =>
-                    void exportWork(task.title, sectionsToText(task.draftSections ?? []))
-                  }
-                />
+                <>
+                  <Button
+                    title="Email it, at a time I pick"
+                    variant="secondary"
+                    leftIcon={<Mail size={18} color={c.ink} />}
+                    block
+                    onPress={() => router.push(`/schedule?taskId=${task.id}&channel=email` as Href)}
+                  />
+                  <Button
+                    title="Save as a document"
+                    variant="secondary"
+                    leftIcon={<Share2 size={18} color={c.ink} />}
+                    block
+                    onPress={() =>
+                      void exportWork(task.title, sectionsToText(task.draftSections ?? []))
+                    }
+                  />
+                </>
               ) : null}
               {/* Calling this "Done" while the task is still open was the whole
                   problem: it read as completion and only navigated away. */}

@@ -1198,15 +1198,20 @@ export default function ChatScreen() {
                 </Text>
                 <View className="flex-row gap-2">
                   <Button
-                    title="Save or share"
+                    title="Save as a document"
                     className="flex-1"
                     onPress={() => {
                       void exportWork(exportable.title, exportable.body);
                       setExportable(null);
                     }}
                   />
+                  {/* Opens a mail draft now, rather than scheduling one. This
+                      card appears the moment something is set up, before there
+                      is a finished document to send, so "at a time I pick"
+                      would be offering to schedule a draft nobody has written
+                      yet. Scheduling lives on the finished work. */}
                   <Button
-                    title="Email"
+                    title="Email a copy"
                     variant="secondary"
                     onPress={() => {
                       void openEmailDraft({ subject: exportable.title, body: exportable.body });
