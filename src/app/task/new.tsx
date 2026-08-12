@@ -157,7 +157,14 @@ export default function NewTaskScreen() {
     editing?.contactPhone ?? params.contactPhone ?? '',
   );
   const [description, setDescription] = useState(editing?.description ?? '');
-  const [subtasks, setSubtasks] = useState<Subtask[]>(editing?.subtasks ?? []);
+  /*
+   * Kept, though nothing on this screen edits them any more.
+   *
+   * Editing an existing assignment has to preserve the steps it already has:
+   * dropping the state would mean opening a task to fix a typo and saving its
+   * plan away.
+   */
+  const [subtasks] = useState<Subtask[]>(editing?.subtasks ?? []);
   const [method, setMethod] = useState<TaskMethod>(
     editing?.method ??
       (params.method as TaskMethod) ??
@@ -849,46 +856,20 @@ export default function NewTaskScreen() {
           </>
           )}
 
-          {/* Breaking work into parts only makes sense for something you sit
-              down and do. A text or a call is a single act. */}
-          {showsSubtasks ? (
-            <View className="gap-2">
-              <Text variant="label" tone="muted">
-                Subtasks (optional)
-              </Text>
-              <View className="gap-2">
-                {subtasks.map((st, i) => (
-                  <View key={st.id} className="flex-row items-center gap-2">
-                    <TextInput
-                      value={st.title}
-                      onChangeText={(text) =>
-                        setSubtasks((prev) =>
-                          prev.map((s) => (s.id === st.id ? { ...s, title: text } : s)),
-                        )
-                      }
-                      placeholder={`Step ${i + 1}`}
-                      placeholderTextColor={c.faint}
-                      className="h-11 flex-1 rounded-2xl border border-border bg-surface px-4 text-base text-ink"
-                    />
-                    <Pressable
-                      onPress={() => setSubtasks((prev) => prev.filter((s) => s.id !== st.id))}
-                      hitSlop={8}
-                      className="h-9 w-9 items-center justify-center rounded-full active:bg-border/60">
-                      <X size={18} color={c.muted} />
-                    </Pressable>
-                  </View>
-                ))}
-                <Pressable
-                  onPress={() => setSubtasks((prev) => [...prev, newDraftSubtask()])}
-                  className="flex-row items-center gap-2 self-start rounded-full px-2 py-1.5 active:opacity-60">
-                  <Plus size={18} color={c.accent} />
-                  <Text variant="small" tone="accent" className="font-strong">
-                    Add subtask
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
+          {/*
+            The subtask list is gone from setting up.
+
+            It only ever appeared for an assignment or a project, and those are
+            exactly the two that now get broken down properly: Aria reads the
+            brief, plans backwards from the deadline and produces steps that
+            carry a date and what forces them. Typing a few titles by hand
+            before any of that has happened produces a worse list that the plan
+            then has to reconcile with, and it asked for work at the moment
+            somebody was trying to start work.
+
+            Steps still exist and are still editable, on the task, where they
+            arrive with dates attached.
+          */}
 
       </ScrollView>
 

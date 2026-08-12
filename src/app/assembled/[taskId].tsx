@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, CircleAlert, FileText, Share2 } from 'lucide-react-native';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { ArrowLeft, CircleAlert, FileText, Mail, Share2 } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { ScrollView, View } from 'react-native';
 
@@ -12,6 +12,7 @@ import { useColors } from '@/lib/colors';
 import { formatFull } from '@/lib/dates';
 import { exportWork } from '@/lib/export';
 import { hapticSelect } from '@/lib/haptics';
+import { ASSEMBLED_SECTION } from '@/lib/work-runner';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -44,7 +45,9 @@ export default function AssembledScreen() {
 
   const document = useMemo(() => {
     if (!task) return null;
-    const sections = (task.draftSections ?? []).filter((s) => s.title !== 'Assembled document');
+    // The constant, not the string. Two spellings of the same section title is
+    // how a document ends up containing its own previous copy.
+    const sections = (task.draftSections ?? []).filter((s) => s.title !== ASSEMBLED_SECTION);
     return assemble({
       title: task.title,
       author: profile.name,
@@ -125,12 +128,39 @@ export default function AssembledScreen() {
         </View>
       </ScrollView>
 
+      {/*
+        Two endings, because a finished document goes one of two places.
+
+        It is saved, which is the share sheet and covers Files, Drive, Notes and
+        anything else the phone can open it with. Or it is emailed to somebody,
+        which is a scheduled send: a tutor, a supervisor, a submission address.
+        Those are genuinely different acts, and offering one button called
+        "Save or share" made the second one look impossible.
+      */}
       <View className="gap-2 border-t border-border px-5 pb-6 pt-3">
         <Button
-          title="Save or share"
+          title="Email it, at a time I pick"
           block
           size="lg"
-          leftIcon={<Share2 size={18} color={c.accentInk} />}
+          leftIcon={<Mail size={18} color={c.accentInk} />}
+          onPress={() => {
+            hapticSelect();
+            /*
+             * The document is not passed in the URL.
+             *
+             * It runs to thousands of words, and a query string is the wrong
+             * place for an essay. The schedule screen reads the assembled
+             * section off the task itself.
+             */
+            router.push(`/schedule?taskId=${task.id}&channel=email` as Href);
+          }}
+        />
+        <Button
+          title="Save as a document"
+          variant="secondary"
+          block
+          size="lg"
+          leftIcon={<Share2 size={18} color={c.accent} />}
           onPress={() => {
             hapticSelect();
             /*

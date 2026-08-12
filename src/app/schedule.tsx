@@ -20,6 +20,7 @@ import { isValidEmails } from '@/lib/contacts';
 import { hapticSuccess } from '@/lib/haptics';
 import { PRO_FEATURES, PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
+import { ASSEMBLED_SECTION } from '@/lib/work-runner';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -48,7 +49,21 @@ export default function ScheduleScreen() {
   const [email, setEmail] = useState(task?.contactEmail ?? '');
   const [phone, setPhone] = useState(task?.contactPhone ?? '');
   const [subject, setSubject] = useState(task?.title ?? '');
-  const [body, setBody] = useState(params.body ?? task?.draftSections?.[0]?.content ?? '');
+  /*
+   * The assembled document first, then whatever was passed in, then the first
+   * section.
+   *
+   * `draftSections[0]` is whatever Aria wrote earliest, which on a finished
+   * assignment is the brief or an early paragraph, never the thing being sent.
+   * The document compiled before the deadline is what somebody means by "send
+   * it", so it wins when it exists.
+   */
+  const [body, setBody] = useState(
+    params.body ??
+      task?.draftSections?.find((sec) => sec.title === ASSEMBLED_SECTION)?.content ??
+      task?.draftSections?.[0]?.content ??
+      '',
+  );
   const [date, setDate] = useState(task?.date ?? demoDate);
   const [time, setTime] = useState<string | null>(task?.time ?? '09:00');
 
