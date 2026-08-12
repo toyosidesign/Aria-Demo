@@ -35,6 +35,7 @@ import {
 } from '@/lib/brief';
 import { REPEAT_LABEL, type Repeat } from '@/lib/dates';
 import { NARROWING, type GuideDirection, type GuideMode } from '@/lib/guide';
+import type { Source } from '@/lib/source';
 import { liveSteps, type PlanStep } from '@/lib/plan';
 import type { Priority, TaskKind, TaskMethod } from '@/store/aria-store';
 
@@ -60,6 +61,14 @@ export interface GuideState {
   chosen?: GuideDirection;
   /** True when the directions came from the offline set. */
   fallback?: boolean;
+  /**
+   * What Aria read before proposing these, when it read anything.
+   *
+   * Kept on the flow rather than in a local state so it survives the panel
+   * being closed and reopened, which is exactly when somebody goes back to
+   * check where a direction came from.
+   */
+  sources?: Source[];
 }
 
 /** What Aria is waiting for right now. */

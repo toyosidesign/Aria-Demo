@@ -725,7 +725,13 @@ export default function ChatScreen() {
         guide:
           res.kind === 'needs'
             ? { ...asked.guide!, needs: res.ask, directions: undefined }
-            : { ...asked.guide!, directions: res.directions, needs: undefined, fallback: res.fallback },
+            : {
+                ...asked.guide!,
+                directions: res.directions,
+                needs: undefined,
+                fallback: res.fallback,
+                sources: res.sources,
+              },
       };
       setFlow(guided);
       addChatMessage(mkPrompt(promptFor('guideDirections', guided)));

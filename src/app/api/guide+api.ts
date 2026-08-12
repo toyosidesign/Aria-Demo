@@ -6,6 +6,7 @@ import { describeLearner } from '@/lib/learner';
 import { briefSummary } from '@/lib/brief';
 import { localGuide, needsMore, type GuideDirection, type GuideRequest } from '@/lib/guide';
 import { limitAi } from '@/lib/rate-limit';
+import { askWithSearch } from '@/lib/web-search';
 
 /**
  * Three or four ways forward, with what each would need and what it would cost.
@@ -135,12 +136,48 @@ export const POST = protectedRoute(GuideSchema, limitAi, async (body) => {
   try {
     const client = new Anthropic();
     const student = req.student !== false && req.mode === 'assignment';
+
+    /*
+     * A look at what is current, before proposing anything.
+     *
+     * The Guide is where being out of date costs the most: it is read against a
+     * real brief with a real deadline, and a direction that ignores something
+     * published last month is a direction somebody spends a week on. Chat and
+     * Research read the web; this screen was the one still working purely from
+     * memory, which made the feature look half-finished.
+     *
+     * The model gates itself rather than searching every time. Plenty of work
+     * is settled or historical, and a search there spends money and seconds to
+     * confirm what it already knew, so it is told to answer with one word and
+     * stop when currency does not matter.
+     */
+    const current = await askWithSearch(client, {
+      system: `Aria is about to suggest directions for a piece of work. Your only job is to find what is *current* about this topic that would change how somebody approaches it: something published, changed, decided, released or discovered recently, or a figure that has moved.
+
+If currency does not matter here, because the topic is historical, settled, or purely about this person's own situation, reply with exactly NOTHING NEW and do not search at all.
+
+Otherwise search, then give at most six short factual lines. Each line: the fact, when it happened, and who reported it. No advice, no directions, no preamble. Do not use em dashes.`,
+      prompt: promptFor(req),
+      maxTokens: 700,
+    });
+
+    const grounding =
+      current && current.searched && !/^NOTHING NEW/i.test(current.text) ? current : null;
     const msg = (await client.messages.create({
       model: 'claude-opus-4-8',
       max_tokens: 2048,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-      system: [student ? ASSIGNMENT : PROJECT, describeLearner(req.learner)]
+      system: [
+        student ? ASSIGNMENT : PROJECT,
+        describeLearner(req.learner),
+        // Offered as material, not as instructions: the directions still have
+        // to fit this brief, and a search result that turns out to be beside
+        // the point should be dropped rather than worked into a direction.
+        grounding
+          ? `Checked just now, use where it genuinely bears on the work and ignore the rest:\n${grounding.text}`
+          : '',
+      ]
         .filter(Boolean)
         .join('\n\n'),
       messages: [{ role: 'user', content: promptFor(req) }],
@@ -153,7 +190,15 @@ export const POST = protectedRoute(GuideSchema, limitAi, async (body) => {
     const parsed = JSON.parse(extractText(msg)) as { directions?: GuideDirection[] };
     const directions = (parsed.directions ?? []).filter((d) => d.title?.trim()).slice(0, 4);
     if (!directions.length) throw new Error('empty guide');
-    return Response.json({ kind: 'directions', directions, fallback: false });
+    return Response.json({
+      kind: 'directions',
+      directions,
+      fallback: false,
+      // Only when something was actually found and used. Attaching sources to
+      // directions written from memory would be the citation theatre this app
+      // has been careful to avoid everywhere else.
+      sources: grounding?.sources,
+    });
   } catch (err) {
     console.error('[aria] guide: Claude call failed, using local directions:', err);
     return Response.json({ kind: 'directions', directions: localGuide(req), fallback: true });
