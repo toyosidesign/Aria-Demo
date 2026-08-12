@@ -38,6 +38,7 @@ import { GuideSheet } from '@/components/guide-sheet';
 import { GuideButton } from '@/components/work-panels';
 import { readyToAssemble } from '@/lib/assemble';
 import { rolloverVerdict } from '@/lib/plan';
+import { handInReadiness } from '@/lib/ready';
 import { isWorkKind } from '@/lib/task-flow';
 import { SendCardSheet } from '@/components/send-card-sheet';
 import { ReminderActions } from '@/components/reminder-actions';
@@ -176,6 +177,8 @@ export default function TaskDetailScreen() {
   const isFuture = task.date !== demoDate;
   const MethodIcon = task.method ? METHOD_ICON[task.method] : null;
   const isAssignmentKind = task.kind === 'assignment' || task.kind === 'project';
+  /** Whether the work is actually finished enough to hand in. See lib/ready.ts. */
+  const handIn = handInReadiness(task);
   const needsChecklist = isAssignmentKind && task.subtasks.length === 0 && task.status === 'todo';
   /*
    * The step the plan says is next, and how much it has been avoided.
@@ -368,11 +371,22 @@ export default function TaskDetailScreen() {
               <Text className="text-[14px] leading-[20px]">
                 {task.time
                   ? `Due ${formatFull(task.date)} at ${formatTime(task.time)}. I'll chime then, and have the document ready the day before.`
-                  : 'When you know when this has to be in, set it and I\'ll work backwards from it.'}
+                  : /*
+                     * Said with where the work actually stands.
+                     *
+                     * Offering a hand-in date to somebody two steps into six
+                     * reads as Aria thinking they are finished. Naming what is
+                     * still open keeps the offer honest, and keeps it an offer:
+                     * a deadline is often known long before the work is done,
+                     * and refusing to take it would be its own kind of wrong.
+                     */
+                    handIn.ready
+                    ? "This is ready to go out. Set the day and hour and I'll take it from there."
+                    : `${handIn.blocker}, so this isn't ready to go out yet. If you already know when it has to be in, set it and I'll work backwards from it.`}
               </Text>
               <Button
                 title={task.time ? 'Change when it goes out' : 'Set when it goes out'}
-                variant={task.time ? 'secondary' : 'primary'}
+                variant={task.time || !handIn.ready ? 'secondary' : 'primary'}
                 onPress={() => router.push(`/hand-in/${task.id}` as Href)}
               />
             </Card>

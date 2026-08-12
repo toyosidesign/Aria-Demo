@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import {
+  ArrowRight,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -26,6 +27,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
+import { handInReadiness } from '@/lib/ready';
 import { UNCHANGED_NOTICE } from '@/lib/assistant';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -306,6 +308,12 @@ export default function AriaFlowScreen() {
   const hasText = input.trim().length > 0;
   const canCompose = (phase === 'review' || phase === 'approve') && !typing;
   const isWalkthrough = !!action.walkthrough;
+
+  /*
+   * Whether this is finished, asked rather than assumed. See lib/ready.ts.
+   */
+  const readiness = handInReadiness(task);
+  const upNext = nextIncompleteSub(activeSubId ?? undefined);
   const rewrites = action.type === 'assignment' ? ASSIGNMENT_REWRITES : REWRITES;
   const acceptLabel = isWalkthrough
     ? nextIncompleteSub(activeSubId ?? undefined)
@@ -891,13 +899,50 @@ export default function AriaFlowScreen() {
               */}
               {phase === 'done' && task.status === 'todo' ? (
                 isAssignmentKind ? (
-                  <Button
-                    title="Schedule for later"
-                    leftIcon={<CalendarClock size={19} color={c.accentInk} />}
-                    block
-                    size="lg"
-                    onPress={() => router.push(`/hand-in/${task.id}` as Href)}
-                  />
+                  /*
+                   * Scheduling is the ending, so it is only offered at the end.
+                   *
+                   * Aria writes one section of a six-part project and used to
+                   * follow it with "Schedule for later", which tells somebody a
+                   * sixth of the way through that Aria thinks they are done. At
+                   * best that is noise; at worst they take it, set a date and
+                   * stop. When there is work left, the loud button is the work,
+                   * and the ending stays available underneath for the person
+                   * who has a deadline to set regardless.
+                   */
+                  readiness.ready ? (
+                    <Button
+                      title="Schedule for later"
+                      leftIcon={<CalendarClock size={19} color={c.accentInk} />}
+                      block
+                      size="lg"
+                      onPress={() => router.push(`/hand-in/${task.id}` as Href)}
+                    />
+                  ) : (
+                    <>
+                      <Button
+                        title={upNext ? `Keep going: ${upNext.title}` : 'Keep working on it'}
+                        leftIcon={<ArrowRight size={19} color={c.accentInk} />}
+                        block
+                        size="lg"
+                        onPress={() => {
+                          tap();
+                          if (upNext) void generateSub(upNext);
+                          else router.replace(`/task/${task.id}`);
+                        }}
+                      />
+                      <Text variant="caption" tone="muted" className="text-center">
+                        {readiness.blocker}
+                      </Text>
+                      <Button
+                        title="Set when it goes out anyway"
+                        variant="ghost"
+                        size="sm"
+                        block
+                        onPress={() => router.push(`/hand-in/${task.id}` as Href)}
+                      />
+                    </>
+                  )
                 ) : (
                   <Button
                     title="Mark complete"
