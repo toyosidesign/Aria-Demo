@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import type { AriaAction } from '@/lib/aria-actions';
 import { useColors } from '@/lib/colors';
 import { formatTime } from '@/lib/dates';
+import { isWorkKind } from '@/lib/task-flow';
 import { type Task } from '@/store/aria-store';
 
 /**
@@ -118,11 +119,23 @@ export function AriaTodayCard({
         screen still has the date.
       */}
       <View className="pt-1">
+        {/*
+          Work opens at the task, everything else opens in the chat.
+
+          Aria's chat is the right door for a card or a message: there is one
+          thing to write, Aria writes it, and the whole exchange is the screen.
+          A piece of work is not like that. Its checklist is the thing being
+          worked through, it lives on the task, and dropping somebody straight
+          into a draft of one part skips past the list that says which part and
+          how many are left. "Continue" should land where the work is.
+        */}
         <Button
           title={action.cta}
           leftIcon={<Sparkles size={17} color={c.accentInk} />}
           onPress={() =>
-            action.readyToSend ? setSendOpen(true) : router.push(`/aria/${task.id}`)
+            action.readyToSend
+              ? setSendOpen(true)
+              : router.push(isWorkKind(task.kind) ? `/task/${task.id}` : `/aria/${task.id}`)
           }
           block
         />

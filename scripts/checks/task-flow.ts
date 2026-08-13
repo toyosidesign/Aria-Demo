@@ -1948,6 +1948,28 @@ test('the writing screen no longer offers a second calendar', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Continue lands where the work is');
+
+test('a work card opens the task, a message card opens the chat', () => {
+  /*
+   * Aria's chat is the right door for a card or a message: there is one thing
+   * to write, Aria writes it, and the exchange is the whole screen. A piece of
+   * work is not like that. The checklist is what is being worked through, it
+   * lives on the task, and dropping somebody straight into a draft of one part
+   * skips the list that says which part and how many are left.
+   */
+  const card = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/components/aria-today-card.tsx'),
+    'utf8',
+  );
+  assert.match(
+    card,
+    /isWorkKind\(task\.kind\) \? `\/task\/\$\{task\.id\}` : `\/aria\/\$\{task\.id\}`/,
+    'work opens at the task, everything else in the chat',
+  );
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Finished work can go now or later');
 
 test('sending now is offered beside scheduling', () => {
