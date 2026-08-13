@@ -12,6 +12,8 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
 import {
   DEFAULT_ACTION_TIME,
@@ -23,6 +25,12 @@ import {
   runAtFor,
 } from '@/lib/daily-review';
 import { TIERS, can, tierOf } from '@/lib/entitlements';
+import {
+  FREE_DAILY_WRITES,
+  limitReachedNote,
+  remainingWrites,
+  writesLeftNote,
+} from '@/lib/quota';
 import { routeForNotification } from '@/lib/notification-routes';
 import { WORK_AHEAD_DAYS, WORK_AHEAD_LIMIT, workAhead, workAheadReport } from '@/lib/work-ahead';
 import { catchUp, catchUpReport } from '@/lib/plan';
@@ -308,14 +316,56 @@ test('a draft is never regenerated over one that exists', () => {
   assert.equal(items.length, 0);
 });
 
-test('work with no steps gets broken down, work with steps is left alone', () => {
+test('work with no steps gets broken down; work with steps gets the next one started', () => {
+  /*
+   * The breakdown used to be where Pro stopped: Aria produced the list
+   * overnight and then waited, so somebody woke to six blank parts and the same
+   * blank page they went to bed with. Now the first unwritten part is started.
+   *
+   * One part, and never ticked. Writing the whole essay while its author sleeps
+   * is not help, it is a submission nobody has read, and the difference between
+   * those two is exactly one part and an untouched checkbox.
+   */
   const withoutSteps = workAhead([task({ kind: 'assignment', method: 'steps', subtasks: [] })], TODAY);
   assert.equal(withoutSteps[0]?.kind, 'breakdown');
+
   const withSteps = workAhead(
-    [task({ kind: 'assignment', method: 'steps', subtasks: [{ id: 's', title: 'Read', done: false }] })],
+    [
+      task({
+        kind: 'assignment',
+        method: 'steps',
+        subtasks: [
+          { id: 's1', title: 'Read', done: true },
+          { id: 's2', title: 'Methods', done: false },
+          { id: 's3', title: 'Results', done: false },
+        ],
+      }),
+    ],
     TODAY,
   );
-  assert.equal(withSteps.length, 0);
+  assert.equal(withSteps.length, 1, 'one part per pass, not the whole plan');
+  assert.equal(withSteps[0].kind, 'part');
+  assert.equal(withSteps[0].subtaskTitle, 'Methods', 'the first one nobody has written');
+});
+
+test('a part already written is left alone', () => {
+  /*
+   * Same rule as a draft that exists: somebody may have written or edited that
+   * section themselves, and rewriting it overnight is Aria overwriting work
+   * while its owner is not looking.
+   */
+  const items = workAhead(
+    [
+      task({
+        kind: 'assignment',
+        method: 'steps',
+        subtasks: [{ id: 's2', title: 'Methods', done: false }],
+        draftSections: [{ title: 'Methods', content: 'Mine, written by hand.' }],
+      }),
+    ],
+    TODAY,
+  );
+  assert.equal(items.length, 0);
 });
 
 test('the queue is bounded and takes the soonest first', () => {
@@ -585,6 +635,69 @@ test('words are counted the way a marker counts them', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Free has a day of writing, and everything else forever');
+
+test('the allowance resets daily and never carries over', () => {
+  /*
+   * Unused writing is not credit. A week away should not buy a Sunday of
+   * eighty-four drafts, and the number people plan around is the daily one.
+   */
+  assert.equal(remainingWrites(undefined, TODAY), FREE_DAILY_WRITES, 'a fresh day is full');
+  assert.equal(remainingWrites({ date: TODAY, count: 5 }, TODAY), FREE_DAILY_WRITES - 5);
+  assert.equal(
+    remainingWrites({ date: '2026-01-01', count: FREE_DAILY_WRITES }, TODAY),
+    FREE_DAILY_WRITES,
+    "yesterday's spending is yesterday's",
+  );
+  assert.equal(remainingWrites({ date: TODAY, count: 99 }, TODAY), 0, 'never negative');
+});
+
+test('the app stays quiet until the limit is nearly here', () => {
+  /*
+   * Counting down from twelve turns a planner into a meter. The point is a
+   * limit somebody meets on a heavy day and never notices on an ordinary one.
+   */
+  assert.equal(writesLeftNote({ date: TODAY, count: 2 }, TODAY), null, 'silent early on');
+  assert.match(writesLeftNote({ date: TODAY, count: 11 }, TODAY) ?? '', /1 piece/);
+  assert.match(writesLeftNote({ date: TODAY, count: 12 }, TODAY) ?? '', /resets tomorrow/);
+});
+
+test('being stopped says the number, the time, and what still works', () => {
+  /*
+   * Somebody stopped mid-task is owed a fact and a time, not a pitch. And the
+   * sentence has to be true: reminders, plans, the checklist and sending are
+   * not part of the allowance, so the app must not imply they are.
+   */
+  const note = limitReachedNote();
+  assert.match(note, new RegExp(`${FREE_DAILY_WRITES} pieces of writing`));
+  assert.match(note, /resets tomorrow/);
+  assert.match(note, /plans, reminders, checklist and sending/);
+  assert.match(note, /Pro removes the cap/, 'offered once, not leaned on');
+});
+
+test('only the routes that write are charged for', () => {
+  /*
+   * Health and mail are not writing. A limit that stopped an email going out
+   * would be charging for the part of the app that has nothing to do with the
+   * thing being limited, which is how a fair cap starts feeling like a toll.
+   */
+  const client = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/api-client.ts'), 'utf8');
+  for (const route of ['/api/assistant', '/api/draft', '/api/subtasks', '/api/guide', '/api/brief']) {
+    assert.ok(client.includes(`'${route}'`), `${route} spends the allowance`);
+  }
+  const costs = client.slice(client.indexOf('const COSTS_WRITING'), client.indexOf('export async function postJson'));
+  assert.ok(!costs.includes('/api/health'), 'health is free');
+  assert.ok(!costs.includes('/api/send-email'), 'and so is sending');
+  // Refused in the server's own shape, so every caller already handles it.
+  assert.match(client, /status: 429/);
+});
+
+test('Pro is not counted at all', () => {
+  const store = readFileSync(path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'), 'utf8');
+  assert.match(store, /if \(st\.pro\) return true;/, 'paid accounts skip the meter entirely');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 console.log(
   failures.length
     ? `\n\x1b[31m${failures.length} failed\x1b[0m, ${passed} passed\n` +
@@ -592,3 +705,4 @@ console.log(
     : `\n\x1b[32mAll ${passed} review checks passed.\x1b[0m`,
 );
 process.exit(failures.length ? 1 : 0);
+

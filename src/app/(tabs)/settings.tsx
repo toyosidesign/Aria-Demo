@@ -15,6 +15,7 @@ import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/co
 import { formatLong, formatTime, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
 import { checkHealth, healthCopy, mailCopy, type Health } from '@/lib/health';
+import { writesLeftNote } from '@/lib/quota';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
 import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
@@ -59,6 +60,9 @@ export default function SettingsScreen() {
   const clearAllData = useAriaStore((s) => s.clearAllData);
   const replayOnboarding = useAriaStore((s) => s.replayOnboarding);
   const pro = useAriaStore((s) => s.pro);
+  const writes = useAriaStore((s) => s.writes);
+  /** What is left of today's free writing, or nothing worth saying. */
+  const writesLeft = writesLeftNote(writes, demoDate);
   const setPro = useAriaStore((s) => s.setPro);
 
   function confirmReset() {
@@ -163,6 +167,20 @@ export default function SettingsScreen() {
               {mail.detail}
             </Text>
           </View>
+
+          {/*
+            What is left of a free day, once there is little enough to matter.
+
+            Silent above three, because counting down from twelve turns a
+            planner into a meter, and this is meant to be a limit somebody meets
+            on a heavy day and never notices on an ordinary one. Absent entirely
+            on Pro, which is not counted at all.
+          */}
+          {!pro && writesLeft ? (
+            <Text variant="caption" tone="muted" className="text-center">
+              {writesLeft}
+            </Text>
+          ) : null}
 
           {/*
             Which build the phone is actually running, in development only.

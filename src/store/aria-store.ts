@@ -28,6 +28,7 @@ import {
 import { SEED_CONTACTS, type Contact } from '@/lib/contacts';
 import { DEFAULT_REVIEW_TIME, syncDailyReview } from '@/lib/daily-brief';
 import { sampleDataPresent } from '@/lib/demo';
+import { FREE_DAILY_WRITES, spentToday, type WriteQuota } from '@/lib/quota';
 import type { Source } from '@/lib/source';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEME_NAMES, type ThemePref } from '@/lib/themes';
 import { showToast } from '@/lib/toast';
@@ -848,6 +849,22 @@ interface AriaState {
   chat: ChatMessage[];
   addChatMessage: (message: ChatMessage) => void;
   clearChat: () => void;
+  /**
+   * What a free account has spent on writing today. See lib/quota.ts.
+   *
+   * Persisted with everything else, and deliberately per device rather than
+   * per account: this is a product limit on a demo, not an anti-abuse control,
+   * and the honest place for the real one is the server, which does not know
+   * the tier yet.
+   */
+  writes?: WriteQuota;
+  /**
+   * Take one, if there is one to take.
+   *
+   * True when the caller may go ahead. Pro is always true; Free spends from
+   * today's allowance and returns false once it is gone.
+   */
+  spendWrite: () => boolean;
   /** Per-task conversations, keyed by task id. See WorkChat. */
   workChats: Record<string, WorkChat>;
   pushWorkMessage: (taskId: string, message: WorkMessage) => void;
@@ -1574,6 +1591,15 @@ export const useAriaStore = create<AriaState>()(
         set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
       clearChat: () => set({ chat: [] }),
 
+      spendWrite: () => {
+        const st = get();
+        if (st.pro) return true;
+        const today = st.demoDate;
+        const spent = spentToday(st.writes, today);
+        if (spent >= FREE_DAILY_WRITES) return false;
+        set({ writes: { date: today, count: spent + 1 } });
+        return true;
+      },
       pushWorkMessage: (taskId, rawMessage) => {
         /*
          * A unique id, whatever the caller passed.
@@ -1703,6 +1729,8 @@ export const useAriaStore = create<AriaState>()(
         chat: s.chat,
         // The per-task threads, or Continue opens on an empty screen again.
         workChats: s.workChats,
+        // Today's allowance, or closing the app is a way to reset it.
+        writes: s.writes,
         lastUserId: s.lastUserId,
       }),
       /*

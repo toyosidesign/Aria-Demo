@@ -41,7 +41,19 @@ export type WorkKind =
   /** Words to send: a card, a message, an email. */
   | 'draft'
   /** The steps a piece of work breaks into. */
-  | 'breakdown';
+  | 'breakdown'
+  /**
+   * The next unfinished part of a plan, written ahead of being asked.
+   *
+   * The breakdown was where Pro stopped: Aria produced the list overnight and
+   * then waited, so the person still faced six blank parts in the morning. This
+   * is Aria having made a start on the first of them.
+   *
+   * One part per pass, and never ticked off. Writing the whole essay while
+   * somebody sleeps is not help, it is a submission they have not read, and the
+   * tick is the thing that says they have.
+   */
+  | 'part';
 
 export interface WorkItem {
   taskId: string;
@@ -49,6 +61,10 @@ export interface WorkItem {
   kind: WorkKind;
   /** The day it is for, so the queue can put the soonest first. */
   date: string;
+  /** Which part, on a `part` item. Its id, so a renamed step still matches. */
+  subtaskId?: string;
+  /** That part's name, for anything that has to say what was written. */
+  subtaskTitle?: string;
 }
 
 /**
@@ -121,6 +137,30 @@ export function workAhead(tasks: Task[], today: string, limit = WORK_AHEAD_LIMIT
     // it is the slowest thing to sit down and do yourself.
     if (BREAKS_DOWN.has(task.kind) && task.subtasks.length === 0 && task.title.trim()) {
       items.push({ taskId: task.id, title: task.title, kind: 'breakdown', date: task.date });
+      continue;
+    }
+
+    /*
+     * A plan that exists, with a part nobody has written yet.
+     *
+     * The first unfinished one only. Aria making a start is the offer; Aria
+     * finishing the assignment overnight is a submission nobody has read, and
+     * the difference between those two is a single part and an untouched
+     * checkbox.
+     */
+    if (BREAKS_DOWN.has(task.kind) && task.subtasks.length) {
+      const next = task.subtasks.find((st) => !st.done);
+      const written = new Set((task.draftSections ?? []).map((d) => d.title));
+      if (next && !written.has(next.title)) {
+        items.push({
+          taskId: task.id,
+          title: task.title,
+          kind: 'part',
+          date: task.date,
+          subtaskId: next.id,
+          subtaskTitle: next.title,
+        });
+      }
     }
   }
 
@@ -137,10 +177,22 @@ export function workAhead(tasks: Task[], today: string, limit = WORK_AHEAD_LIMIT
 export function workAheadReport(done: WorkItem[]): string | null {
   if (!done.length) return null;
   const drafts = done.filter((d) => d.kind === 'draft').length;
-  const breakdowns = done.length - drafts;
+  const written = done.filter((d) => d.kind === 'part');
+  const breakdowns = done.length - drafts - written.length;
   const parts: string[] = [];
   if (drafts) parts.push(`${drafts} ${drafts === 1 ? 'message' : 'messages'} written`);
   if (breakdowns) parts.push(`${breakdowns} ${breakdowns === 1 ? 'plan' : 'plans'} broken down`);
+  /*
+   * Named, not counted.
+   *
+   * "1 part written" is a number somebody has to go and decode. The part has a
+   * title, and it is the one thing that tells them whether to look now.
+   */
+  if (written.length === 1 && written[0].subtaskTitle) {
+    parts.push(`“${written[0].subtaskTitle}” drafted`);
+  } else if (written.length) {
+    parts.push(`${written.length} parts drafted`);
+  }
   /*
    * Short enough to read at a glance, because that is all a toast gets.
    *

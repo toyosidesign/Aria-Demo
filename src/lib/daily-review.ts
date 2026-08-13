@@ -163,12 +163,41 @@ export function buildReview(tasks: Task[], today: string, now: Date = new Date()
   };
 }
 
+/**
+ * The part Aria wrote while nobody was looking, if it wrote one.
+ *
+ * A section exists under a part's name and that part is not ticked. Both halves
+ * matter: the section is the work, and the untouched tick is what says nobody
+ * has read it yet, which is precisely what the morning is for.
+ */
+function draftedOvernight(task: Task): string | null {
+  const titles = new Set((task.draftSections ?? []).map((d) => d.title));
+  return task.subtasks.find((st) => !st.done && titles.has(st.title))?.title ?? null;
+}
+
 function toItem(task: Task, now: Date): ReviewItem {
   const channel = channelFor(task);
 
   // Nothing to send: an essay, a call, a reminder. Aria can plan it, break it
   // down and nag about it, but it cannot do it, and the review says so.
   if (!channel) {
+    /*
+     * Unless Aria wrote a part of it overnight, in which case it says which.
+     *
+     * A piece of work is "yours to do" right up until Aria has done some of it,
+     * and reporting that as untouched is the same silence the whole review
+     * exists to break. The part is written and sitting unticked, so what the
+     * morning owes them is its name and where to look.
+     */
+    const started = draftedOvernight(task);
+    if (started) {
+      return {
+        taskId: task.id,
+        title: task.title,
+        outcome: 'yours',
+        line: `I made a start on “${started}” overnight. Read it and tick it off if it stands.`,
+      };
+    }
     return {
       taskId: task.id,
       title: task.title,

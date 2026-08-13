@@ -3,7 +3,7 @@ import { assemble, factsFromSections, readyToAssemble } from '@/lib/assemble';
 import { catchUp } from '@/lib/plan';
 import { requestChecklist } from '@/lib/subtasks';
 import { isWorkKind } from '@/lib/task-flow';
-import { ASSEMBLED_SECTION as ASSEMBLED, writtenSections } from '@/lib/sections';
+import { ASSEMBLED_SECTION as ASSEMBLED, ownInstruction, writtenSections } from '@/lib/sections';
 import { workAhead, workAheadReport, type WorkItem } from '@/lib/work-ahead';
 import { useAriaStore } from '@/store/aria-store';
 
@@ -89,6 +89,49 @@ export async function runWorkAhead(): Promise<WorkPass> {
         });
         if (res.message?.trim()) {
           useAriaStore.getState().updateTask(task.id, { description: res.message.trim() });
+          pass.prepared.push(item);
+        }
+        continue;
+      }
+
+      /*
+       * A part of the plan, written and left unticked.
+       *
+       * Stored exactly as the walkthrough stores an accepted one, because it is
+       * the same thing: a section of the work, under the part's name. What is
+       * deliberately missing is the tick. Aria has made a start; saying it is
+       * done is the person's to say, and the morning review is where they say
+       * it.
+       */
+      if (item.kind === 'part') {
+        const part = task.subtasks.find((st) => st.id === item.subtaskId);
+        if (!part || part.done) continue;
+        if ((task.draftSections ?? []).some((d) => d.title === part.title)) continue;
+
+        const res = await requestDraft({
+          title: task.title,
+          kind: task.kind,
+          method: task.method,
+          subtaskTitle: part.title,
+          description: task.description,
+          senderName: store.profile.name,
+          senderContext: store.profile.context,
+          ownInstruction: ownInstruction(task.draftSections),
+          learner: {
+            role: store.profile.role,
+            studying: store.profile.studying,
+            level: store.profile.level,
+            interests: store.profile.interests,
+            explainStyle: store.profile.explainStyle,
+          },
+        });
+        // A scripted stand-in must never be filed as work Aria did overnight:
+        // the person would wake to a section they did not write and Aria did
+        // not either.
+        if (res.message?.trim() && !res.fallback) {
+          useAriaStore
+            .getState()
+            .addDraftSection(task.id, { title: part.title, content: res.message.trim() });
           pass.prepared.push(item);
         }
         continue;

@@ -1,7 +1,10 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { limitReachedNote } from '@/lib/quota';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { showToast } from '@/lib/toast';
+import { useAriaStore } from '@/store/aria-store';
 
 /**
  * Calling Aria's own API routes.
@@ -62,7 +65,43 @@ export function apiUrl(path: string): string {
 }
 
 /** POST JSON to one of Aria's routes with the caller's credentials attached. */
+/**
+ * The routes that cost money, and therefore the ones a free day is spent on.
+ *
+ * Listed rather than inferred: a route added later should have to be thought
+ * about once, here, rather than quietly becoming free forever or quietly
+ * costing somebody their allowance.
+ *
+ * `/api/health` and `/api/send-email` are deliberately absent. Neither writes
+ * anything, and a limit that stops mail going out would be charging for the
+ * part of the app that has nothing to do with writing.
+ */
+const COSTS_WRITING = new Set([
+  '/api/assistant',
+  '/api/draft',
+  '/api/subtasks',
+  '/api/guide',
+  '/api/brief',
+]);
+
 export async function postJson(path: string, body: unknown): Promise<Response> {
+  /*
+   * The free day's allowance, spent here because everything passes through.
+   *
+   * One choke point rather than a check in each of five callers, three of which
+   * are libraries the check suites load without a store. A refusal is shaped
+   * like the server's own 429 so every caller already handles it: they fall
+   * back to their scripted path, which is the right behaviour, and the toast is
+   * what stops that reading as Aria having got worse.
+   */
+  if (COSTS_WRITING.has(path) && !useAriaStore.getState().spendWrite()) {
+    showToast(limitReachedNote(), 'clock');
+    return new Response(JSON.stringify({ error: 'Daily writing limit reached' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   return fetch(apiUrl(path), {
     method: 'POST',
     headers: await apiHeaders(),
