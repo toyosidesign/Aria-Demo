@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 /**
  * Getting an email out, by whichever route this deployment actually has.
  *
- * ── Why there are two ───────────────────────────────────────────────────────
+ * ── Why there are three ─────────────────────────────────────────────────────
  *
  * Resend will not send to anybody except the account owner until a domain has
  * been verified, which needs a domain, DNS records and a wait. That is the
@@ -16,15 +16,22 @@ import nodemailer from 'nodemailer';
  * demonstrating it rather than from a no-reply address on a domain nobody
  * recognises.
  *
+ * And Gmail is not available to everyone: Workspace admins turn app passwords
+ * off and Advanced Protection removes them, with Google saying only that "the
+ * setting you are looking for is not available for your account". So the third
+ * route is plain SMTP, which every free provider speaks and most will use with
+ * a single verified sender address rather than a whole verified domain.
+ *
  * ── Which one wins ──────────────────────────────────────────────────────────
  *
- * Gmail, when it is configured, because configuring it is a deliberate act.
- * Nobody sets an app password by accident, and the alternative rule, "use
- * Resend if it is configured", would leave this project exactly where it
- * started: a working Resend key that silently refuses every recipient but one.
+ * The most deliberately configured. SMTP credentials, then a Gmail app
+ * password, then Resend. Nobody sets either of the first two by accident, and
+ * the alternative rule, "use Resend if it is configured", would leave this
+ * project exactly where it started: a working key that silently refuses every
+ * recipient but one.
  */
 
-export type MailProvider = 'gmail' | 'resend' | 'none';
+export type MailProvider = 'smtp' | 'gmail' | 'resend' | 'none';
 
 export interface MailResult {
   sent: boolean;
@@ -37,8 +44,29 @@ export interface MailResult {
 const gmailUser = () => process.env.GMAIL_USER?.trim();
 const gmailPass = () => process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, '');
 
+/*
+ * Any SMTP server, not just Google's.
+ *
+ * Gmail app passwords are not available on every account: Workspace admins turn
+ * them off, Advanced Protection removes them, and Google shows "the setting you
+ * are looking for is not available for your account" without saying which of
+ * those it is. That is not a problem anyone can fix from inside this app.
+ *
+ * Every other free provider, Brevo, SendGrid, Mailjet, will verify a single
+ * sender address instead of a whole domain, which means an ordinary Gmail
+ * address can be the sender with no DNS at all. They all speak plain SMTP, so
+ * one set of variables covers them and this app never needs to know which was
+ * chosen.
+ */
+const smtpHost = () => process.env.SMTP_HOST?.trim();
+const smtpUser = () => process.env.SMTP_USER?.trim();
+const smtpPass = () => process.env.SMTP_PASS?.trim();
+/** Who the mail is from. Must be an address the provider has verified. */
+const smtpFrom = () => process.env.SMTP_FROM?.trim() || smtpUser();
+
 /** What this deployment can do, asked without sending anything. */
 export function mailProvider(): MailProvider {
+  if (smtpHost() && smtpUser() && smtpPass()) return 'smtp';
   if (gmailUser() && gmailPass()) return 'gmail';
   if (process.env.RESEND_API_KEY && process.env.ARIA_FROM_EMAIL) return 'resend';
   return 'none';
@@ -52,7 +80,9 @@ export function mailProvider(): MailProvider {
  * watches an email to their tutor not arrive.
  */
 export function canEmailAnyone(): boolean {
-  if (mailProvider() !== 'resend') return mailProvider() === 'gmail';
+  const provider = mailProvider();
+  if (provider === 'smtp' || provider === 'gmail') return true;
+  if (provider === 'none') return false;
   const from = process.env.ARIA_FROM_EMAIL ?? '';
   // resend.dev is their shared sandbox sender, and it is the giveaway: mail
   // from it only ever reaches the account holder.
@@ -67,12 +97,23 @@ export function canEmailAnyone(): boolean {
  * looks like hammering to them.
  */
 let transport: nodemailer.Transporter | null = null;
-function gmailTransport() {
+function mailTransport(provider: 'smtp' | 'gmail') {
   if (transport) return transport;
-  transport = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: gmailUser(), pass: gmailPass() },
-  });
+  transport =
+    provider === 'gmail'
+      ? nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: gmailUser(), pass: gmailPass() },
+        })
+      : nodemailer.createTransport({
+          host: smtpHost(),
+          // 587 with STARTTLS is what every one of these providers documents
+          // first; 465 is implicit TLS and `secure` has to agree with the port
+          // or the connection hangs rather than failing, which is worse.
+          port: Number(process.env.SMTP_PORT ?? 587),
+          secure: Number(process.env.SMTP_PORT ?? 587) === 465,
+          auth: { user: smtpUser(), pass: smtpPass() },
+        });
   return transport;
 }
 
@@ -84,13 +125,14 @@ export async function sendMail(msg: {
 }): Promise<MailResult> {
   const provider = mailProvider();
 
-  if (provider === 'gmail') {
+  if (provider === 'gmail' || provider === 'smtp') {
     try {
-      await gmailTransport().sendMail({
+      await mailTransport(provider).sendMail({
         // Named, so it arrives as a person rather than as an address. The
-        // account itself is still the sender: Gmail will not let it pretend
-        // otherwise, and that honesty is the point of this route.
-        from: `Aria <${gmailUser()}>`,
+        // address itself is whatever the provider has agreed to: Gmail will not
+        // let an app password pretend to be anyone else, and the others send
+        // only from an address they have verified.
+        from: `Aria <${provider === 'gmail' ? gmailUser() : smtpFrom()}>`,
         to: msg.to.join(', '),
         subject: msg.subject,
         text: msg.text,
@@ -99,12 +141,13 @@ export async function sendMail(msg: {
       return { sent: true, provider };
     } catch (err) {
       /*
-       * Google's rejections are specific and worth keeping.
+       * The server's own words, kept for the log.
        *
-       * "Username and Password not accepted" means an ordinary account password
-       * was used where an app password is required, which is the mistake
-       * everyone makes once, and it is unrecoverable from a generic failure
-       * message.
+       * They are specific in a way nothing this app could reconstruct is:
+       * "Username and Password not accepted" is an ordinary password used where
+       * an app password belongs, and "sender address not verified" is a single
+       * sender that was never confirmed. Both are one click to fix and
+       * impossible to guess from a generic failure.
        */
       return { sent: false, provider, error: err instanceof Error ? err.message : String(err) };
     }

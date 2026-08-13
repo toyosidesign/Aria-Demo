@@ -104,7 +104,7 @@ export function mailCopy(h: Health): { title: string; detail: string; good: bool
     return {
       title: 'Aria can only email you',
       detail:
-        'The sender is a sandbox address, so mail reaches the account holder and nobody else. Verify a domain, or set GMAIL_USER and GMAIL_APP_PASSWORD to send from your own address.',
+        'The sender is a sandbox address, so mail reaches the account holder and nobody else. Set SMTP_HOST, SMTP_USER and SMTP_PASS for any provider with a verified sender, or GMAIL_USER and GMAIL_APP_PASSWORD, or verify a domain with Resend.',
       good: false,
     };
   }

@@ -1315,18 +1315,35 @@ test('offline, a question gets an admission rather than a fresh paragraph', () =
 // ───────────────────────────────────────────────────────────────────────────────
 section('Mail goes out by whichever route this deployment has');
 
-test('Gmail wins when it is configured, because configuring it is deliberate', () => {
+test('the most deliberately configured route wins', () => {
   /*
-   * The alternative rule, "use Resend if it is configured", leaves this project
-   * exactly where it started: a working Resend key that silently refuses every
-   * recipient except the account holder. Nobody sets a Gmail app password by
-   * accident.
+   * SMTP, then a Gmail app password, then Resend. Nobody sets either of the
+   * first two by accident, and the alternative rule, "use Resend if it is
+   * configured", leaves this project exactly where it started: a working key
+   * that silently refuses every recipient except the account holder.
    */
   const mailer = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/mailer.ts'), 'utf8');
-  assert.match(mailer, /if \(gmailUser\(\) && gmailPass\(\)\) return 'gmail';/);
-  const gmailAt = mailer.indexOf("return 'gmail'");
-  const resendAt = mailer.indexOf("return 'resend'");
-  assert.ok(gmailAt > 0 && gmailAt < resendAt, 'Gmail is checked first');
+  const order = ["return 'smtp'", "return 'gmail'", "return 'resend'"].map((s) =>
+    mailer.indexOf(s),
+  );
+  assert.ok(order.every((i) => i > 0), 'all three routes exist');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'and are checked in that order');
+});
+
+test('plain SMTP exists, because Gmail is not available to everyone', () => {
+  /*
+   * Workspace admins turn app passwords off and Advanced Protection removes
+   * them, and Google says only that "the setting you are looking for is not
+   * available for your account". Nothing in this app can fix that, so there has
+   * to be a route that does not depend on Google at all. Every free provider
+   * speaks SMTP, and most verify a single sender address rather than a domain.
+   */
+  const mailer = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/mailer.ts'), 'utf8');
+  assert.match(mailer, /SMTP_HOST/);
+  assert.match(mailer, /SMTP_FROM/, 'the verified sender, which is not always the login');
+  // 465 is implicit TLS and `secure` has to agree with the port, or the
+  // connection hangs rather than failing, which is the worse of the two.
+  assert.match(mailer, /secure: Number\(process\.env\.SMTP_PORT \?\? 587\) === 465/);
 });
 
 test('a sandbox sender is recognised as reaching nobody but the account holder', () => {
