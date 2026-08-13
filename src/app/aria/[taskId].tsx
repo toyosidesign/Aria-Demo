@@ -32,6 +32,7 @@ import type { Source } from '@/lib/source';
 import { uuidv4 } from '@/lib/id';
 import { goBack } from '@/lib/nav';
 import { looksLikeQuestion } from '@/lib/question';
+import { isWorkKind } from '@/lib/task-flow';
 import { handInReadiness } from '@/lib/ready';
 import { WORKING_SECTION, ownInstruction, workingDraft, writtenSections } from '@/lib/sections';
 import { UNCHANGED_NOTICE } from '@/lib/assistant';
@@ -164,7 +165,33 @@ export default function AriaFlowScreen() {
     explainStyle: profileExplainStyle,
   };
 
-  const action = task ? ariaActionFor(task) : null;
+  /*
+   * Work keeps this screen even when there is nothing left to offer.
+   *
+   * `ariaActionFor` returns null for a piece of work with every part ticked,
+   * which is right for the home card: proposing to write again is proposing to
+   * redo finished work. It was wrong here. The moment the last part was checked
+   * off, the offer disappeared, this screen fell through to "there's nothing
+   * for Aria to do on this one", and the entire conversation went with it,
+   * along with the buttons for sending or saving what had just been finished.
+   *
+   * So finished work gets a placeholder rather than nothing. It carries no
+   * offer and no cta, because there is nothing to propose; it exists so the
+   * thread and the endings stay on screen.
+   */
+  const liveAction = task ? ariaActionFor(task) : null;
+  const action =
+    liveAction ??
+    (task && isWorkKind(task.kind)
+      ? {
+          type: 'assignment' as const,
+          method: task.method ?? ('steps' as const),
+          offer: '',
+          cta: '',
+          needsSend: false,
+          drafting: 'it',
+        }
+      : null);
 
   /*
    * The thread lives in the store, not in this screen.
@@ -439,6 +466,25 @@ export default function AriaFlowScreen() {
      */
     if (isAssignmentKind && !task.subtasks.length) {
       void planItOut();
+      return;
+    }
+
+    /*
+     * Finished work opens on what it is, not on a fresh draft.
+     *
+     * Every part ticked and nothing pending: the old fall-through wrote
+     * something new, which is Aria answering "I have finished" with "here is
+     * more". The endings below are what belongs on this screen now.
+     */
+    if (isAssignmentKind && !task.subtasks.some((st) => !st.done)) {
+      push(
+        mk(
+          'aria',
+          'text',
+          'Every part of this is done. Send it, save it as a document, or mark it finished.',
+        ),
+      );
+      setPhase('done');
       return;
     }
 

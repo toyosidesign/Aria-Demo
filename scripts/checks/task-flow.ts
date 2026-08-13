@@ -2169,6 +2169,28 @@ test('an outline part is a shape, a draft part is prose', () => {
   assert.match(route, /Produce the actual draft prose for just that section/);
 });
 
+test('finishing the last part does not empty the screen', () => {
+  /*
+   * `ariaActionFor` returns null for work with every part ticked, which is
+   * right for the home card: proposing to write again is proposing to redo
+   * finished work. It was wrong on this screen. The moment the last part was
+   * checked off the offer vanished, the screen fell through to "there is
+   * nothing for Aria to do on this one", and the whole conversation went with
+   * it, along with the buttons for sending or saving what had just been
+   * finished.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const liveAction = task \? ariaActionFor\(task\) : null;/);
+  assert.match(screen, /liveAction \?\?\n\s*\(task && isWorkKind\(task\.kind\)/, 'work keeps the screen');
+  // And opening finished work says so rather than writing something new, which
+  // is Aria answering "I have finished" with "here is more".
+  assert.match(screen, /!task\.subtasks\.some\(\(st\) => !st\.done\)\) \{/);
+  assert.match(screen, /Every part of this is done\. Send it, save it as a document/);
+});
+
 test('work with no plan makes one, then starts it', () => {
   /*
    * Setting up an assignment is one question now, so this is what has to happen
