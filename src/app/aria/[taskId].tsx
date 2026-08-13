@@ -494,6 +494,31 @@ export default function AriaFlowScreen() {
     }
   }
 
+  /*
+   * What happens after a part is put down: the next one is named.
+   *
+   * Aria finishing a section and then going quiet leaves somebody looking at a
+   * screen with no idea whether that was the whole assignment. Both endings say
+   * where the work stands now, and the button underneath acts on it.
+   */
+  function sayWhatIsNext() {
+    const next = nextIncompleteSub(activeSubId ?? undefined);
+    const left = task!.subtasks.filter((st) => !st.done).length;
+    if (next) {
+      push(
+        mk(
+          'aria',
+          'text',
+          `That leaves ${left} of ${task!.subtasks.length} on the plan. Next is “${next.title}.” Say when and I will start it, or change the plan if it is not needed.`,
+        ),
+      );
+      return;
+    }
+    if (task!.subtasks.length) {
+      push(mk('aria', 'text', 'That was the last part on the plan. Nothing left to write.'));
+    }
+  }
+
   /** Keep it on the task, which is where Aria's own drafts live. */
   function keepOnTask() {
     tap();
@@ -507,6 +532,7 @@ export default function AriaFlowScreen() {
         'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
       ),
     );
+    sayWhatIsNext();
     setPhase('done');
   }
 
@@ -531,6 +557,7 @@ export default function AriaFlowScreen() {
         'There you go. Pick Notes, Files, or wherever suits. I’ve kept a copy on the task too, so it isn’t only in that file.',
       ),
     );
+    sayWhatIsNext();
     setPhase('done');
   }
 
@@ -1238,6 +1265,22 @@ export default function AriaFlowScreen() {
                     onPress={() =>
                       void exportWork(task.title, sectionsToText(writtenSections(task.draftSections)))
                     }
+                  />
+                  {/*
+                    Finishing, and only here.
+
+                    Every part is ticked and something is written, so this is
+                    the one moment where "done" is a true statement rather than
+                    a way off the screen. Below the two endings, because sending
+                    it and keeping it are what somebody came here to do and this
+                    is what they do afterwards.
+                  */}
+                  <Button
+                    title="Mark it finished"
+                    variant="secondary"
+                    leftIcon={<CheckCircle2 size={18} color={c.ink} />}
+                    block
+                    onPress={markComplete}
                   />
                 </>
               ) : null}

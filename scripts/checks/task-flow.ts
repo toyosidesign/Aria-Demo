@@ -1963,6 +1963,45 @@ test('the writing screen no longer offers a second calendar', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('One part finished points at the next');
+
+test('putting a part down says what is left and what is next', () => {
+  /*
+   * Aria finishing a section and then going quiet leaves somebody looking at a
+   * screen with no way of telling whether that was the whole assignment or one
+   * sixth of it. Both endings, kept on the task and saved as a document, now
+   * say where the work stands and name the next part; the button underneath is
+   * what acts on it.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /function sayWhatIsNext\(\)/);
+  assert.equal((screen.match(/sayWhatIsNext\(\);/g) ?? []).length, 2, 'both endings say it');
+  assert.match(screen, /Next is “\$\{next\.title\}\.”/, 'and name the part by name');
+  assert.match(screen, /That was the last part on the plan/, 'or say there is none');
+});
+
+test('finishing is offered on the last part, and only there', () => {
+  /*
+   * "Done" on a task three parts in is a way off the screen dressed as a
+   * statement about the work. On the last part, with everything ticked and
+   * something written, it is simply true.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  const ready = screen.search(/readiness\.ready &&\n\s*writtenSections/);
+  const finish = screen.indexOf('title="Mark it finished"');
+  assert.ok(ready > 0 && finish > ready, 'it sits inside the finished branch');
+  // And underneath the two endings, which are what somebody came here to do.
+  assert.ok(finish > screen.indexOf('Email it, at a time I pick'));
+  assert.ok(finish > screen.indexOf('title="Save as a document"'));
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('The plan is where the eye lands');
 
 test('the checklist sits above the step it produces', () => {
