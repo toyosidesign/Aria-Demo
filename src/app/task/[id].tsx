@@ -403,6 +403,65 @@ export default function TaskDetailScreen() {
         ) : null}
 
         {/*
+          The plan comes before the step it produces.
+
+          It used to sit under Aria's drafts, the send, the notes and the
+          proactive offer, which put it below the fold on every assignment. That
+          was survivable while it was only a progress display, and stopped being
+          survivable when finishing the plan became the thing that unlocks
+          sending: "Change the plan" arrived at the top of a screen whose plan
+          was six scrolls down.
+
+          It is also simply the more important object. The checklist is what the
+          work *is*; the card under it is only what to do next about it.
+        */}
+        {/* Checklist, tap an item for research help */}
+        {task.subtasks.length > 0 ? (
+          <View className="gap-2">
+            <View className="flex-row items-center justify-between">
+              <Text variant="label" tone="muted">
+                {isAssignmentKind ? 'Checklist' : 'Subtasks'}
+              </Text>
+              {isAssignmentKind ? (
+                <View className="flex-row items-center gap-1">
+                  <Sparkles size={12} color={c.faint} />
+                  <Text variant="caption" tone="faint">
+                    tap an item for research help
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <Card className="gap-0.5">
+              {task.subtasks.map((st) => (
+                <SubtaskRow key={st.id} task={task} st={st} />
+              ))}
+            </Card>
+          </View>
+        ) : needsChecklist ? (
+          <View className="gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4">
+            <View className="flex-row items-center gap-2">
+              <AriaAvatar size={26} />
+              <Text variant="subtitle" tone="accent" className="text-[16px] leading-[22px]">
+                Aria can help
+              </Text>
+            </View>
+            <Text className="text-[14px] leading-[20px]">
+              Want me to map out the topics to work on and turn them into a checklist? Then I can
+              help you research each one.
+            </Text>
+            <Button
+              title={genLoading ? 'Building your checklist…' : 'Generate checklist'}
+              loading={genLoading}
+              disabled={genLoading}
+              leftIcon={!genLoading ? <ListChecks size={18} color={c.accentInk} /> : undefined}
+              onPress={generateChecklist}
+              block
+            />
+          </View>
+        ) : null}
+
+
+        {/*
           ── One next step, not three doors ──────────────────────────────────
 
           This screen had grown three overlapping ways into the same piece of
@@ -627,51 +686,6 @@ export default function TaskDetailScreen() {
                 <GuideButton onPress={() => setGuideOpen(true)} />
               )}
             </Card>
-          </View>
-        ) : null}
-
-        {/* Checklist, tap an item for research help */}
-        {task.subtasks.length > 0 ? (
-          <View className="gap-2">
-            <View className="flex-row items-center justify-between">
-              <Text variant="label" tone="muted">
-                {isAssignmentKind ? 'Checklist' : 'Subtasks'}
-              </Text>
-              {isAssignmentKind ? (
-                <View className="flex-row items-center gap-1">
-                  <Sparkles size={12} color={c.faint} />
-                  <Text variant="caption" tone="faint">
-                    tap an item for research help
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <Card className="gap-0.5">
-              {task.subtasks.map((st) => (
-                <SubtaskRow key={st.id} task={task} st={st} />
-              ))}
-            </Card>
-          </View>
-        ) : needsChecklist ? (
-          <View className="gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4">
-            <View className="flex-row items-center gap-2">
-              <AriaAvatar size={26} />
-              <Text variant="subtitle" tone="accent" className="text-[16px] leading-[22px]">
-                Aria can help
-              </Text>
-            </View>
-            <Text className="text-[14px] leading-[20px]">
-              Want me to map out the topics to work on and turn them into a checklist? Then I can
-              help you research each one.
-            </Text>
-            <Button
-              title={genLoading ? 'Building your checklist…' : 'Generate checklist'}
-              loading={genLoading}
-              disabled={genLoading}
-              leftIcon={!genLoading ? <ListChecks size={18} color={c.accentInk} /> : undefined}
-              onPress={generateChecklist}
-              block
-            />
           </View>
         ) : null}
 

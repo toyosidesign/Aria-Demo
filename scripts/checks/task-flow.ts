@@ -1963,6 +1963,47 @@ test('the writing screen no longer offers a second calendar', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('The plan is where the eye lands');
+
+test('the checklist sits above the step it produces', () => {
+  /*
+   * It used to sit under Aria's drafts, the send, the notes and the proactive
+   * offer, which put it below the fold on every assignment. Survivable while it
+   * was a progress display; not survivable once finishing the plan became the
+   * thing that unlocks sending, because "Change the plan" then arrived at the
+   * top of a screen whose plan was six scrolls down.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  const checklist = screen.indexOf('{/* Checklist, tap an item for research help */}');
+  const nextStep = screen.indexOf('One next step, not three doors');
+  const drafts = screen.indexOf("{/* Aria's drafted content");
+  assert.ok(checklist > 0 && nextStep > 0 && drafts > 0, 'all three sections still exist');
+  assert.ok(checklist < nextStep, 'the plan comes before the step it produces');
+  assert.ok(checklist < drafts, 'and before the drafts it produced');
+});
+
+test('leaving is the corner, not a button under the actions', () => {
+  /*
+   * A full-width "Leave it for now" sat at the bottom of every state, under
+   * whatever else was on offer. The X in the corner already does that, from
+   * every state, without scrolling, and a second exit at the end of a list of
+   * actions is the largest thing on screen at the moment somebody is deciding
+   * what to do next.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.ok(!screen.includes("'Leave it for now'"), 'no second way out');
+  assert.match(screen, /<HeaderButton icon=\{X\}/, 'the corner still closes it');
+  // "Done" survives only where finishing is the actual answer.
+  assert.match(screen, /<Button title="Done" block size="lg" onPress=\{finish\} \/>/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Unfinished work cannot be sent');
 
 test('the ways of sending appear only once the work is finished', () => {

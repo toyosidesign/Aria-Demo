@@ -1241,23 +1241,22 @@ export default function AriaFlowScreen() {
                   />
                 </>
               ) : null}
-              {/* Calling this "Done" while the task is still open was the whole
-                  problem: it read as completion and only navigated away. */}
-              <Button
-                title={
-                  phase === 'declined' || (phase === 'done' && task.status === 'todo')
-                    ? 'Leave it for now'
-                    : 'Done'
-                }
-                variant={
-                  phase === 'declined' || (phase === 'done' && task.status === 'todo')
-                    ? 'ghost'
-                    : 'primary'
-                }
-                block
-                size="lg"
-                onPress={finish}
-              />
+              {/*
+                "Done" only where it means something, and never as a way out.
+
+                Leaving used to be a full-width button at the bottom of every
+                state, under whatever else was on offer, saying "Leave it for
+                now". The X in the corner already does that, from every state,
+                without scrolling, and a second exit at the end of a list of
+                actions competes with the actions: it is the largest thing on
+                screen at the moment somebody is deciding what to do next.
+
+                What is left is the case where finishing is the actual answer: a
+                task Aria has completed, where this closes it and moves on.
+              */}
+              {phase === 'declined' || (phase === 'done' && task.status === 'todo') ? null : (
+                <Button title="Done" block size="lg" onPress={finish} />
+              )}
             </View>
           ) : null}
 
