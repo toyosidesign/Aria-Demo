@@ -187,6 +187,40 @@ export interface ProposedTask {
 }
 
 /** One turn in the conversation with Aria. */
+/**
+ * One line of a task's own conversation with Aria.
+ *
+ * Kept apart from `chat`, which is the single thread on the chat tab. This one
+ * is per task: what Aria wrote for it, what was asked about it, and where the
+ * two of you got to.
+ */
+export interface WorkMessage {
+  id: string;
+  from: 'aria' | 'maya';
+  /** A draft renders as a card; everything else is a bubble. */
+  kind: 'text' | 'draft';
+  text: string;
+  /** The scripted stand-in wrote it rather than the model. Dev only. */
+  scripted?: boolean;
+}
+
+/**
+ * Where a task's conversation got to, so reopening it is not starting again.
+ *
+ * The messages used to live in the screen and die with it, so "Continue" opened
+ * on an empty thread and wrote the next part from scratch. Everything somebody
+ * had asked, and every answer, was gone. Persisted per device rather than
+ * synced: the work itself is what has to survive a new phone, and this is the
+ * conversation about it.
+ */
+export interface WorkChat {
+  messages: WorkMessage[];
+  /** The step the screen was on, so it reopens where it was left. */
+  phase?: string;
+  /** Which part of the plan was being worked on. */
+  activeSubId?: string;
+}
+
 export interface ChatMessage {
   id: string;
   from: 'aria' | 'maya';
@@ -799,6 +833,11 @@ interface AriaState {
   chat: ChatMessage[];
   addChatMessage: (message: ChatMessage) => void;
   clearChat: () => void;
+  /** Per-task conversations, keyed by task id. See WorkChat. */
+  workChats: Record<string, WorkChat>;
+  pushWorkMessage: (taskId: string, message: WorkMessage) => void;
+  setWorkChatState: (taskId: string, state: { phase?: string; activeSubId?: string }) => void;
+  clearWorkChat: (taskId: string) => void;
 }
 
 /** Drop blank/missing fields so a bare remote row can't blank out local values. */
@@ -853,6 +892,7 @@ export const useAriaStore = create<AriaState>()(
       lastUserId: null,
       demoOfferDismissed: false,
       chat: [],
+      workChats: {},
       hydrated: false,
       setHydrated: () => set({ hydrated: true }),
       setDemoDate: (date) => set({ demoDate: date }),
@@ -970,6 +1010,8 @@ export const useAriaStore = create<AriaState>()(
             contacts: [],
             automations: [],
             chat: [],
+            // Threads belong to the tasks being cleared, so they go too.
+            workChats: {},
             profile: DEFAULT_PROFILE,
             settings: DEFAULT_SETTINGS,
             onboarded: false,
@@ -1080,6 +1122,7 @@ export const useAriaStore = create<AriaState>()(
           contacts: [],
           automations: [],
           chat: [],
+          workChats: {},
           profile: DEFAULT_PROFILE,
         });
         /*
@@ -1468,6 +1511,36 @@ export const useAriaStore = create<AriaState>()(
       addChatMessage: (message) =>
         set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
       clearChat: () => set({ chat: [] }),
+
+      pushWorkMessage: (taskId, message) =>
+        set((st) => {
+          const existing = st.workChats[taskId] ?? { messages: [] };
+          return {
+            workChats: {
+              ...st.workChats,
+              [taskId]: {
+                ...existing,
+                // Same ceiling as the main thread. A walkthrough of a long
+                // project can run for hours, and an unbounded transcript in
+                // device storage is a slow leak nobody would think to look for.
+                messages: [...existing.messages, message].slice(-CHAT_LIMIT),
+              },
+            },
+          };
+        }),
+      setWorkChatState: (taskId, state) =>
+        set((st) => ({
+          workChats: {
+            ...st.workChats,
+            [taskId]: { messages: st.workChats[taskId]?.messages ?? [], ...state },
+          },
+        })),
+      clearWorkChat: (taskId) =>
+        set((st) => {
+          const next = { ...st.workChats };
+          delete next[taskId];
+          return { workChats: next };
+        }),
     }),
     {
       name: 'aria-store-v1',
@@ -1546,6 +1619,8 @@ export const useAriaStore = create<AriaState>()(
         onboarded: s.onboarded,
         demoOfferDismissed: s.demoOfferDismissed,
         chat: s.chat,
+        // The per-task threads, or Continue opens on an empty screen again.
+        workChats: s.workChats,
         lastUserId: s.lastUserId,
       }),
       /*

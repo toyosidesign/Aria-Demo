@@ -1,3 +1,4 @@
+import { offlineAnswer } from '@/lib/offline-answer';
 import { ownInstruction, writtenSections } from '@/lib/sections';
 import type { Source } from '@/lib/source';
 import { defaultMethodFor, type Task, type TaskKind, type TaskMethod } from '@/store/aria-store';
@@ -495,6 +496,12 @@ export interface DraftRequest {
    * api/draft+api.ts: the whole worth of the option is that it is obeyed.
    */
   ownInstruction?: string;
+  /**
+   * A question about the work, rather than an instruction to change it.
+   *
+   * Answered without touching the draft. See the note in api/draft+api.ts.
+   */
+  question?: string;
   /** Explain the topic, using how this student said they learn best. */
   explain?: boolean;
   /**
@@ -611,6 +618,16 @@ function researchGuidance(instruction: string, topic: string): string | null {
 export function localFallbackDraft(req: DraftRequest): string {
   const who = req.contactName ?? 'there';
   const me = req.senderName ?? SENDER;
+
+  /*
+   * A question with no model behind it gets an admission, not a draft.
+   *
+   * Every other branch here writes something plausible, which is right for a
+   * demo. It is wrong for a question: handing somebody a fresh paragraph when
+   * they asked why a point came second is precisely the "Aria keeps repeating
+   * itself" complaint, only now with the scripted text doing it.
+   */
+  if (req.question?.trim()) return offlineAnswer(req.question);
 
   const messaging = isMessageMethod(req.method);
 

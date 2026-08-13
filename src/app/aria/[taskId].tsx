@@ -27,6 +27,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
+import { looksLikeQuestion } from '@/lib/question';
 import { handInReadiness } from '@/lib/ready';
 import { WORKING_SECTION, ownInstruction, workingDraft, writtenSections } from '@/lib/sections';
 import { UNCHANGED_NOTICE } from '@/lib/assistant';
@@ -97,6 +98,14 @@ const mk = (from: Msg['from'], kind: Msg['kind'], text: string, scripted?: boole
 
 const tap = hapticTap;
 
+/*
+ * One array for "no thread yet", not a fresh one per render.
+ *
+ * A selector that returns `?? []` builds a new array every call, and zustand
+ * compares by identity, so this screen would re-render forever.
+ */
+const EMPTY_THREAD: Msg[] = [];
+
 export default function AriaFlowScreen() {
   const c = useColors();
   const { taskId } = useLocalSearchParams<{ taskId: string }>();
@@ -115,12 +124,28 @@ export default function AriaFlowScreen() {
 
   const action = task ? ariaActionFor(task) : null;
 
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [phase, setPhase] = useState<Phase>('drafting');
+  /*
+   * The thread lives in the store, not in this screen.
+   *
+   * It used to be `useState`, so it died with the screen: reopening a task Aria
+   * had worked on for an hour showed an empty page, and everything asked and
+   * answered was gone. Reported as Continue starting afresh, and from the
+   * screen's point of view it was.
+   */
+  const messages = useAriaStore((s) => s.workChats[taskId ?? '']?.messages) ?? EMPTY_THREAD;
+  const savedChat = useAriaStore((s) => s.workChats[taskId ?? '']);
+  const pushWorkMessage = useAriaStore((s) => s.pushWorkMessage);
+  const setWorkChatState = useAriaStore((s) => s.setWorkChatState);
+
+  const [phase, setPhaseLocal] = useState<Phase>('drafting');
   const [typing, setTyping] = useState(false);
   const [draft, setDraft] = useState('');
   const [input, setInput] = useState('');
-  const [activeSubId, setActiveSubId] = useState<string | null>(null);
+  const [activeSubId, setActiveSubIdLocal] = useState<string | null>(null);
+  const setActiveSubId = (id: string | null) => {
+    setActiveSubIdLocal(id);
+    if (taskId) setWorkChatState(taskId, { phase, activeSubId: id ?? undefined });
+  };
   /** Waiting to ask whether the handoff actually got sent. */
   const [backCheck, setBackCheck] = useState(false);
   /** Cards go out as text, so Maya picks Mail or WhatsApp to carry them. */
@@ -136,7 +161,15 @@ export default function AriaFlowScreen() {
   const handedOffRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const push = (m: Msg) => setMessages((prev) => [...prev, m]);
+  const push = (m: Msg) => {
+    if (taskId) pushWorkMessage(taskId, m);
+  };
+
+  /** Kept with the thread, so reopening lands on the step it was left on. */
+  const setPhase = (next: Phase) => {
+    setPhaseLocal(next);
+    if (taskId) setWorkChatState(taskId, { phase: next, activeSubId: activeSubId ?? undefined });
+  };
   const nextIncompleteSub = (excludeId?: string) =>
     task?.subtasks.find((s) => !s.done && s.id !== excludeId) ?? null;
 
@@ -263,6 +296,29 @@ export default function AriaFlowScreen() {
   useEffect(() => {
     if (startedRef.current || !task || !action) return;
     startedRef.current = true;
+
+    /*
+     * A thread that already exists is the whole answer.
+     *
+     * Nothing is written, nothing is greeted and nothing is generated: the
+     * conversation is on screen, the draft they were looking at comes back with
+     * it, and the screen reopens on the step it was left on. Saying "picking up
+     * where we left off" above a conversation somebody can already see would be
+     * narrating the obvious.
+     */
+    if (savedChat?.messages.length) {
+      const leftOn = workingDraft(task.draftSections)?.content ?? '';
+      if (leftOn) {
+        const [head, ...rest] = leftOn.split('\n');
+        const known = task.subtasks.some((s) => s.id === head);
+        setDraft(known ? rest.join('\n') : leftOn);
+        if (known) setActiveSubIdLocal(head);
+      } else if (savedChat.activeSubId) {
+        setActiveSubIdLocal(savedChat.activeSubId);
+      }
+      setPhaseLocal((savedChat.phase as Phase) ?? 'review');
+      return;
+    }
 
     const saved = workingDraft(task.draftSections);
     const done = task.subtasks.filter((s) => s.done).length;
@@ -700,6 +756,31 @@ export default function AriaFlowScreen() {
   }
 
   /** A free-form instruction → re-draft with it (or reply to small talk). */
+  /**
+   * Answer a question about the draft, and leave the draft alone.
+   *
+   * The screen keeps its phase and its text: nothing about being asked "why is
+   * this second?" means the work should change.
+   */
+  async function answerAbout(question: string) {
+    if (!task) return;
+    setTyping(true);
+    const sub = task.subtasks.find((s) => s.id === activeSubId);
+    const res = await requestDraft({
+      kind: task.kind,
+      title: task.title,
+      description: task.description,
+      subtaskTitle: sub?.title,
+      senderName,
+      senderContext,
+      question,
+      previousDraft: draft,
+      ownInstruction: ownInstruction(task.draftSections),
+    });
+    setTyping(false);
+    push(mk('aria', 'text', res.message, res.fallback));
+  }
+
   function sendInstruction() {
     const trimmed = input.trim();
     if (!trimmed || typing) return;
@@ -709,6 +790,17 @@ export default function AriaFlowScreen() {
     const talk = detectSmallTalk(trimmed);
     if (talk) {
       push(mk('aria', 'text', talk));
+      return;
+    }
+    /*
+     * Asked, or told. Everything used to be told.
+     *
+     * "Why did you put the Berlin example second?" was handled by writing the
+     * section again, which is why Aria appeared to repeat itself: it answered a
+     * question nobody asked and ignored the one that was.
+     */
+    if (looksLikeQuestion(trimmed) && draft.trim()) {
+      void answerAbout(trimmed);
       return;
     }
     redraft(trimmed);

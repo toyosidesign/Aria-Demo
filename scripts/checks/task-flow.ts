@@ -50,6 +50,7 @@ import {
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
 import { dedupeSources, hostOf } from '@/lib/source';
+import { looksLikeQuestion } from '@/lib/question';
 import {
   ASSEMBLED_SECTION,
   INSTRUCTION_SECTION,
@@ -1246,6 +1247,110 @@ test('a typed answer lands on the right field', () => {
   });
   // A tap step typed into: nothing, rather than a wrong field.
   assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Asking about the work gets an answer; telling it changes the work');
+
+test('a question about the draft is a question', () => {
+  /*
+   * Everything typed under a draft was treated as "change it", so "why did you
+   * put the Berlin example second?" produced another draft. Aria looked like it
+   * was repeating itself: it answered a question nobody asked and ignored the
+   * one that was.
+   */
+  for (const q of [
+    'why did you put the Berlin example second?',
+    'what does equal consideration mean',
+    'where did the 1,203 words figure come from?',
+    'is this enough for the criteria',
+    'explain the second paragraph',
+  ]) {
+    assert.equal(looksLikeQuestion(q), true, `"${q}" is a question`);
+  }
+});
+
+test('a change asked for politely is still a change', () => {
+  /*
+   * The hard half. People ask for edits in question form constantly, and
+   * answering "can you make it shorter?" with a paragraph about brevity is the
+   * same bug pointing the other way.
+   */
+  for (const c of [
+    'can you make it shorter?',
+    'could you rewrite the intro',
+    'would you cut the last line?',
+    'add a sentence about Berlin',
+    'more formal please',
+    'turn it into bullet points',
+  ]) {
+    assert.equal(looksLikeQuestion(c), false, `"${c}" is an instruction`);
+  }
+});
+
+test('the route is told to answer rather than produce another draft', () => {
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /req\.question\?\.trim\(\)/, 'questions have their own path');
+  assert.match(route, /Do not rewrite the work/);
+  assert.match(route, /do not repeat it back at them: they can see it/);
+  assert.match(route, /say that plainly rather than inventing a justification/);
+});
+
+test('offline, a question gets an admission rather than a fresh paragraph', () => {
+  /*
+   * Every other scripted branch writes something plausible, which is right for
+   * a demo and wrong here: handing somebody a new paragraph when they asked why
+   * a point came second is the same complaint with the stand-in doing it.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(actions, /if \(req\.question\?\.trim\(\)\) return offlineAnswer\(req\.question\)/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A task remembers its own conversation');
+
+test('the thread is stored per task, not in the screen', () => {
+  /*
+   * Reported as Continue starting afresh. The messages were `useState`, so they
+   * died with the screen: reopening a task Aria had worked on for an hour
+   * showed an empty page and everything asked and answered was gone.
+   */
+  const store = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'),
+    'utf8',
+  );
+  assert.match(store, /workChats: Record<string, WorkChat>/, 'threads live in the store');
+  assert.match(store, /workChats: s\.workChats/, 'and are persisted');
+  assert.match(store, /slice\(-CHAT_LIMIT\)[\s\S]{0,200}\},\n          \};/, 'bounded like the main thread');
+
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /if \(savedChat\?\.messages\.length\)/, 'an existing thread is the answer');
+  assert.match(screen, /const EMPTY_THREAD: Msg\[\] = \[\];/, 'and a stable empty for zustand');
+  assert.ok(
+    !/const \[messages, setMessages\] = useState/.test(screen),
+    'nothing keeps the thread in screen state any more',
+  );
+});
+
+test('clearing data takes the per-task threads with it', () => {
+  /*
+   * A conversation about a task that no longer exists is orphaned, and after a
+   * sign-out it is somebody else's.
+   */
+  const store = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'),
+    'utf8',
+  );
+  assert.equal((store.match(/workChats: \{\}/g) ?? []).length, 3, 'initial state, clear, sign-out');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

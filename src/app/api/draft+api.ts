@@ -42,6 +42,33 @@ function buildPrompt(req: DraftRequest): string {
   // A text/email/card/call is a message flow whatever the category is.
   const messaging = isMessageMethod(req.method);
 
+  /*
+   * A question about the work, answered rather than acted on.
+   *
+   * Anything typed under a draft used to be treated as "change it", so asking
+   * why a point came second produced another draft and Aria looked like it was
+   * repeating itself. This path answers and leaves the draft alone: it is not a
+   * rewrite with extra steps.
+   */
+  if (req.question?.trim()) {
+    lines.push(
+      `They are asking about work you produced for "${req.title}"${req.subtaskTitle ? `, the "${req.subtaskTitle}" part` : ''}.`,
+      '',
+      'Their question:',
+      req.question.trim(),
+      '',
+      'Answer the question. Do not rewrite the work, do not produce a new version of it, and do not repeat it back at them: they can see it. Two to five sentences, specific to what is actually in the text, quoting a short phrase from it where that makes the answer concrete.',
+      'If the answer is that you do not know, or that the text does not say, say that plainly rather than inventing a justification.',
+      'No preamble and no offer to change anything unless they asked.',
+    );
+    if (req.previousDraft) lines.push(`The work in question:\n${req.previousDraft}`);
+    if (req.ownInstruction?.trim())
+      lines.push(`They had asked you to handle it this way:\n${req.ownInstruction.trim()}`);
+    if (req.description) lines.push(`Context on the task:\n${req.description}`);
+    if (learner) lines.push(learner);
+    return lines.join('\n');
+  }
+
   if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
     /*
      * Their instruction, first, and above everything this route would otherwise

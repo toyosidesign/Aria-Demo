@@ -55,6 +55,7 @@ export const DraftSchema = z.object({
   /* Their own handling instruction. Bounded like every other free-text field:
      it reaches a prompt, so its size is an allocation decision, not a taste. */
   ownInstruction: z.string().max(2000).optional(),
+  question: z.string().max(1000).optional(),
   /** Explain the topic itself, pitched at how this student asked to be taught. */
   explain: z.boolean().optional(),
   reflect: z.boolean().optional(),
