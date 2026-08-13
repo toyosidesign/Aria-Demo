@@ -1313,6 +1313,57 @@ test('offline, a question gets an admission rather than a fresh paragraph', () =
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Mail goes out by whichever route this deployment has');
+
+test('Gmail wins when it is configured, because configuring it is deliberate', () => {
+  /*
+   * The alternative rule, "use Resend if it is configured", leaves this project
+   * exactly where it started: a working Resend key that silently refuses every
+   * recipient except the account holder. Nobody sets a Gmail app password by
+   * accident.
+   */
+  const mailer = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/mailer.ts'), 'utf8');
+  assert.match(mailer, /if \(gmailUser\(\) && gmailPass\(\)\) return 'gmail';/);
+  const gmailAt = mailer.indexOf("return 'gmail'");
+  const resendAt = mailer.indexOf("return 'resend'");
+  assert.ok(gmailAt > 0 && gmailAt < resendAt, 'Gmail is checked first');
+});
+
+test('a sandbox sender is recognised as reaching nobody but the account holder', () => {
+  /*
+   * The failure worth naming: a configured Resend key looks identical to a
+   * working one right up until somebody watches an email to their tutor not
+   * arrive. resend.dev is the giveaway.
+   */
+  const mailer = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/mailer.ts'), 'utf8');
+  assert.match(mailer, /@resend\\\.dev/, 'the sandbox sender is detected');
+  assert.match(mailer, /export function canEmailAnyone/);
+
+  const health = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/health.ts'), 'utf8');
+  assert.match(health, /Aria can only email you/, 'and the app says so');
+  assert.match(health, /Aria can email anyone/);
+
+  const settings = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/(tabs)/settings.tsx'),
+    'utf8',
+  );
+  assert.match(settings, /mailCopy\(state\)/, 'on the settings screen, before it matters');
+});
+
+test('the startup check does not nag about Resend on a Gmail deployment', () => {
+  /*
+   * Telling somebody to fix something they deliberately chose is how a startup
+   * warning earns the right to be ignored, and then the one that matters is
+   * ignored too.
+   */
+  const config = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/server-config.ts'),
+    'utf8',
+  );
+  assert.match(config, /if \(gmail && \(name === 'RESEND_API_KEY' \|\| name === 'ARIA_FROM_EMAIL'\)\)/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Editing a scheduled send edits the send');
 
 test('a task with a send waiting says so, and offers to edit that', () => {

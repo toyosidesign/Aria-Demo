@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { BrainCircuit, CircleAlert, Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
+import { BrainCircuit, CircleAlert, Mail, Repeat, RotateCcw, Trash2 } from 'lucide-react-native';
 import { Alert, Platform, ScrollView, View } from 'react-native';
 
 import { DemoDateBar } from '@/components/demo-date-bar';
@@ -14,7 +14,7 @@ import { Text } from '@/components/ui/text';
 import { SYSTEM_DARK, SYSTEM_LIGHT, THEMES, useColors, useTheme } from '@/lib/colors';
 import { formatLong, formatTime, realToday } from '@/lib/dates';
 import { hapticSelect } from '@/lib/haptics';
-import { checkHealth, healthCopy, type Brain } from '@/lib/health';
+import { checkHealth, healthCopy, mailCopy, type Health } from '@/lib/health';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
 import { autoSendEnabled, useAriaStore } from '@/store/aria-store';
@@ -30,17 +30,22 @@ export default function SettingsScreen() {
    * launch and then trusted forever would be the same stale-and-confident
    * failure this row exists to expose.
    */
-  const [brain, setBrain] = useState<Brain>('unsure');
+  const [state, setHealth] = useState<Health>({
+    brain: 'unsure',
+    email: false,
+    emailAnyone: false,
+  });
   useEffect(() => {
     let live = true;
     void checkHealth().then((h) => {
-      if (live) setBrain(h.brain);
+      if (live) setHealth(h);
     });
     return () => {
       live = false;
     };
   }, []);
-  const health = healthCopy(brain);
+  const health = healthCopy(state.brain);
+  const mail = mailCopy(state);
   // The theme actually on screen, whether that came from a pick or from the
   // device. Turning "match my device" off hands over exactly this one.
   const activeTheme = useTheme();
@@ -136,6 +141,26 @@ export default function SettingsScreen() {
             </View>
             <Text variant="small" tone="muted" className="leading-5">
               {health.detail}
+            </Text>
+          </View>
+
+          {/* Email is its own line, because it fails its own way: the model can
+              be perfectly reachable while every scheduled send quietly reaches
+              nobody but the account holder. */}
+          <View
+            className={`gap-1 rounded-2xl border p-4 ${
+              mail.good ? 'border-border bg-surface' : 'border-danger/40 bg-surface'
+            }`}>
+            <View className="flex-row items-center gap-2">
+              {mail.good ? (
+                <Mail size={15} color={c.accent} />
+              ) : (
+                <CircleAlert size={15} color={c.danger} />
+              )}
+              <Text className="font-strong shrink">{mail.title}</Text>
+            </View>
+            <Text variant="small" tone="muted" className="leading-5">
+              {mail.detail}
             </Text>
           </View>
         </View>

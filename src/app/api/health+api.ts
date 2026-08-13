@@ -1,6 +1,7 @@
 import { protectedRoute } from '@/lib/api-auth';
 import { HealthSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
+import { canEmailAnyone, mailProvider } from '@/lib/mailer';
 import { modelKeyStatus, verifyModelKey } from '@/lib/server-config';
 
 /**
@@ -39,8 +40,18 @@ export const POST = protectedRoute(HealthSchema, limitAi, async () => {
 
   return Response.json({
     model,
-    // Presence only. Whether Resend accepts the key is answered by a send, and
-    // a health check that spends a real email to find out is a bad trade.
-    email: Boolean(process.env.RESEND_API_KEY && process.env.ARIA_FROM_EMAIL),
+    // Presence only. Whether the provider accepts the credentials is answered
+    // by a send, and a health check that spends a real email to find out is a
+    // bad trade.
+    email: mailProvider() !== 'none',
+    /*
+     * The distinction worth stating out loud.
+     *
+     * A configured Resend key with no verified domain looks identical to a
+     * working one right up until somebody watches an email to their tutor not
+     * arrive. Gmail, or a verified domain, reaches anyone.
+     */
+    emailProvider: mailProvider(),
+    emailAnyone: canEmailAnyone(),
   });
 });

@@ -9,6 +9,7 @@
  */
 
 import { protectedRoute } from '@/lib/api-auth';
+import { mailProvider, sendMail } from '@/lib/mailer';
 import { SendEmailSchema } from '@/lib/api-schemas';
 import { limitMail } from '@/lib/rate-limit';
 
@@ -42,9 +43,14 @@ const ok = (payload: SendEmailResponse) => Response.json(payload);
 // DKIM as us. The wrapper authenticates and meters before any of that, and the
 // mail quota is the tighter one, because this is the costliest thing to abuse.
 export const POST = protectedRoute(SendEmailSchema, limitMail, async (body) => {
-  const key = process.env.RESEND_API_KEY;
-  const from = process.env.ARIA_FROM_EMAIL;
-  if (!key || !from) return ok({ sent: false, configured: false });
+  /*
+   * Which route this deployment has, rather than which one it was built around.
+   *
+   * Resend used to be assumed here. It is now one of two, and the choice lives
+   * in lib/mailer.ts so the health check can report the same answer without
+   * sending anything.
+   */
+  if (mailProvider() === 'none') return ok({ sent: false, configured: false });
 
   // Each address is validated, not just non-empty: the characters excluded by
   // EMAIL are the ones used to smuggle extra headers or recipients through a
@@ -58,36 +64,29 @@ export const POST = protectedRoute(SendEmailSchema, limitMail, async (body) => {
     return ok({ sent: false, configured: true, error: 'Too many recipients' });
   }
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from,
-        to,
-        subject: body.subject || '(no subject)',
-        text: body.body,
-        ...(body.replyTo ? { reply_to: body.replyTo } : {}),
-      }),
-    });
+  const result = await sendMail({
+    to,
+    subject: body.subject || '(no subject)',
+    text: body.body,
+    replyTo: body.replyTo,
+  });
 
-    if (!res.ok) {
-      // The provider's own words name the sending domain, quota state and
-      // account restrictions. That belongs in the server log, not in a response
-      // any caller can read.
-      const detail = await res.text().catch(() => '');
-      console.error('[aria] send-email: provider rejected the message:', res.status, detail);
-      return ok({
-        sent: false,
-        configured: true,
-        error:
-          res.status === 429
-            ? 'Too many emails just now, try again shortly'
-            : 'The mail provider rejected it',
-      });
-    }
-    return ok({ sent: true, configured: true });
-  } catch {
-    return ok({ sent: false, configured: true, error: 'Could not reach the mail provider' });
-  }
+  if (result.sent) return ok({ sent: true, configured: true });
+
+  /*
+   * The provider's own words go to the log, never to the caller.
+   *
+   * They name the sending domain, the account, the quota state and, on Gmail,
+   * whether an ordinary password was used where an app password is required.
+   * All of that is exactly what somebody debugging needs and none of it is
+   * anybody else's business.
+   */
+  console.error(`[aria] send-email: ${result.provider} rejected the message:`, result.error);
+  return ok({
+    sent: false,
+    configured: true,
+    error: /429|rate/i.test(result.error ?? '')
+      ? 'Too many emails just now, try again shortly'
+      : 'The mail provider rejected it',
+  });
 });

@@ -37,7 +37,20 @@ const REQUIREMENTS: Requirement[] = [
 ];
 
 function missing(): Requirement[] {
-  return REQUIREMENTS.filter(({ name }) => !process.env[name]?.trim());
+  /*
+   * Gmail satisfies the mail requirement on its own.
+   *
+   * Sending can go out through Resend or through a Gmail app password, see
+   * lib/mailer.ts. Warning about a missing Resend key on a deployment that
+   * deliberately sends through Gmail would be telling somebody to fix
+   * something they chose, which is how a startup check earns the right to be
+   * ignored.
+   */
+  const gmail = process.env.GMAIL_USER?.trim() && process.env.GMAIL_APP_PASSWORD?.trim();
+  return REQUIREMENTS.filter(({ name }) => {
+    if (gmail && (name === 'RESEND_API_KEY' || name === 'ARIA_FROM_EMAIL')) return false;
+    return !process.env[name]?.trim();
+  });
 }
 
 let checked = false;
