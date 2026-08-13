@@ -2247,6 +2247,25 @@ test('finishing is offered on the last part, and only there', () => {
 // ───────────────────────────────────────────────────────────────────────────────
 section('The plan is where the eye lands');
 
+test('a piece of work has one way out, not four', () => {
+  /*
+   * "Copy all" and "Save to…" sat under the sections on every task, offering a
+   * third and fourth way to take the same work away, in a worse form, and
+   * available while it was still unfinished, which is precisely what the
+   * finished card is careful about.
+   *
+   * They stay on a card or a message, which have no such card: there the draft
+   * is the whole product and copying it is the only way to get it out.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /\{isAssignmentKind \? null : \(\n\s*<View className="flex-row gap-2">/,
+    'the pair is hidden on work');
+  assert.match(screen, /title=\{copied \? 'Copied' : 'Copy all'\}/, 'and kept for everything else');
+});
+
 test('the checklist is the progress display, with no card repeating it', () => {
   /*
    * A card summarising "3 of 6 done, next is X" can only say less precisely

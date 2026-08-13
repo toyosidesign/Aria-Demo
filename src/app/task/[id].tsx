@@ -554,10 +554,20 @@ export default function TaskDetailScreen() {
                 </View>
               ))}
             </Card>
-            {/* Below the draft rather than beside the heading: these act on what
-                you've just read, so they belong at the end of it. "Save to
-                Notes" is gone because the share sheet it opened is what "Save
-                to…" already does, only that one also writes a real file. */}
+            {/*
+              Not on a piece of work, where the ending already exists.
+
+              An assignment has one: "Every part is done", with sending it,
+              saving the document and reading it first. These two sat under the
+              sections offering a third and fourth way to take the same work
+              away, in a worse form, and available while it was still
+              unfinished, which is the thing that card is careful about.
+
+              They stay on a card or a message, which have no such card: there
+              the draft is the whole product, and copying or sharing it is the
+              only way to get it out.
+            */}
+            {isAssignmentKind ? null : (
             <View className="flex-row gap-2">
               <Button
                 title={copied ? 'Copied' : 'Copy all'}
@@ -580,6 +590,7 @@ export default function TaskDetailScreen() {
                 onPress={exportAll}
               />
             </View>
+            )}
           </View>
         ) : null}
 
