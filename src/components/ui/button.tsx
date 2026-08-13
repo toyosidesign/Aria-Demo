@@ -64,8 +64,24 @@ export function Button({
         />
       ) : (
         <>
-          {leftIcon ? <View>{leftIcon}</View> : null}
-          <Text variant={size === 'sm' ? 'small' : 'body'} tone={labelTone[variant!]} className="font-strong">
+          {leftIcon ? <View className="shrink-0">{leftIcon}</View> : null}
+          {/*
+            One line, and allowed to be narrower than its text.
+
+            Every size here is a fixed height, so a label with nowhere to wrap
+            spills past the padding instead: an assignment part called "Major
+            cities and regional differences" turned a button into a block of
+            text with the icon pushed off the edge. `shrink` lets the label be
+            smaller than it wants to be, which is the only thing that makes the
+            width bound real, and one line with an ellipsis is the honest end of
+            a label that does not fit. Titles this long belong under the button,
+            not in it.
+          */}
+          <Text
+            variant={size === 'sm' ? 'small' : 'body'}
+            tone={labelTone[variant!]}
+            className="shrink font-strong"
+            numberOfLines={1}>
             {title}
           </Text>
         </>

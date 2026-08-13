@@ -1963,6 +1963,42 @@ test('the writing screen no longer offers a second calendar', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('A long title does not break the thing holding it');
+
+test('a button label can be narrower than its text', () => {
+  /*
+   * Reported on "Keep going: Major cities and regional differences", which
+   * turned a button into a block of text with the icon pushed off the edge.
+   * Every button size here is a fixed height, so a label with nowhere to wrap
+   * spills past the padding instead. Same fix as the toast: `shrink` is what
+   * makes a width bound real, and one line with an ellipsis is the honest end
+   * of a label that does not fit.
+   */
+  const button = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/components/ui/button.tsx'),
+    'utf8',
+  );
+  assert.match(button, /className="shrink font-strong"/);
+  assert.match(button, /numberOfLines=\{1\}/);
+  assert.match(button, /<View className="shrink-0">\{leftIcon\}<\/View>/, 'the icon keeps its size');
+});
+
+test('the next step is named under the button, not inside it', () => {
+  /*
+   * The button says the verb, which is short and always the same shape. The
+   * name of the part goes underneath at a size meant for reading, where it can
+   * wrap without moving anything.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /title="Keep going"/, 'the label is the verb alone');
+  assert.ok(!screen.includes('`Keep going: ${upNext.title}`'), 'the title is not in the label');
+  assert.match(screen, /Next: \$\{upNext\.title\}/, 'and is named under it');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('A toast is sized to the sentence it carries');
 
 test('the toast text can be narrower than it wants to be', () => {
@@ -2060,7 +2096,11 @@ test('unfinished work is offered the next step, not an ending', () => {
     'utf8',
   );
   assert.match(screen, /!readiness\.ready \?/, 'unfinished work is recognised');
-  assert.match(screen, /Keep going: \$\{upNext\.title\}/, 'and answered with the next step');
+  // The step is named under the button rather than inside it, see the label
+  // test above: a part called "Major cities and regional differences" does not
+  // fit in a fixed-height button.
+  assert.match(screen, /title="Keep going"/, 'and answered with the work');
+  assert.match(screen, /Next: \$\{upNext\.title\}/, 'naming which part');
 
   const task = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),

@@ -1147,8 +1147,18 @@ export default function AriaFlowScreen() {
               */}
               {phase === 'done' && task.status === 'todo' && isAssignmentKind && !readiness.ready ? (
                 <>
+                  {/*
+                    The step's name is under the button, not inside it.
+
+                    A part of an assignment is called things like "Major cities
+                    and regional differences", and a title that long inside a
+                    large, bold, centred label wraps to three lines and sets the
+                    button growing down the screen. The button says the verb,
+                    which is short and always the same shape; the line under it
+                    carries the name at a size made for reading.
+                  */}
                   <Button
-                    title={upNext ? `Keep going: ${upNext.title}` : 'Keep working on it'}
+                    title="Keep going"
                     leftIcon={<ArrowRight size={19} color={c.accentInk} />}
                     block
                     size="lg"
@@ -1158,8 +1168,9 @@ export default function AriaFlowScreen() {
                       else router.replace(`/task/${task.id}`);
                     }}
                   />
-                  <Text variant="caption" tone="muted" className="text-center">
-                    {readiness.blocker}
+                  <Text variant="caption" tone="muted" className="text-center leading-4">
+                    {upNext ? `Next: ${upNext.title}` : 'Nothing left on the plan'}
+                    {readiness.blocker ? ` · ${readiness.blocker}` : ''}
                   </Text>
                 </>
               ) : null}
