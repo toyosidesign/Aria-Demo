@@ -50,6 +50,13 @@ import {
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
 import { assemble, factsFromSections } from '@/lib/assemble';
+import {
+  CAPABILITIES,
+  capabilityFor,
+  defaultOffer,
+  helpAsked,
+  isKnownAction,
+} from '@/lib/capabilities';
 import { dedupeSources, hostOf } from '@/lib/source';
 import { looksLikeQuestion } from '@/lib/question';
 import {
@@ -2073,6 +2080,103 @@ test('work left mid-answer has a door back into the writing', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Aria can run this app, from one list of things it can do');
+
+test('every capability is a real id with a real branch behind it', () => {
+  /*
+   * "Tell me what you can do", answered from a model's imagination, produces a
+   * confident paragraph about features this app does not have and an offer to
+   * carry one out that quietly does nothing. Every id here maps to a branch in
+   * the runner, and a capability that stops existing breaks the build rather
+   * than the promise.
+   */
+  const runner = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/run-action.ts'),
+    'utf8',
+  );
+  for (const cap of CAPABILITIES) {
+    assert.ok(runner.includes(`'${cap.id}'`), `${cap.id} has no branch in the runner`);
+  }
+  assert.ok(CAPABILITIES.length >= 15, 'the list is worth having');
+});
+
+test('an invented capability is refused rather than ignored', () => {
+  /*
+   * A button that does nothing is worse than no button: it reads as the app
+   * being broken rather than as Aria not being able to do that.
+   */
+  assert.equal(isKnownAction('settings.theme'), true);
+  assert.equal(isKnownAction('university.portal.sync'), false);
+  assert.equal(capabilityFor('university.portal.sync'), undefined);
+});
+
+test('the model may only name ids from that list, checked twice', () => {
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/assistant+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /const ACTION_IDS = CAPABILITIES\.map\(\(c\) => c\.id\);/, 'the enum comes from the list');
+  assert.match(route, /enum: ACTION_IDS/, 'the schema holds the model to it');
+  assert.match(route, /filter\(\(a\) => a\?\.id && isKnownAction\(a\.id\)\)/, 'and the route checks again');
+  assert.match(route, /Never say you have done any of it\. The tap is what does it\./);
+});
+
+test('nothing happens until it is tapped', () => {
+  /*
+   * Aria changing a theme, a name or a notification setting because a sentence
+   * sounded like a request is the kind of help nobody asked for. The tap is the
+   * difference between an assistant and something rummaging through settings.
+   */
+  const chat = readFileSync(path.resolve(import.meta.dirname, '../../src/app/chat.tsx'), 'utf8');
+  assert.match(chat, /onPress=\{\(\) => \{\n\s*hapticSelect\(\);\n\s*const result = runAction\(a\);/);
+  // A refusal is said out loud rather than swallowed.
+  assert.match(chat, /if \(!result\.ok\) addChatMessage\(mk\('aria', result\.note\)\)/);
+});
+
+test('asking what Aria can do always comes back with buttons', () => {
+  /*
+   * The model is told to attach one action per thing it names, and against the
+   * real model it did that for "make it dark" and "call me Sam" and then
+   * answered this question in prose with nothing to tap. A list of things
+   * somebody cannot start is a menu printed on a wall.
+   */
+  for (const asked of [
+    'what can you help me with?',
+    'what can you do',
+    'what are your features',
+    'help',
+    'can you help me with anything?',
+  ]) {
+    assert.equal(helpAsked(asked), true, `"${asked}" is asking`);
+  }
+  for (const not of ['what is the deadline?', 'help me write the intro', 'can you make it shorter']) {
+    assert.equal(helpAsked(not), false, `"${not}" is not`);
+  }
+
+  // Not all twenty: a wall of buttons is the same unhelpfulness as none.
+  const offer = defaultOffer();
+  assert.ok(offer.length >= 3 && offer.length <= 6, 'a handful');
+  for (const id of offer) assert.equal(isKnownAction(id), true, `${id} is real`);
+
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/assistant+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /if \(!parsed\.actions\.length && helpAsked\(body\.message\)\)/, 'backstopped');
+});
+
+test('a value of the wrong shape is refused, not written', () => {
+  const runner = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/run-action.ts'),
+    'utf8',
+  );
+  assert.match(runner, /function asBool/, 'switches take on and off, not anything');
+  assert.match(runner, /function asTime/, 'and times are HH:mm or nothing');
+  assert.match(runner, /\^\(\\d\{1,2\}\):\(\\d\{2\}\)\$/);
+  assert.match(runner, /cap\.pro && !store\.pro/, 'Pro-only actions say so rather than failing');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Asking under a draft is a chat, and it can read');
 
 test('a question may search, like every other question in the app', () => {
@@ -2769,7 +2873,7 @@ test('the route decides per message whether to search, and says how', () => {
     'utf8',
   );
   assert.match(route, /lookUp/, 'the model flags what needs looking up');
-  assert.match(route, /required: \['reply', 'lookUp', 'lookUpQuery', 'tasks'\]/);
+  assert.match(route, /required: \['reply', 'lookUp', 'lookUpQuery', 'tasks', 'actions'\]/);
   assert.match(route, /askWithSearch/, 'and the flag actually triggers a search');
 });
 

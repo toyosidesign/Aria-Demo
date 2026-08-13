@@ -1,6 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { protectedRoute } from '@/lib/api-auth';
+import {
+  CAPABILITIES,
+  capabilityMenu,
+  defaultOffer,
+  helpAsked,
+  isKnownAction,
+} from '@/lib/capabilities';
 import { askWithSearch } from '@/lib/web-search';
 import { AssistantSchema } from '@/lib/api-schemas';
 import { limitAi } from '@/lib/rate-limit';
@@ -34,9 +41,34 @@ do. If you do not know, say so plainly and say what would help.
 2. CAPTURE. When ${me} says something that is a thing to be done, turn it into a
 task for them to review.
 
+3. DO. You can operate this app on their behalf. When what they want is one of
+the things you can actually do, offer it: they tap, and it happens. Never claim
+to have done it, since nothing happens until they tap.
+
 Most messages are one or the other. A few are both ("what should I say to my
 tutor about the extension, and remind me to email her Friday"), and then you
 answer first and prepare the task as well.
+
+── What you can do in this app ─────────────────────────────────────────────
+
+Only these. Each line is an id you may put in "actions", and what it does:
+
+${capabilityMenu()}
+
+Rules for "actions":
+- Offer one when the message asks for something on that list, in any words: "make it dark" is settings.theme, "call me Sam" is profile.name, "what's on my list?" is open.tasks.
+- When they ask what you can help with, name a few things in the reply AND return one action for each thing you named. A list with nothing to tap is a wrong answer to that question. Do not list all of them; pick what fits what they have said.
+- value: what the action needs. A name for profile.name, "on" or "off" for a switch, a theme name, HH:mm for a time, a title for a create. Leave it out when there is nothing to give.
+- Never invent an id. If they ask for something not on that list, say plainly that it is not something you can do in here, and do not offer a substitute that pretends otherwise.
+- Never say you have done any of it. The tap is what does it.
+
+── What you know about this app ────────────────────────────────────────────
+
+Questions about how the app works are answered from the list above and from
+what is true of it: work is broken into a checklist and worked through part by
+part, finished work is sent or saved as a document, Pro works ahead overnight
+and runs a morning review, everything else is free. If you do not know, say so
+rather than describing a feature that might exist.
 
 You will be given today's date. Resolve every relative date ("Friday", "tomorrow", "next week", "in 3 days", "the 30th") to a concrete calendar date in ISO yyyy-MM-dd, relative to today. Never return a date in the past; if a weekday has already passed this week, use next week's.
 
@@ -67,6 +99,9 @@ Rules:
 - In the reply text, do not use em dashes or long hyphens as separators; use commas, periods, or colons instead.`;
 };
 
+/** The enum the model is held to, taken from the one list. */
+const ACTION_IDS = CAPABILITIES.map((c) => c.id);
+
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -74,6 +109,25 @@ const SCHEMA = {
     reply: { type: 'string' },
     lookUp: { type: 'boolean' },
     lookUpQuery: { type: 'string' },
+    /*
+     * Things Aria is offering to do, each one a tap away.
+     *
+     * Constrained to the ids in lib/capabilities.ts, and validated again on the
+     * device before anything runs: a schema keeps the model honest and the
+     * runner keeps the app honest.
+     */
+    actions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', enum: ACTION_IDS },
+          value: { type: 'string' },
+        },
+        required: ['id'],
+      },
+    },
     tasks: {
       type: 'array',
       items: {
@@ -101,7 +155,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ['reply', 'lookUp', 'lookUpQuery', 'tasks'],
+  required: ['reply', 'lookUp', 'lookUpQuery', 'tasks', 'actions'],
 } as const;
 
 function extractText(msg: Anthropic.Message): string {
@@ -175,6 +229,29 @@ Search before you answer. Give the actual answer in two to four sentences, speci
         parsed.reply = found.text;
         parsed.sources = found.sources;
       }
+    }
+
+    /*
+     * Checked again here, against the same list.
+     *
+     * The schema constrains the model and this constrains the schema: an enum
+     * is only as true as the build that generated it, and an offer to do
+     * something the app cannot do is worse than no offer, because it arrives
+     * with a button.
+     */
+    parsed.actions = (parsed.actions ?? []).filter((a) => a?.id && isKnownAction(a.id));
+
+    /*
+     * "What can you help with" always comes back with buttons.
+     *
+     * The model is told to attach one per thing it names, and against the real
+     * model it did that for "make it dark" and "call me Sam" and then answered
+     * this one in prose with nothing to tap. A list of things somebody cannot
+     * start is a menu printed on a wall, and this is the question where the
+     * buttons are the answer rather than decoration on it.
+     */
+    if (!parsed.actions.length && helpAsked(body.message)) {
+      parsed.actions = defaultOffer().map((id) => ({ id }));
     }
 
     delete parsed.lookUp;

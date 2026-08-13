@@ -268,6 +268,15 @@ export interface ChatMessage {
    */
   divider?: string;
   /**
+   * Things Aria offered to do in this turn, each still waiting for a tap.
+   *
+   * Persisted with the message so scrolling back finds the offer as it was.
+   * Every id is checked against lib/capabilities.ts before it runs, so an offer
+   * from an older version of the app that no longer exists says so rather than
+   * doing something unexpected.
+   */
+  actions?: { id: string; value?: string }[];
+  /**
    * The pages behind a researched answer.
    *
    * Persisted with the message rather than held in memory: the thread outlives

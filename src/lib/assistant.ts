@@ -32,6 +32,14 @@ export interface AssistantResponse {
   reply: string;
   tasks: ParsedTask[];
   /**
+   * Things Aria is offering to do here, each a tap away.
+   *
+   * Nothing runs from a reply. See lib/run-action.ts: the tap is what acts, and
+   * every id is checked against lib/capabilities.ts on the way in and again on
+   * the way out.
+   */
+  actions?: { id: string; value?: string }[];
+  /**
    * Where a searched answer came from, when Aria looked it up.
    *
    * Absent on remembered answers, and that absence is meaningful: it is how the

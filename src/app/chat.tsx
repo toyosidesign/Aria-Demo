@@ -16,6 +16,8 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
 import { SourceList } from '@/components/source-list';
+import { capabilityFor } from '@/lib/capabilities';
+import { announce, runAction } from '@/lib/run-action';
 import type { Source } from '@/lib/source';
 import { goBack } from '@/lib/nav';
 import { HeaderButton } from '@/components/header-button';
@@ -86,6 +88,14 @@ type Msg = {
   divider?: string;
   /** Set when Aria looked the answer up: the pages it read. */
   sources?: Source[];
+  /**
+   * Things Aria offered to do, each still waiting for a tap.
+   *
+   * Kept on the message rather than in a bar somewhere: the offer belongs to
+   * what was said, and scrolling back to an old answer should not present
+   * buttons that act on a conversation four turns further on.
+   */
+  actions?: { id: string; value?: string }[];
 };
 
 /** Build a pre-filled Create-task route from a parsed task. */
@@ -127,6 +137,7 @@ const mk = (
   pending?: ParsedTask[],
   fallback?: boolean,
   sources?: Source[],
+  actions?: Msg['actions'],
 ): Msg => ({
   id: uuidv4(),
   from,
@@ -134,6 +145,7 @@ const mk = (
   pending,
   fallback,
   sources,
+  actions,
 });
 
 /** A question the setup flow asked. Marked so a stranded thread is detectable. */
@@ -1063,6 +1075,9 @@ export default function ChatScreen() {
         res.tasks.length ? res.tasks : undefined,
         res.fallback,
         reply === res.reply ? res.sources : undefined,
+        // Same rule as the sources: an offer belongs to the answer that made
+        // it, and the notice replaces answers Aria could not give.
+        reply === res.reply ? res.actions : undefined,
       ),
     );
   }
@@ -1142,6 +1157,46 @@ export default function ChatScreen() {
               {m.sources?.length ? (
                 <View className="pl-10">
                   <SourceList sources={m.sources} />
+                </View>
+              ) : null}
+
+              {/*
+                What Aria is offering to do, one tap each.
+                
+                Nothing here has happened yet, which is why they are buttons
+                rather than a report. Aria changing a theme or a name because a
+                sentence sounded like a request is the kind of help nobody asked
+                for, and the tap is the difference between an assistant and
+                something rummaging through your settings.
+              */}
+              {m.actions?.length ? (
+                <View className="gap-2 pl-10">
+                  {m.actions.map((a, ai) => {
+                    const cap = capabilityFor(a.id);
+                    if (!cap) return null;
+                    return (
+                      <Pressable
+                        key={`${m.id}-a${ai}`}
+                        onPress={() => {
+                          hapticSelect();
+                          const result = runAction(a);
+                          announce(result);
+                          if (!result.ok) addChatMessage(mk('aria', result.note));
+                        }}
+                        className="flex-row items-center gap-3 rounded-2xl border border-accent/30 bg-accent-soft px-4 py-3 active:opacity-70">
+                        <Sparkles size={16} color={c.accent} />
+                        <View className="flex-1">
+                          <Text variant="small" className="font-strong">
+                            {cap.label}
+                          </Text>
+                          <Text variant="caption" tone="muted" numberOfLines={2}>
+                            {cap.blurb}
+                          </Text>
+                        </View>
+                        <ChevronRight size={16} color={c.accent} />
+                      </Pressable>
+                    );
+                  })}
                 </View>
               ) : null}
               {m.pending?.length
