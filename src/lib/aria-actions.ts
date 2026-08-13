@@ -94,7 +94,26 @@ export const EVENT_METHODS: TaskMethod[] = ['sms', 'email', 'call', 'photo', 'ca
  * for something else entirely: turn these notes into slides, check my
  * references against the criteria, rewrite this in plain English.
  */
-export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft', 'other'];
+/*
+ * One way to handle a piece of work, so the question stops being asked.
+ *
+ * "How should Aria handle it?" offered four amounts of help before anybody knew
+ * what the work involved, which is the wrong moment to ask and the wrong thing
+ * to ask about: somebody setting up an essay has not yet decided whether they
+ * want a draft or a shape, and the honest answer is usually "show me what it
+ * involves first". Four answers also meant four flows to keep true to each
+ * other, and they drifted, which is what made picking one feel consequential
+ * and arbitrary at the same time.
+ *
+ * Every piece of work is broken into a checklist now, and Aria works through
+ * it. What it produces for a part is still adjustable, in their own words, but
+ * that is a note about the work rather than a fork in the product.
+ *
+ * The other values stay in the type and in the code that reads them: tasks
+ * created before this exist, and a plan somebody is halfway through is not a
+ * good place to change the rules.
+ */
+export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps'];
 export const TASK_METHODS: TaskMethod[] = [
   'remind',
   'plan',

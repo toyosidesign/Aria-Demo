@@ -48,6 +48,7 @@ import {
   requestDraft,
 } from '@/lib/aria-actions';
 import { detectSmallTalk } from '@/lib/assistant';
+import { requestChecklist } from '@/lib/subtasks';
 import { WhatsAppIcon } from '@/components/brand-icons';
 import { CardCanvas } from '@/components/card-canvas';
 import { PhotoCanvas } from '@/components/photo-canvas';
@@ -141,6 +142,27 @@ export default function AriaFlowScreen() {
   // Aria writes and signs as whoever is signed in, never the demo persona.
   const senderName = useAriaStore((s) => s.profile.name) || ARIA_SENDER;
   const senderContext = useAriaStore((s) => s.profile.context);
+  const addSubtasks = useAriaStore((s) => s.addSubtasks);
+  /*
+   * Picked field by field, not as an object.
+   *
+   * A selector returning `{...}` builds a new object every call and zustand
+   * compares by identity, so this screen would re-render forever. Assembled
+   * into a Learner here instead, where the reference only changes when one of
+   * the fields does.
+   */
+  const profileRole = useAriaStore((s) => s.profile.role);
+  const profileStudying = useAriaStore((s) => s.profile.studying);
+  const profileLevel = useAriaStore((s) => s.profile.level);
+  const profileInterests = useAriaStore((s) => s.profile.interests);
+  const profileExplainStyle = useAriaStore((s) => s.profile.explainStyle);
+  const learner = {
+    role: profileRole,
+    studying: profileStudying,
+    level: profileLevel,
+    interests: profileInterests,
+    explainStyle: profileExplainStyle,
+  };
 
   const action = task ? ariaActionFor(task) : null;
 
@@ -215,6 +237,58 @@ export default function AriaFlowScreen() {
   function clearWorking() {
     if (!task) return;
     removeDraftSection(task.id, WORKING_SECTION);
+  }
+
+  /**
+   * Break the work into parts, then begin the first one.
+   *
+   * The checklist is the spine of everything after it: what Aria writes, what
+   * the task screen shows, what the document is assembled from, and what says
+   * whether any of it is finished. So it is made once, here, and the first part
+   * follows immediately rather than waiting to be asked for.
+   */
+  async function planItOut() {
+    if (!task) return;
+    push(mk('aria', 'text', `Let me break “${task.title}” into parts. One moment.`));
+    setTyping(true);
+    const items = await requestChecklist({
+      title: task.title,
+      description: task.description,
+      learner,
+    });
+    setTyping(false);
+
+    if (!items.length) {
+      /*
+       * No plan and no pretending there is one.
+       *
+       * A checklist Aria could not produce is the one thing that must not be
+       * faked here: everything downstream reads it as the work, and an invented
+       * part is a part somebody would sit down and write.
+       */
+      push(
+        mk(
+          'aria',
+          'text',
+          'I could not break that into parts just now. Tell me a little about what it involves and I will try again.',
+        ),
+      );
+      setPhase('review');
+      return;
+    }
+
+    addSubtasks(task.id, items);
+    push(
+      mk(
+        'aria',
+        'text',
+        `${items.length} parts. First up: “${items[0]}.”`,
+      ),
+    );
+    // Read back, because addSubtasks is what assigns the ids.
+    const fresh = useAriaStore.getState().tasks.find((t) => t.id === task.id);
+    const first = fresh?.subtasks.find((st) => !st.done);
+    if (first) void generateSub(first);
   }
 
   async function generateSub(sub: { id: string; title: string }, instruction?: string) {
@@ -353,6 +427,20 @@ export default function AriaFlowScreen() {
       const sub = task.subtasks.find((s) => s.id === head);
       return sub ? { sub, text: rest.join('\n') } : { sub: null, text: raw };
     })();
+
+    /*
+     * Work with no plan builds one, here, before anything else happens.
+     *
+     * Setting up an assignment is one question now, and this is what comes
+     * next: split it into parts, then start the first. Sending somebody to a
+     * task screen to press "generate checklist" would be asking them to ask for
+     * the only thing that can happen next, and the version before that wrote a
+     * loose outline instead, which is neither a plan nor a part of the essay.
+     */
+    if (isAssignmentKind && !task.subtasks.length) {
+      void planItOut();
+      return;
+    }
 
     const walkthrough = action.walkthrough;
     if (walkthrough) {

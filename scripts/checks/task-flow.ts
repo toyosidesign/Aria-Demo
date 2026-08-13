@@ -883,9 +883,10 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
    * text are ways of reaching a person, and the recipient of an assignment is a
    * submission portal.
    *
-   * "Something else" joined them later and belongs: it is not a fourth channel
-   * for reaching somebody, it is the same question answered in their own words
-   * when none of the three fit.
+   * And the question itself has since gone. Four amounts of help had to be
+   * chosen before anybody knew what the work involved, which is the wrong
+   * moment to ask and the wrong thing to ask about. Every piece of work is
+   * broken into a checklist now and Aria works through it.
    *
    * Read out of `lib/aria-actions.ts` by source, because that module imports
    * the store and cannot be loaded here.
@@ -897,11 +898,7 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
   const list = actions.match(/ASSIGNMENT_METHODS: TaskMethod\[\] = \[([^\]]*)\]/);
   assert.ok(list, 'ASSIGNMENT_METHODS must still exist');
   const methods = [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(
-    methods,
-    ['steps', 'outline', 'draft', 'other'],
-    'three amounts of help, plus their own words, and nothing about sending',
-  );
+  assert.deepEqual(methods, ['steps'], 'one way, so the question is not asked');
   for (const wrong of ['remind', 'email', 'sms', 'card', 'call']) {
     assert.ok(!methods.includes(wrong), `${wrong} is not a way to handle a piece of work`);
   }
@@ -1689,7 +1686,7 @@ test('clearing data takes the per-task threads with it', () => {
 // ───────────────────────────────────────────────────────────────────────────────
 section('Work can be handled the way they asked, not only the ways Aria knows');
 
-test('"Something else" is one of the ways work can be handled', () => {
+test('their own words are a note on the work, not a fork in the setup', () => {
   /*
    * Three options were three things Aria had thought of. Real coursework asks
    * for other things: turn these notes into slides, check my references against
@@ -1703,12 +1700,17 @@ test('"Something else" is one of the ways work can be handled', () => {
   );
   assert.match(
     actions,
-    /ASSIGNMENT_METHODS: TaskMethod\[\] = \['steps', 'outline', 'draft', 'other'\]/,
-    'work can be handled their way',
+    /ASSIGNMENT_METHODS: TaskMethod\[\] = \['steps'\]/,
+    'one way, so nothing is asked',
   );
-  assert.match(actions, /other: 'Something else'/);
-  // Not on a reminder: there is nothing there to instruct.
-  assert.match(actions, /if \(kind === 'reminder'\) return \['remind'\]/);
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  // The capability outlived the question: it is offered on any piece of work,
+  // optional, and nothing waits for it.
+  assert.match(form, /const ownWords = isWorkKind\(kind\);/);
+  assert.match(form, /label="Anything I should know\? \(optional\)"/);
 });
 
 test('the instruction is kept, and kept out of the work', () => {
@@ -1778,17 +1780,20 @@ test('the route is told to obey it rather than improve on it', () => {
   assert.match(schemas, /ownInstruction: z\.string\(\)\.max\(2000\)\.optional\(\)/);
 });
 
-test('choosing it without saying anything cannot be saved', () => {
+test('setting work up asks one thing, and nothing waits on the note', () => {
   /*
-   * An empty instruction would have Aria guess, which is the one thing this
-   * option exists to prevent.
+   * The note used to be required, because choosing "Something else" and leaving
+   * it empty would have Aria guess. There is no such choice now: an empty note
+   * is the normal case, and blocking a save on it would be the form insisting
+   * on an answer to a question it no longer asks.
    */
   const form = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
     'utf8',
   );
-  assert.match(form, /const instructionMissing = ownWords && instruction\.trim\(\)\.length === 0;/);
-  assert.match(form, /instructionMissing \|\|/, 'and it blocks saving');
+  assert.ok(!form.includes('instructionMissing'), 'nothing blocks on it');
+  // And no leftover copy telling somebody their essay will only be remembered.
+  assert.match(form, /\) : kind === 'reminder' \? \(/, 'the reminder line is for reminders');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -2162,6 +2167,26 @@ test('an outline part is a shape, a draft part is prose', () => {
   assert.match(route, /if \(req\.method === 'outline'\) \{/, 'outline is its own instruction');
   assert.match(route, /each one a point rather than a sentence of the essay/);
   assert.match(route, /Produce the actual draft prose for just that section/);
+});
+
+test('work with no plan makes one, then starts it', () => {
+  /*
+   * Setting up an assignment is one question now, so this is what has to happen
+   * next: split it into parts and begin the first. Sending somebody to a task
+   * screen to press "generate checklist" would be asking them to ask for the
+   * only thing that can happen; the version before that wrote a loose outline
+   * instead, which is neither a plan nor a part of the essay.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /if \(isAssignmentKind && !task\.subtasks\.length\) \{\n\s*void planItOut\(\);/);
+  assert.match(screen, /async function planItOut\(\)/);
+  assert.match(screen, /if \(first\) void generateSub\(first\);/, 'and the first part follows');
+  // A checklist it could not produce is never faked: everything downstream
+  // reads it as the work, and an invented part is one somebody would write.
+  assert.match(screen, /I could not break that into parts just now/);
 });
 
 test('work with no plan is offered a plan, and finished work is offered nothing', () => {

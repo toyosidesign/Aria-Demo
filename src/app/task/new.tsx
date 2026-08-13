@@ -313,8 +313,19 @@ export default function NewTaskScreen() {
    * Choosing it and leaving the box empty would have Aria guess, which is the
    * one thing this option exists to stop.
    */
-  const ownWords = method === 'other';
-  const instructionMissing = ownWords && instruction.trim().length === 0;
+  /*
+   * Their own words about the work, on any piece of work.
+   *
+   * This used to appear only behind "Something else", which was one of four
+   * answers to a question that no longer gets asked. The capability was worth
+   * more than the question: "turn my notes into ten slides" or "check my
+   * references against the criteria" is a real instruction, and it belongs next
+   * to the work rather than behind a fork in the setup.
+   *
+   * Optional now, in the plainest sense: leaving it empty is the normal case,
+   * and nothing about the form waits for it.
+   */
+  const ownWords = isWorkKind(kind);
   // A call collapses the contact block down to just a number, there is no name
   // or email field on screen to require.
   const needsContactName =
@@ -330,7 +341,6 @@ export default function NewTaskScreen() {
 
   const anythingMissing =
     titleMissing ||
-    instructionMissing ||
     contactNameMissing ||
     emailMissing ||
     phoneMissing ||
@@ -343,10 +353,6 @@ export default function NewTaskScreen() {
     attemptedSave && missing ? message : undefined;
 
   const titleError = show(titleMissing, 'Give the task a name so you can find it later.');
-  const instructionError = show(
-    instructionMissing,
-    'Say what you want done, and I will follow it exactly.',
-  );
   const contactNameError = show(contactNameMissing, 'Who is this for?');
   const emailError = show(emailMissing, 'Add the address to send this to.');
   const phoneError = show(phoneMissing, 'Add a number so Aria can reach them.');
@@ -521,11 +527,21 @@ export default function NewTaskScreen() {
                   })}
                 </View>
               </View>
-            ) : (
+            ) : kind === 'reminder' ? (
+              /*
+               * Said for a reminder, and only a reminder.
+               *
+               * A piece of work also has one way of being handled now, so it
+               * also has nothing to choose between, but "I'll just remind you,
+               * nothing to draft" is the opposite of what happens to an essay:
+               * it gets broken into parts and written. Silence is the honest
+               * answer there, and the checklist that appears next is the real
+               * one.
+               */
               <Text variant="caption" tone="muted" className="leading-5">
                 I&apos;ll just remind you at the time you set. Nothing to draft or send.
               </Text>
-            )}
+            ) : null}
 
             {/*
               Their words, kept as they wrote them.
@@ -538,13 +554,12 @@ export default function NewTaskScreen() {
             */}
             {ownWords ? (
               <Input
-                label="What should I do?"
+                label="Anything I should know? (optional)"
                 placeholder="Turn my notes into a 10 slide deck, one idea per slide, no more than 20 words a slide"
                 value={instruction}
                 onChangeText={setInstruction}
                 multiline
                 style={{ minHeight: 96 }}
-                error={instructionError}
               />
             ) : null}
     </>
