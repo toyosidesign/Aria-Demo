@@ -190,7 +190,19 @@ export default function TaskDetailScreen() {
   const handIn = handInReadiness(task);
   /** The send this task already has waiting, if any. */
   const sending = automations.find((a) => a.taskId === task.id && isPending(a));
-  const needsChecklist = isAssignmentKind && task.subtasks.length === 0 && task.status === 'todo';
+  /*
+   * Offer a breakdown, unless they asked for the opposite.
+   *
+   * "Draft it" is a request for the whole thing in one go, and putting a
+   * "generate a checklist" card in front of that answers a question they
+   * already answered. Every other method is walked part by part, so for those
+   * a plan is the first useful thing.
+   */
+  const needsChecklist =
+    isAssignmentKind &&
+    task.method !== 'draft' &&
+    task.subtasks.length === 0 &&
+    task.status === 'todo';
   /*
    * The step the plan says is next, and how much it has been avoided.
    *

@@ -658,8 +658,9 @@ test('the app stays quiet until the limit is nearly here', () => {
    * limit somebody meets on a heavy day and never notices on an ordinary one.
    */
   assert.equal(writesLeftNote({ date: TODAY, count: 2 }, TODAY), null, 'silent early on');
-  assert.match(writesLeftNote({ date: TODAY, count: 11 }, TODAY) ?? '', /1 piece/);
-  assert.match(writesLeftNote({ date: TODAY, count: 12 }, TODAY) ?? '', /resets tomorrow/);
+  assert.equal(writesLeftNote({ date: TODAY, count: FREE_DAILY_WRITES - 4 }, TODAY), null);
+  assert.match(writesLeftNote({ date: TODAY, count: FREE_DAILY_WRITES - 1 }, TODAY) ?? '', /1 piece/);
+  assert.match(writesLeftNote({ date: TODAY, count: FREE_DAILY_WRITES }, TODAY) ?? '', /resets tomorrow/);
 });
 
 test('being stopped says the number, the time, and what still works', () => {

@@ -262,6 +262,35 @@ export const POST = protectedRoute(DraftSchema, limitAi, async (body) => {
      * A failed search returns null and falls through to the ordinary call
      * below, so the notes still arrive, just without sources.
      */
+    /*
+     * A question gets to look things up, like any other question here does.
+     *
+     * The composer under a draft is a chat, and it was the one chat in the app
+     * that could not read the web: chat and Research both search, and this
+     * answered from the draft alone. "What is the current cap?" then came back
+     * as an apology, which is indistinguishable from Aria refusing to answer.
+     *
+     * The draft is still the subject. Search is for the part of a question the
+     * text cannot settle, and the model is told to say which is which.
+     */
+    if (body.question?.trim()) {
+      const found = await askWithSearch(client, {
+        system: `${systemFor(body.senderName, body.senderContext)}
+
+You are answering a question about work you produced for them. Answer it. Use the text you were given first, and search when the question turns on something the text cannot settle: anything current, a figure, a date, a rule, who says what. Say which parts came from the work and which from what you read. Two to five sentences. Never rewrite the work, and never say you cannot answer without first trying.`,
+        prompt: buildPrompt(body),
+        maxTokens: 1200,
+      });
+      if (found) {
+        return Response.json({
+          message: found.text,
+          fallback: false,
+          sources: found.sources,
+          searched: found.searched,
+        } satisfies DraftResponse);
+      }
+    }
+
     if (body.research) {
       const found = await askWithSearch(client, {
         system: `${systemFor(body.senderName, body.senderContext)}

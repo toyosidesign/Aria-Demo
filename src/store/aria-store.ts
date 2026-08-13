@@ -208,6 +208,15 @@ export interface WorkMessage {
   text: string;
   /** The scripted stand-in wrote it rather than the model. Dev only. */
   scripted?: boolean;
+  /**
+   * What Aria read to answer, when it read anything.
+   *
+   * Kept with the message rather than in the screen: an answer that could be
+   * checked yesterday and cannot be checked today is worse than one that never
+   * offered. Not synced, unlike the message itself, because the sources are
+   * cheap to lose and the thread is not.
+   */
+  sources?: Source[];
 }
 
 /**

@@ -354,10 +354,23 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
  */
 const PER_PART: Record<string, { verb: string; produces: string }> = {
   steps: { verb: 'Work through it', produces: 'the “%s” section' },
-  draft: { verb: 'Draft it', produces: 'a full draft of “%s”' },
   outline: { verb: 'Outline it', produces: 'the shape of “%s”' },
   other: { verb: 'Get on with it', produces: '“%s”, the way you asked' },
 };
+
+/**
+ * The one method that is not a walk through a list.
+ *
+ * "Draft it" is a request for the whole thing in one go, and answering it with
+ * a checklist is answering a different question: somebody who wanted to work
+ * part by part had that option and did not take it. It got swept into the
+ * part-by-part flow when every other method did, which was right for the other
+ * three and wrong for this one.
+ *
+ * The plan still has its uses here, as the shape Aria writes to when one
+ * exists, but it is never asked for and never put on screen as work outstanding.
+ */
+const WRITES_IN_ONE_GO = 'draft';
 
 function assignmentAction(task: Task): AriaAction | null {
   const method = task.method ?? 'steps';
@@ -386,6 +399,25 @@ function assignmentAction(task: Task): AriaAction | null {
    * happens, so this points there rather than writing something to fill the
    * silence.
    */
+  /*
+   * A full draft, whole, whether or not a plan exists.
+   *
+   * Checked before the no-plan case below, because that one exists to offer a
+   * breakdown and this method is the request not to have one.
+   */
+  if (method === WRITES_IN_ONE_GO) {
+    return {
+      type: 'assignment',
+      method,
+      offer: started
+        ? 'We have a draft going. Want to pick it back up?'
+        : 'Want me to write the whole first draft?',
+      cta: started ? 'Continue' : 'Write the draft',
+      needsSend: false,
+      drafting: 'a full first draft',
+    };
+  }
+
   if (!task.subtasks.length) {
     return {
       type: 'assignment',

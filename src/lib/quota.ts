@@ -20,14 +20,21 @@
  * anything to run and a planner that stops planning is not a free tier, it is a
  * trial.
  *
- * Twelve is a day of real use. Setting up an assignment and working three parts
- * with a bit of research is roughly six; a card and a couple of drafts is
- * three. It is meant to be a limit somebody meets on a heavy day and never
- * notices on an ordinary one, which is the only kind of limit that reads as
- * fair rather than as a toll.
+ * Forty is a day of real use with room to be wrong in.
+ *
+ * Twelve was the first number here and it was wrong: setting up one assignment,
+ * working three parts, researching two of them and asking half a dozen
+ * questions about the result is most of a day's allowance spent on a single
+ * piece of work, and questions were what ran out first. A question that returns
+ * "I cannot answer that right now" because of an invisible counter is
+ * indistinguishable from Aria being broken, which is exactly what it looked
+ * like.
+ *
+ * The limit is meant to be met on a heavy day and never noticed on an ordinary
+ * one. That is the only kind that reads as fair rather than as a toll.
  */
 
-export const FREE_DAILY_WRITES = 12;
+export const FREE_DAILY_WRITES = 40;
 
 export interface WriteQuota {
   /** The day these were spent on, as yyyy-MM-dd. */

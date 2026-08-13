@@ -133,6 +133,15 @@ export function workAhead(tasks: Task[], today: string, limit = WORK_AHEAD_LIMIT
       continue;
     }
 
+    /*
+     * "Draft it" asked for the whole thing, so it is never broken down.
+     *
+     * Preparing a checklist for somebody who asked for a draft is Aria
+     * overriding an answer they gave at setup, overnight, without being asked
+     * twice.
+     */
+    if (task.method === 'draft') continue;
+
     // Work with no steps yet. The breakdown is the thing Aria is for here, and
     // it is the slowest thing to sit down and do yourself.
     if (BREAKS_DOWN.has(task.kind) && task.subtasks.length === 0 && task.title.trim()) {

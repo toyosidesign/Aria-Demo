@@ -1989,6 +1989,62 @@ test('every place that saves work saves the document', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Asking under a draft is a chat, and it can read');
+
+test('a question may search, like every other question in the app', () => {
+  /*
+   * The composer under a draft was the one chat here that could not read the
+   * web: the chat tab searches and Research searches, and this answered from
+   * the draft alone. "What is the current cap?" came back as an apology, which
+   * is indistinguishable from Aria refusing to answer.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
+    'utf8',
+  );
+  const q = route.indexOf("if (body.question?.trim()) {");
+  const research = route.indexOf('if (body.research) {');
+  assert.ok(q > 0 && q < research, 'questions get their own searching path, before research');
+  assert.match(route, /Say which parts came from the work and which from what you read/);
+  assert.match(route, /never say you cannot answer without first trying/);
+
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /res\.message, res\.fallback, res\.sources/, 'answers carry their sources');
+  assert.match(screen, /<SourceList sources=\{m\.sources\} \/>/, 'and show them');
+});
+
+test('"Draft it" is not turned into a checklist', () => {
+  /*
+   * It is a request for the whole thing in one go, and answering it with a plan
+   * answers a question they already answered: working part by part was on the
+   * same screen and they did not pick it. It got swept into the part-by-part
+   * flow when every other method did, which was right for the other three.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(actions, /const WRITES_IN_ONE_GO = 'draft';/);
+  assert.match(actions, /if \(method === WRITES_IN_ONE_GO\) \{/);
+  assert.ok(!/draft: \{ verb:/.test(actions), 'and is not one of the per-part methods');
+
+  const task = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(task, /task\.method !== 'draft' &&/, 'no checklist card either');
+
+  const ahead = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/work-ahead.ts'),
+    'utf8',
+  );
+  assert.match(ahead, /if \(task\.method === 'draft'\) continue;/, 'nor one made overnight');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Every way of handling work walks the same checklist');
 
 test('the method decides what is written for a part, not how many parts', () => {
@@ -2003,7 +2059,9 @@ test('the method decides what is written for a part, not how many parts', () => 
     path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
     'utf8',
   );
-  for (const method of ['steps', 'draft', 'outline', 'other']) {
+  // "Draft it" is the exception and has its own test: it asked for the whole
+  // thing in one go, so it is not walked part by part.
+  for (const method of ['steps', 'outline', 'other']) {
     assert.ok(new RegExp(`${method}: \\{ verb:`).test(actions), `${method} has its own product`);
   }
   assert.match(actions, /\/\/ Every method walks the plan now, so every method is a walkthrough\.\n\s*walkthrough: true,/);
@@ -2570,20 +2628,22 @@ test('the route decides per message whether to search, and says how', () => {
   assert.match(route, /askWithSearch/, 'and the flag actually triggers a search');
 });
 
-test('only research reads the web on the draft route', () => {
+test('only research and questions read the web on the draft route', () => {
   /*
    * A birthday card does not improve with citations, and a search on every
-   * draft would spend money and seconds to add nothing. Research is the one
-   * request on that route where being out of date is the failure.
+   * draft would spend money and seconds to add nothing. The two exceptions are
+   * the two where being out of date is the failure: looking something up, and
+   * being asked something.
    */
   const route = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
     'utf8',
   );
-  assert.match(route, /if \(body\.research\) \{/, 'gated on the research flag');
-  // Against the call site, not the import, which is naturally at the top.
-  const gate = route.indexOf('if (body.research)');
-  assert.ok(gate > 0 && gate < route.indexOf('askWithSearch(client'), 'the gate comes first');
+  assert.match(route, /if \(body\.research\) \{/, 'research is gated on its flag');
+  assert.match(route, /if \(body\.question\?\.trim\(\)\) \{/, 'and a question on its own');
+  // Both gates come before any searching call, so nothing else can reach one.
+  const first = Math.min(route.indexOf('if (body.question'), route.indexOf('if (body.research)'));
+  assert.ok(first > 0 && first < route.indexOf('askWithSearch(client'), 'the gates come first');
 });
 
 test('the Guide reads the web, and gates itself when it would be pointless', () => {

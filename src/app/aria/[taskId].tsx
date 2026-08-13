@@ -27,6 +27,8 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
+import { SourceList } from '@/components/source-list';
+import type { Source } from '@/lib/source';
 import { uuidv4 } from '@/lib/id';
 import { goBack } from '@/lib/nav';
 import { looksLikeQuestion } from '@/lib/question';
@@ -73,6 +75,8 @@ type Msg = {
   text: string;
   /** The scripted stand-in answered rather than the model. Shown in dev. */
   scripted?: boolean;
+  /** Where an answer came from, when Aria read something to give it. */
+  sources?: Source[];
 };
 
 const REWRITES = [
@@ -97,12 +101,19 @@ const ASSIGNMENT_REWRITES = [
  * storage and then added to produced two messages called "m1": React keyed them
  * together and the server would have treated the second as an edit of the first.
  */
-const mk = (from: Msg['from'], kind: Msg['kind'], text: string, scripted?: boolean): Msg => ({
+const mk = (
+  from: Msg['from'],
+  kind: Msg['kind'],
+  text: string,
+  scripted?: boolean,
+  sources?: Source[],
+): Msg => ({
   id: uuidv4(),
   from,
   kind,
   text,
   scripted,
+  sources,
 });
 
 const tap = hapticTap;
@@ -814,7 +825,7 @@ export default function AriaFlowScreen() {
       ownInstruction: ownInstruction(task.draftSections),
     });
     setTyping(false);
-    push(mk('aria', 'text', res.message, res.fallback));
+    push(mk('aria', 'text', res.message, res.fallback, res.sources));
   }
 
   function sendInstruction() {
@@ -917,9 +928,16 @@ export default function AriaFlowScreen() {
                 <ScriptedNote show={m.scripted} className="pt-2" />
               </Animated.View>
             ) : (
-              <AriaBubble key={`${m.id}-${i}`} from={m.from}>
-                {m.text}
-              </AriaBubble>
+              <View key={`${m.id}-${i}`} className="gap-1">
+                <AriaBubble from={m.from}>{m.text}</AriaBubble>
+                {/* What Aria read to answer, under the answer, as everywhere
+                    else it reads something. */}
+                {m.sources?.length ? (
+                  <View className="pl-10">
+                    <SourceList sources={m.sources} />
+                  </View>
+                ) : null}
+              </View>
             ),
           )}
           {typing ? (
