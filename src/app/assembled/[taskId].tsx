@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { assemble, factsFromSections } from '@/lib/assemble';
+import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { formatFull } from '@/lib/dates';
 import { exportWork } from '@/lib/export';
@@ -63,7 +64,7 @@ export default function AssembledScreen() {
     return (
       <Screen padded edges={['top']}>
         <Text tone="muted">That task no longer exists.</Text>
-        <Button title="Go back" variant="secondary" onPress={() => router.back()} className="mt-4" />
+        <Button title="Go back" variant="secondary" onPress={() => goBack('/(tabs)/tasks')} className="mt-4" />
       </Screen>
     );
   }
@@ -71,7 +72,7 @@ export default function AssembledScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 py-2">
-        <HeaderButton icon={ArrowLeft} onPress={() => router.back()} />
+        <HeaderButton icon={ArrowLeft} onPress={() => goBack('/(tabs)/tasks')} />
         <Text variant="label" tone="muted">
           Due {formatFull(task.date)}
         </Text>
@@ -175,7 +176,7 @@ export default function AssembledScreen() {
             void exportWork(document.filename.replace(/\.txt$/, ''), document.body);
           }}
         />
-        <Button title="Not yet" variant="ghost" size="sm" block onPress={() => router.back()} />
+        <Button title="Not yet" variant="ghost" size="sm" block onPress={() => goBack('/(tabs)/tasks')} />
       </View>
     </Screen>
   );

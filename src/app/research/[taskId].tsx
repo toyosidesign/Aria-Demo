@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { requestDraft } from '@/lib/aria-actions';
+import { goBack } from '@/lib/nav';
 import {
   ALL_SUGGESTIONS_USED,
   FOLLOW_UP_NO_CHANGE,
@@ -186,7 +187,7 @@ export default function ResearchScreen() {
       <Screen padded edges={['top', 'bottom']}>
         <View className="flex-1 items-center justify-center gap-4">
           <Text tone="muted">This checklist item no longer exists.</Text>
-          <Button title="Go back" variant="secondary" onPress={() => router.back()} />
+          <Button title="Go back" variant="secondary" onPress={() => goBack('/(tabs)/tasks')} />
         </View>
       </Screen>
     );
@@ -248,13 +249,13 @@ export default function ResearchScreen() {
     if (notes) addDraftSection(task!.id, { title: sub!.title, content: notes });
     if (!sub!.done) toggleSubtask(task!.id, sub!.id);
     showToast(`Checked off “${sub!.title}”`, 'check');
-    router.back();
+    goBack('/(tabs)/tasks');
   }
 
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack('/(tabs)/tasks')} />
         <AriaAvatar size={30} />
         <View className="flex-1">
           <Text variant="subtitle">Aria</Text>

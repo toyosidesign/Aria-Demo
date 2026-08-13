@@ -10,6 +10,7 @@ import { Screen } from '@/components/ui/screen';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
+import { goBack } from '@/lib/nav';
 import { hapticSelect } from '@/lib/haptics';
 import { PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
@@ -58,7 +59,7 @@ export default function ConnectionsScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle" className="flex-1">
           Connections
         </Text>

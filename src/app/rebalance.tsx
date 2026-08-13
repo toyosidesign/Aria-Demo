@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
+import { goBack } from '@/lib/nav';
 import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
 import { selectWeekLoad, sortByDate, useAriaStore, type Task } from '@/store/aria-store';
@@ -107,7 +108,7 @@ export default function RebalanceScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle" className="flex-1">
           Ease your week
         </Text>
@@ -186,7 +187,7 @@ export default function RebalanceScreen() {
       </ScrollView>
 
       <View className="border-t border-border px-4 pb-6 pt-3">
-        <Button title="Done" block size="lg" onPress={() => router.back()} />
+        <Button title="Done" block size="lg" onPress={() => goBack()} />
       </View>
     </Screen>
   );

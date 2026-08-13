@@ -37,6 +37,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { GuideSheet } from '@/components/guide-sheet';
 import { GuideButton } from '@/components/work-panels';
 import { readyToAssemble } from '@/lib/assemble';
+import { goBack } from '@/lib/nav';
 import { rolloverVerdict } from '@/lib/plan';
 import { handInReadiness } from '@/lib/ready';
 import { writtenSections } from '@/lib/sections';
@@ -153,7 +154,7 @@ export default function TaskDetailScreen() {
   if (!task) {
     return (
       <Screen padded edges={['top', 'bottom']}>
-        <HeaderButton icon={ArrowLeft} onPress={() => router.back()} />
+        <HeaderButton icon={ArrowLeft} onPress={() => goBack('/(tabs)/tasks')} />
         <View className="flex-1 items-center justify-center gap-5 px-6">
           <SearchX size={30} color={c.faint} />
           <Text tone="muted" className="text-center leading-6">
@@ -205,14 +206,14 @@ export default function TaskDetailScreen() {
         {arrivedFromComplete ? (
           <View className="h-10 w-10" />
         ) : (
-          <HeaderButton icon={ArrowLeft} onPress={() => router.back()} />
+          <HeaderButton icon={ArrowLeft} onPress={() => goBack('/(tabs)/tasks')} />
         )}
         <View className="flex-row items-center gap-1">
           {task.status === 'done' ? (
             <HeaderButton icon={RotateCcw} onPress={() => reopenTask(task.id)} />
           ) : null}
           <HeaderButton icon={PenLine} onPress={() => router.push(`/task/new?editId=${task.id}`)} />
-          <HeaderButton icon={Trash2} onPress={() => { deleteTask(task.id); router.back(); }} />
+          <HeaderButton icon={Trash2} onPress={() => { deleteTask(task.id); goBack('/(tabs)/tasks'); }} />
         </View>
       </View>
 

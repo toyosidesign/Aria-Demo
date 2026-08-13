@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { formatLong, formatTime } from '@/lib/dates';
+import { goBack } from '@/lib/nav';
 import { buildReview, reviewSummary, type ReviewItem } from '@/lib/daily-review';
 import { hapticSelect, hapticSuccess } from '@/lib/haptics';
 import { useColors } from '@/lib/colors';
@@ -94,19 +95,19 @@ export default function DailyReviewScreen() {
           : `${preparing} ready for your tap`,
       'check',
     );
-    router.back();
+    goBack();
   }
 
   function notToday() {
     markDayReviewed(review.date);
     showToast('Left as it is. Nothing will go out.', 'undo');
-    router.back();
+    goBack();
   }
 
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 py-2">
-        <HeaderButton icon={ArrowLeft} onPress={() => router.back()} />
+        <HeaderButton icon={ArrowLeft} onPress={() => goBack()} />
         <Text variant="label" tone="muted">
           {formatLong(review.date)}
         </Text>

@@ -10,7 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -1310,6 +1310,55 @@ test('offline, a question gets an admission rather than a fresh paragraph', () =
     'utf8',
   );
   assert.match(actions, /if \(req\.question\?\.trim\(\)\) return offlineAnswer\(req\.question\)/);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Every way out of a screen works');
+
+test('nothing calls router.back() directly', () => {
+  /*
+   * Reported as "The action 'GO_BACK' was not handled by any navigator".
+   * `router.back()` assumes the screen was pushed onto something, and often it
+   * was not: a notification opens a task cold, the create form ends in
+   * `replace('/aria/[id]')` so the walkthrough replaced its own history, and
+   * saving elsewhere calls `dismissAll` by design. The tap then did nothing and
+   * threw a red box, which is worse than a dead button: it is a dead button
+   * that looks like a crash.
+   */
+  const offenders: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.tsx?$/.test(entry.name)) {
+        if (full.endsWith(path.join('lib', 'nav.ts'))) continue;
+        if (readFileSync(full, 'utf8').includes('router.back()')) offenders.push(full);
+      }
+    }
+  };
+  walk(path.resolve(import.meta.dirname, '../../src'));
+  assert.deepEqual(offenders, [], 'use goBack(), which knows whether there is history');
+});
+
+test('the fallback is a place, not a crash', () => {
+  const nav = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/nav.ts'), 'utf8');
+  assert.match(nav, /if \(router\.canGoBack\(\)\)/, 'ask the navigator');
+  assert.match(nav, /router\.replace\(fallback\)/, 'and land somewhere when it says no');
+  // An X that is sometimes missing is harder to learn than one that always
+  // works, so the control stays put and the destination changes.
+  assert.match(nav, /fallback: Href = '\/\(tabs\)'/);
+});
+
+test('dismissAll is guarded the same way', () => {
+  /*
+   * It throws the same error, and the optional call guards a missing method
+   * rather than an empty stack. Arriving from a notification is exactly the
+   * case where there is nothing to dismiss.
+   */
+  for (const file of ['src/app/email-it/[taskId].tsx', 'src/app/hand-in/[taskId].tsx']) {
+    const src = readFileSync(path.resolve(import.meta.dirname, '../../', file), 'utf8');
+    assert.match(src, /if \(router\.canGoBack\(\)\) router\.dismissAll\?\.\(\);/, file);
+  }
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

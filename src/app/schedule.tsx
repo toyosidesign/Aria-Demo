@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { AUTO_CHANNELS, CHANNEL_META, formatRunAt, toRunAt, type AutoChannel } from '@/lib/automations';
+import { goBack } from '@/lib/nav';
 import { cn } from '@/lib/cn';
 import { useColors } from '@/lib/colors';
 import { isValidEmails } from '@/lib/contacts';
@@ -117,7 +118,7 @@ export default function ScheduleScreen() {
     });
     hapticSuccess();
     showToast('Aria will handle it', 'clock');
-    router.back();
+    goBack();
   }
 
   if (!task) {
@@ -125,7 +126,7 @@ export default function ScheduleScreen() {
       <Screen padded edges={['top', 'bottom']}>
         <View className="flex-1 items-center justify-center gap-4">
           <Text tone="muted">There’s no task to schedule.</Text>
-          <Button title="Go back" variant="secondary" onPress={() => router.back()} />
+          <Button title="Go back" variant="secondary" onPress={() => goBack()} />
         </View>
       </Screen>
     );
@@ -136,7 +137,7 @@ export default function ScheduleScreen() {
     return (
       <Screen edges={['top']}>
         <View className="flex-row items-center justify-between px-5 py-2">
-          <HeaderButton icon={X} onPress={() => router.back()} />
+          <HeaderButton icon={X} onPress={() => goBack()} />
           <Text variant="subtitle">Aria Pro</Text>
           <View className="w-10" />
         </View>
@@ -195,7 +196,7 @@ export default function ScheduleScreen() {
             size="lg"
             onPress={() => promptProUpgrade(PRO_PITCH)}
           />
-          <Button title="Go back" variant="ghost" size="sm" block onPress={() => router.back()} />
+          <Button title="Go back" variant="ghost" size="sm" block onPress={() => goBack()} />
         </View>
       </Screen>
     );
@@ -204,7 +205,7 @@ export default function ScheduleScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle">Let Aria handle it</Text>
         <View className="w-10" />
       </View>

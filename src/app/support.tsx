@@ -17,6 +17,7 @@ import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { useColors } from '@/lib/colors';
+import { goBack } from '@/lib/nav';
 import { hapticSelect } from '@/lib/haptics';
 import { showToast } from '@/lib/toast';
 import { postJson } from '@/lib/api-client';
@@ -68,7 +69,7 @@ export default function SupportScreen() {
 
       if (result.sent) {
         showToast('Thanks, your feedback is on its way', 'check');
-        router.back();
+        goBack();
         return;
       }
       if (result.configured) {
@@ -89,7 +90,7 @@ export default function SupportScreen() {
     try {
       await Linking.openURL(url);
       showToast('Opening your mail app', 'check');
-      router.back();
+      goBack();
     } catch {
       showToast('No mail app is set up', 'trash');
     }
@@ -98,7 +99,7 @@ export default function SupportScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle" className="flex-1">
           Support &amp; feedback
         </Text>

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
+import { goBack } from '@/lib/nav';
 import { hapticSuccess } from '@/lib/haptics';
 import { showToast } from '@/lib/toast';
 import { useAriaStore } from '@/store/aria-store';
@@ -44,7 +45,7 @@ export default function RescheduleScreen() {
   if (!task) {
     return (
       <Screen padded edges={['top', 'bottom']}>
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <View className="flex-1 items-center justify-center">
           <Text tone="muted">This task no longer exists.</Text>
         </View>
@@ -65,13 +66,13 @@ export default function RescheduleScreen() {
      */
     hapticSuccess();
     showToast('Moved', 'check');
-    router.back();
+    goBack();
   }
 
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle" className="flex-1">
           Reschedule
         </Text>

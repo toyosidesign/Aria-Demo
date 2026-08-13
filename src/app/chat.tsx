@@ -17,6 +17,7 @@ import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
 import { SourceList } from '@/components/source-list';
 import type { Source } from '@/lib/source';
+import { goBack } from '@/lib/nav';
 import { HeaderButton } from '@/components/header-button';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -1104,7 +1105,7 @@ export default function ChatScreen() {
             }}
           />
         ) : null}
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
       </View>
 
       <KeyboardAvoidingView

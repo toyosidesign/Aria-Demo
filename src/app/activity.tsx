@@ -7,6 +7,7 @@ import { HeaderButton } from '@/components/header-button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { CHANNEL_META, formatRunAt, reportLine, type Automation } from '@/lib/automations';
+import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import {
   selectAutomationReport,
@@ -26,7 +27,7 @@ export default function ActivityScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle">Aria’s activity</Text>
         <View className="w-10" />
       </View>

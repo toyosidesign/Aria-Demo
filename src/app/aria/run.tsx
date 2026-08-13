@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { runAutomation } from '@/lib/automation-runner';
+import { goBack } from '@/lib/nav';
 import { CHANNEL_META, type Automation } from '@/lib/automations';
 import { useColors } from '@/lib/colors';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
@@ -216,7 +217,7 @@ export default function AriaRunScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <AriaAvatar size={30} />
         <View className="flex-1">
           <Text variant="subtitle">Aria</Text>
@@ -292,7 +293,7 @@ export default function AriaRunScreen() {
             <Button title="Didn’t send" variant="secondary" onPress={markNotSent} />
           </View>
         ) : finished ? (
-          <Button title="Done" block size="lg" onPress={() => router.back()} />
+          <Button title="Done" block size="lg" onPress={() => goBack()} />
         ) : (
           <Button title="Please wait…" block size="lg" disabled loading />
         )}

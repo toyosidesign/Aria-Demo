@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { pickAvatar, type AvatarSource } from '@/lib/avatar';
+import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { hapticSelect } from '@/lib/haptics';
 import { useAriaStore } from '@/store/aria-store';
@@ -77,13 +78,13 @@ export default function EditProfileScreen() {
         .filter(Boolean),
     });
     hapticSelect();
-    router.back();
+    goBack();
   }
 
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack()} />
         <Text variant="subtitle">Edit profile</Text>
         <View className="w-10" />
       </View>

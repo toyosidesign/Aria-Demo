@@ -42,6 +42,7 @@ import { Screen } from '@/components/ui/screen';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { ensureAlarmPermission, runPreview } from '@/lib/alarms';
+import { goBack } from '@/lib/nav';
 import {
   CATEGORY_BLURB,
   CATEGORY_KINDS,
@@ -437,7 +438,7 @@ export default function NewTaskScreen() {
         return;
       }
     }
-    router.back();
+    goBack();
   }
 
   if (lostTask) {
@@ -445,7 +446,7 @@ export default function NewTaskScreen() {
       <Screen padded edges={['top', 'bottom']}>
         <View className="flex-row items-center justify-between pb-2 pt-2">
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => goBack()}
             hitSlop={8}
             className="h-10 w-10 items-center justify-center rounded-full active:bg-border/60">
             <X size={22} color={c.ink} />
@@ -545,7 +546,7 @@ export default function NewTaskScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center justify-between px-5 pb-2 pt-2">
-        <Pressable onPress={() => router.back()} hitSlop={8} className="h-10 w-10 items-center justify-center rounded-full active:bg-border/60">
+        <Pressable onPress={() => goBack()} hitSlop={8} className="h-10 w-10 items-center justify-center rounded-full active:bg-border/60">
           <X size={22} color={c.ink} />
         </Pressable>
         <Text variant="subtitle">{editing ? 'Edit task' : 'New task'}</Text>

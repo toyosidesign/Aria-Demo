@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { toRunAt } from '@/lib/automations';
+import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { isValidEmails } from '@/lib/contacts';
 import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
@@ -73,7 +74,7 @@ export default function EmailItScreen() {
   if (!task) {
     return (
       <Screen padded edges={['top', 'bottom']}>
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack('/(tabs)/tasks')} />
         <View className="flex-1 items-center justify-center">
           <Text tone="muted">This task no longer exists.</Text>
         </View>
@@ -101,14 +102,22 @@ export default function EmailItScreen() {
 
     hapticSuccess();
     showToast(`Sending ${formatFull(date)} at ${formatTime(time)}`, 'clock');
-    router.dismissAll?.();
+    /*
+     * Only dismiss what is actually there.
+     *
+     * `dismissAll` throws the same "not handled by any navigator" error as a
+     * back with nothing behind it, and the optional call guards a missing
+     * method rather than an empty stack. Arriving here from a notification is
+     * exactly the case where the stack is one deep.
+     */
+    if (router.canGoBack()) router.dismissAll?.();
     router.replace(`/task/${task.id}`);
   }
 
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack('/(tabs)/tasks')} />
         <Text variant="subtitle" className="flex-1">
           Email it
         </Text>

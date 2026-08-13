@@ -28,6 +28,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
 import { uuidv4 } from '@/lib/id';
+import { goBack } from '@/lib/nav';
 import { looksLikeQuestion } from '@/lib/question';
 import { handInReadiness } from '@/lib/ready';
 import { WORKING_SECTION, ownInstruction, workingDraft, writtenSections } from '@/lib/sections';
@@ -819,7 +820,7 @@ export default function AriaFlowScreen() {
     const next = selectNextDue(allTasks, demoDate, task!.id);
     if (task!.status === 'done' && next)
       router.replace({ pathname: '/task/[id]', params: { id: next.id, advanced: '1' } });
-    else router.back();
+    else goBack('/(tabs)/tasks');
   }
 
   /**
@@ -854,7 +855,7 @@ export default function AriaFlowScreen() {
   return (
     <Screen edges={['top']}>
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
-        <HeaderButton icon={X} onPress={() => router.back()} />
+        <HeaderButton icon={X} onPress={() => goBack('/(tabs)/tasks')} />
         <AriaAvatar size={30} />
         <View className="flex-1">
           <Text variant="subtitle">Aria</Text>
