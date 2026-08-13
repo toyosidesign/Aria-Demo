@@ -1838,6 +1838,28 @@ test('the send screen asks for the address, the subject, the message, and nothin
   }
 });
 
+test('a send that cannot go yet says why, rather than going grey', () => {
+  /*
+   * Reported as "save isn't there". A disabled button gives no reason and
+   * nothing to press against, and on a phone a grey rectangle at the bottom of
+   * a screen reads as an absent one. Four conditions can hold this back and
+   * three of them are invisible from down there, including the time, whose
+   * control is folded away by default.
+   *
+   * The create form settled this argument already: the press is the
+   * explanation.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  assert.ok(!/disabled=\{!ready\}/.test(screen), 'the button is never dead');
+  assert.match(screen, /function blocker\(\): string \| null/, 'it knows what is missing');
+  assert.match(screen, /Add the address this should go to\./);
+  assert.match(screen, /There is nothing to send yet/);
+  assert.match(screen, /if \(!time \|\| past\) setChanging\(true\);/, 'and opens the folded control');
+});
+
 test('the moment it goes out is on screen even though it is not asked for', () => {
   /*
    * A scheduled send whose moment is nowhere to be seen is one people assume

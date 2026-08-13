@@ -17,7 +17,7 @@ import { useColors } from '@/lib/colors';
 import { isValidEmails } from '@/lib/contacts';
 import { effectiveToday, formatFull, formatTime, isPastMoment, toISODate } from '@/lib/dates';
 import { sectionsToText } from '@/lib/export';
-import { hapticSuccess } from '@/lib/haptics';
+import { hapticSuccess, hapticWarning } from '@/lib/haptics';
 import { showToast } from '@/lib/toast';
 import { ASSEMBLED_SECTION, writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
@@ -107,10 +107,43 @@ export default function EmailItScreen() {
   // Two ways a moment is already gone: the real clock has passed it, or the
   // demo is standing on a later day. Both would schedule a send into the past.
   const past = date < effectiveToday(demoDate) || isPastMoment(date, time);
-  const ready = isValidEmails(email) && body.trim().length > 0 && !!time && !past;
+  /**
+   * Why this cannot be sent yet, in one sentence, or nothing.
+   *
+   * The create form learned this lesson already: a disabled button gives no
+   * reason and nothing to press against, and on a phone it reads as a button
+   * that is not there. Four conditions can hold this one back and three of them
+   * are invisible from the bottom of the screen.
+   */
+  function blocker(): string | null {
+    if (!isValidEmails(email)) {
+      return email.trim()
+        ? "That address doesn't look right, so I have left it alone."
+        : 'Add the address this should go to.';
+    }
+    if (!body.trim()) return 'There is nothing to send yet. Add the message.';
+    if (!time) return 'Pick a time, so I know when to send it.';
+    if (past) return 'That moment has already passed. Pick a later day or time.';
+    return null;
+  }
 
   function send() {
-    if (!ready || !time || !task) return;
+    if (!task) return;
+
+    /*
+     * Pressed while incomplete, and answered rather than ignored.
+     *
+     * Nothing happening is indistinguishable from the app being broken, which
+     * is exactly how this screen was reported: "save isn't there".
+     */
+    const why = blocker();
+    if (why || !time) {
+      hapticWarning();
+      showToast(why ?? 'Pick a time, so I know when to send it.', 'clock');
+      // The moment is the one blocker whose control is folded away by default.
+      if (!time || past) setChanging(true);
+      return;
+    }
 
     /*
      * Replace rather than add.
@@ -219,11 +252,13 @@ export default function EmailItScreen() {
       </ScrollView>
 
       <View className="border-t border-border px-5 pb-6 pt-3">
+        {/* Never disabled. See `blocker`: pressing it explains what is missing
+            and opens the control that is folded away, which is more use than a
+            grey rectangle. */}
         <Button
           title={pending ? 'Save the change' : 'Schedule it'}
           block
           size="lg"
-          disabled={!ready}
           leftIcon={<Send size={18} color={c.accentInk} />}
           onPress={send}
         />
