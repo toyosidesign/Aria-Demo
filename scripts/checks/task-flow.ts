@@ -1319,6 +1319,18 @@ test('the route is told to obey it rather than improve on it', () => {
   assert.match(route, /do not improve on the format/);
   assert.match(route, /ask one specific question and nothing else/, 'asks rather than guesses');
 
+  /*
+   * And there is room to actually do it.
+   *
+   * 1024 tokens is plenty for a card or one essay section, which is all this
+   * route used to be asked for. "Ten slides, twenty words each" ran out after
+   * five in testing, and a truncated answer to a precise instruction reads as
+   * Aria having ignored it, which is the one failure this option cannot afford.
+   * With the larger ceiling the same request came back as ten slides, eleven
+   * words at the longest, no bullets, no thank-you slide.
+   */
+  assert.match(route, /body\.ownInstruction\?\.trim\(\) \? 4096 : 1024/, 'room to obey it');
+
   // And it is bounded on the way in, like every other free-text field.
   const schemas = readFileSync(
     path.resolve(import.meta.dirname, '../../src/lib/api-schemas.ts'),

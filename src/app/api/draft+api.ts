@@ -241,7 +241,17 @@ Search before you write. Return notes a student can use: short paragraphs or sho
     // the installed SDK's local types lag behind.
     const msg = (await client.messages.create({
       model: 'claude-opus-4-8',
-      max_tokens: 1024,
+      /*
+       * Room for what they actually asked for.
+       *
+       * 1024 is plenty for a card, an outline or one section of an essay, which
+       * is everything this route used to be asked for. An instruction somebody
+       * wrote themselves is not bounded by Aria's idea of a task: "turn my
+       * notes into ten slides" ran out of tokens after five in testing, and a
+       * truncated answer to a precise instruction reads as Aria ignoring the
+       * instruction, which is the one failure this option cannot afford.
+       */
+      max_tokens: body.ownInstruction?.trim() ? 4096 : 1024,
       thinking: { type: 'adaptive' },
       output_config: { effort: 'medium' },
       system: systemFor(body.senderName, body.senderContext),
