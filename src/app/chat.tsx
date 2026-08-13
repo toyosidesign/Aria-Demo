@@ -1118,11 +1118,11 @@ export default function ChatScreen() {
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {messages.map((m) =>
+          {messages.map((m, i) =>
             m.divider ? (
               /* A labelled rule, not a bubble: this is punctuation in the
                  thread rather than something Aria said. */
-              <View key={m.id} className="flex-row items-center gap-3 py-3">
+              <View key={`${m.id}-${i}`} className="flex-row items-center gap-3 py-3">
                 <View className="h-px flex-1 bg-border" />
                 <Text variant="label" tone="faint">
                   {m.divider}
@@ -1130,7 +1130,7 @@ export default function ChatScreen() {
                 <View className="h-px flex-1 bg-border" />
               </View>
             ) : (
-            <View key={m.id} className="gap-2">
+            <View key={`${m.id}-${i}`} className="gap-2">
               <AriaBubble from={m.from}>{m.text}</AriaBubble>
               {/* Which one answered, development only. Now the shared
                   component, because the same marker belongs on notes, drafts

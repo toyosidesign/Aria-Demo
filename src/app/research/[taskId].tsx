@@ -279,10 +279,10 @@ export default function ResearchScreen() {
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {messages.map((m) =>
+          {messages.map((m, i) =>
             m.kind === 'notes' ? (
               <Animated.View
-                key={m.id}
+                key={`${m.id}-${i}`}
                 entering={FadeIn.duration(300)}
                 className="ml-10 rounded-2xl rounded-tl-md border border-accent/30 bg-surface p-4">
                 <Text variant="label" tone="accent" className="mb-1.5">
@@ -299,7 +299,7 @@ export default function ResearchScreen() {
                 <ScriptedNote show={m.scripted} className="pt-2" />
               </Animated.View>
             ) : (
-              <AriaBubble key={m.id} from={m.from}>
+              <AriaBubble key={`${m.id}-${i}`} from={m.from}>
                 {m.text}
               </AriaBubble>
             ),

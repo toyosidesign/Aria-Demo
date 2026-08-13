@@ -1554,7 +1554,19 @@ export const useAriaStore = create<AriaState>()(
         set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
       clearChat: () => set({ chat: [] }),
 
-      pushWorkMessage: (taskId, message) => {
+      pushWorkMessage: (taskId, rawMessage) => {
+        /*
+         * A unique id, whatever the caller passed.
+         *
+         * The id is a primary key on the server, so a collision does not just
+         * upset React's keys: the second message upserts over the first and the
+         * first is gone, from the thread and from every other device.
+         */
+        const thread = get().workChats[taskId]?.messages ?? [];
+        const message = thread.some((m) => m.id === rawMessage.id)
+          ? { ...rawMessage, id: uuidv4() }
+          : rawMessage;
+
         // Written through as it is said, and queued through the same outbox as
         // everything else when there is no signal. See lib/sync.ts.
         upsertWorkMessage(taskId, message, new Date().toISOString());
@@ -1710,6 +1722,32 @@ export const useAriaStore = create<AriaState>()(
             return { ...m, id: uuidv4() };
           });
           if (repaired) console.warn('[aria] repaired duplicate chat message ids');
+
+          /*
+           * And the same for each task's own thread.
+           *
+           * These arrived later and inherited the same counter, so a thread
+           * appended to across two sessions holds several "m1"s. That is worse
+           * here than in the main chat: the id is now a primary key in Postgres,
+           * so a duplicate does not merely upset React, it upserts one message
+           * over another and the earlier one is gone.
+           */
+          let threadsRepaired = 0;
+          for (const [taskId, chat] of Object.entries(state.workChats ?? {})) {
+            const seen = new Set<string>();
+            const messages = chat.messages.map((m) => {
+              if (m.id && !seen.has(m.id)) {
+                seen.add(m.id);
+                return m;
+              }
+              threadsRepaired += 1;
+              return { ...m, id: uuidv4() };
+            });
+            state.workChats[taskId] = { ...chat, messages };
+          }
+          if (threadsRepaired) {
+            console.warn(`[aria] repaired ${threadsRepaired} duplicate work message ids`);
+          }
 
           // Theme names have changed more than once, the setting was
           // 'system' | 'light' | 'dark', then gained 'paper' | 'mist' | 'cream',

@@ -1636,6 +1636,35 @@ test('a thread reaches the server, and a missing table never wipes one', () => {
     'and never over one the server already has');
 });
 
+test('a duplicate id never survives, in storage or in a push', () => {
+  /*
+   * Reported as "Encountered two children with the same key". Threads written
+   * before ids became uuids hold several "m1"s, because the counter restarted
+   * at every mount, and those rows are already on the device.
+   *
+   * Worse than a React warning: the id is a primary key in Postgres now, so a
+   * duplicate does not merely upset a list, it upserts one message over another
+   * and the earlier one is gone everywhere.
+   */
+  const store = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'),
+    'utf8',
+  );
+  assert.match(store, /repaired \$\{threadsRepaired\} duplicate work message ids/, 'stored threads are repaired on read');
+  assert.match(store, /thread\.some\(\(m\) => m\.id === rawMessage\.id\)/, 'and a push cannot add one');
+
+  // Rendered with the position too, since a cold start paints before the
+  // repair has run.
+  for (const screen of [
+    'src/app/aria/[taskId].tsx',
+    'src/app/chat.tsx',
+    'src/app/research/[taskId].tsx',
+  ]) {
+    const src = readFileSync(path.resolve(import.meta.dirname, '../../', screen), 'utf8');
+    assert.match(src, /key=\{`\$\{m\.id\}-\$\{i\}`\}/, `${screen} keys on id and position`);
+  }
+});
+
 test('a message id is a uuid, because it is now a primary key', () => {
   /*
    * The counter restarted at every mount, so a restored thread plus one new
