@@ -1229,6 +1229,62 @@ test('a typed answer lands on the right field', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Sending finished work asks four things');
+
+test('the send screen asks for the address, the subject, the message, and nothing else', () => {
+  /*
+   * The general schedule screen has to cover texts, cards and WhatsApp, so it
+   * opens with a channel picker, asks for a name and a phone number, and
+   * carries a Pro pitch. All of that is noise when the button already said
+   * email: a tutor does not need a first name to receive an essay.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  for (const field of ['label="Email address"', 'label="Subject"', 'label="Message Aria will send"']) {
+    assert.ok(screen.includes(field), `the send screen must ask for ${field}`);
+  }
+  assert.match(screen, /title="Schedule it"/, 'and commit with one button');
+
+  for (const absent of ['AUTO_CHANNELS', 'ContactField', 'toPhone', 'PRO_PITCH']) {
+    assert.ok(!screen.includes(absent), `${absent} belongs to the general screen, not this one`);
+  }
+});
+
+test('the moment it goes out is on screen even though it is not asked for', () => {
+  /*
+   * A scheduled send whose moment is nowhere to be seen is one people assume
+   * went out immediately. It is stated as a sentence, taken from the day the
+   * work is due, with the pickers folded away behind "Change" for the case
+   * where the deadline is not the moment.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /Goes out \$\{formatFull\(date\)\}/, 'said in words');
+  assert.match(screen, /changing \? 'Done' : 'Change'/, 'and changeable without being asked');
+  assert.match(screen, /const past =/, 'never into the past');
+});
+
+test('the writing screen no longer offers a second calendar', () => {
+  /*
+   * "Schedule for later" put a hand-in date in front of somebody who had just
+   * finished writing and may not know it yet. The day a piece of work is due
+   * lives on the task, where it already is; what belongs at the end of the
+   * writing is what happens to the writing.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.ok(!screen.includes('title="Schedule for later"'), 'no scheduling CTA on the work screen');
+  assert.ok(!screen.includes('Set when it goes out anyway'), 'nor its quieter twin');
+  assert.match(screen, /email-it\/\$\{task\.id\}/, 'the email CTA goes to the focused screen');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('A toast is sized to the sentence it carries');
 
 test('the toast text can be narrower than it wants to be', () => {
@@ -1310,25 +1366,27 @@ test('one step, singular; the count never reads like a template', () => {
   assert.equal(handInReadiness({ subtasks: [{ done: false }] }).blocker, '1 of 1 step still open');
 });
 
-test('the ending is offered at the end, and stays reachable before it', () => {
+test('unfinished work is offered the next step, not an ending', () => {
   /*
-   * Not simply hidden. A deadline is often known long before the work is done,
-   * and refusing to take one would be its own kind of wrong. So when work is
-   * left the loud button is the work, and scheduling stays underneath.
+   * Aria used to follow one section of a six-part project with an ending, which
+   * says it thinks they have finished. The scheduling buttons have since left
+   * this screen entirely, so what remains to check is that unfinished work is
+   * still answered with the work, and that the deadline question still lives on
+   * the task screen, where it can be asked once and kept.
    */
   const screen = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
     'utf8',
   );
-  assert.match(screen, /readiness\.ready \? \(/, 'the ending is gated on being finished');
-  assert.match(screen, /Keep going: \$\{upNext\.title\}/, 'and the work is what it offers instead');
-  assert.match(screen, /Set when it goes out anyway/, 'with the ending still reachable');
+  assert.match(screen, /!readiness\.ready \?/, 'unfinished work is recognised');
+  assert.match(screen, /Keep going: \$\{upNext\.title\}/, 'and answered with the next step');
 
   const task = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
     'utf8',
   );
   assert.match(task, /handInReadiness\(task\)/, 'the task screen asks the same question');
+  assert.match(task, /hand-in\/\$\{task\.id\}/, 'and is where a deadline is set');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

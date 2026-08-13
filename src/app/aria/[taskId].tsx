@@ -913,62 +913,53 @@ export default function AriaFlowScreen() {
                 a card, a message, is genuinely over when it is sent, so those
                 keep completing here.
               */}
-              {phase === 'done' && task.status === 'todo' ? (
-                isAssignmentKind ? (
-                  /*
-                   * Scheduling is the ending, so it is only offered at the end.
-                   *
-                   * Aria writes one section of a six-part project and used to
-                   * follow it with "Schedule for later", which tells somebody a
-                   * sixth of the way through that Aria thinks they are done. At
-                   * best that is noise; at worst they take it, set a date and
-                   * stop. When there is work left, the loud button is the work,
-                   * and the ending stays available underneath for the person
-                   * who has a deadline to set regardless.
-                   */
-                  readiness.ready ? (
-                    <Button
-                      title="Schedule for later"
-                      leftIcon={<CalendarClock size={19} color={c.accentInk} />}
-                      block
-                      size="lg"
-                      onPress={() => router.push(`/hand-in/${task.id}` as Href)}
-                    />
-                  ) : (
-                    <>
-                      <Button
-                        title={upNext ? `Keep going: ${upNext.title}` : 'Keep working on it'}
-                        leftIcon={<ArrowRight size={19} color={c.accentInk} />}
-                        block
-                        size="lg"
-                        onPress={() => {
-                          tap();
-                          if (upNext) void generateSub(upNext);
-                          else router.replace(`/task/${task.id}`);
-                        }}
-                      />
-                      <Text variant="caption" tone="muted" className="text-center">
-                        {readiness.blocker}
-                      </Text>
-                      <Button
-                        title="Set when it goes out anyway"
-                        variant="ghost"
-                        size="sm"
-                        block
-                        onPress={() => router.push(`/hand-in/${task.id}` as Href)}
-                      />
-                    </>
-                  )
-                ) : (
+              {/*
+                Work ends by being sent or saved, not by being scheduled here.
+
+                This used to offer "Schedule for later", which put a second
+                calendar in front of somebody who had just finished writing and
+                asked them to set a hand-in date they may not know yet. The day
+                a piece of work is due belongs on the task, where it already is;
+                what belongs at the end of the writing is what happens to the
+                writing. Everything Aria finishes that is genuinely over when it
+                is sent, a card, a message, still completes here.
+              */}
+              {phase === 'done' && task.status === 'todo' && !isAssignmentKind ? (
+                <Button
+                  title="Mark complete"
+                  leftIcon={<CheckCircle2 size={19} color={c.accentInk} />}
+                  block
+                  size="lg"
+                  onPress={markComplete}
+                />
+              ) : null}
+
+              {/*
+                Still unfinished, so the loud button is the work itself.
+
+                Offering an ending to somebody a sixth of the way through says
+                Aria thinks they have finished. The next step says the opposite,
+                and names which step it is.
+              */}
+              {phase === 'done' && task.status === 'todo' && isAssignmentKind && !readiness.ready ? (
+                <>
                   <Button
-                    title="Mark complete"
-                    leftIcon={<CheckCircle2 size={19} color={c.accentInk} />}
+                    title={upNext ? `Keep going: ${upNext.title}` : 'Keep working on it'}
+                    leftIcon={<ArrowRight size={19} color={c.accentInk} />}
                     block
                     size="lg"
-                    onPress={markComplete}
+                    onPress={() => {
+                      tap();
+                      if (upNext) void generateSub(upNext);
+                      else router.replace(`/task/${task.id}`);
+                    }}
                   />
-                )
+                  <Text variant="caption" tone="muted" className="text-center">
+                    {readiness.blocker}
+                  </Text>
+                </>
               ) : null}
+
               {/*
                 What happens to the work Aria just produced, in two real options.
 
@@ -980,12 +971,15 @@ export default function AriaFlowScreen() {
               */}
               {phase === 'done' && isAssignmentKind && (task.draftSections?.length ?? 0) > 0 ? (
                 <>
+                  {/* Promoted now that scheduling has gone: sending it is the
+                      likeliest ending for a finished piece of work, and with
+                      nothing above it there was no primary left on the screen. */}
                   <Button
                     title="Email it, at a time I pick"
-                    variant="secondary"
-                    leftIcon={<Mail size={18} color={c.ink} />}
+                    leftIcon={<Mail size={18} color={c.accentInk} />}
                     block
-                    onPress={() => router.push(`/schedule?taskId=${task.id}&channel=email` as Href)}
+                    size="lg"
+                    onPress={() => router.push(`/email-it/${task.id}` as Href)}
                   />
                   <Button
                     title="Save as a document"

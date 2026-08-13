@@ -149,10 +149,10 @@ export default function AssembledScreen() {
              * The document is not passed in the URL.
              *
              * It runs to thousands of words, and a query string is the wrong
-             * place for an essay. The schedule screen reads the assembled
-             * section off the task itself.
+             * place for an essay. The send screen reads the assembled section
+             * off the task itself.
              */
-            router.push(`/schedule?taskId=${task.id}&channel=email` as Href);
+            router.push(`/email-it/${task.id}` as Href);
           }}
         />
         <Button
