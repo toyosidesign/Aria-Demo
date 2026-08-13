@@ -909,6 +909,32 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
   }
 });
 
+test('editing is for what can still change, and points at what cannot', () => {
+  /*
+   * An edit screen that reopens every question is a screen somebody has to read
+   * to find the one field they came for. Category is chosen once: changing it
+   * turns one thing into another, and there is nothing sensible to do with an
+   * assignment's plan and sections when it becomes a birthday. Handling on work
+   * has already happened by then. A free notes box duplicates the place Aria's
+   * own sections already live.
+   *
+   * What is left is what a person actually comes back to change, and, for a
+   * task with a send waiting, a way through to the recipient and the message,
+   * which live on the send rather than on the task. A dead end there is worse
+   * than a door: guessing that editing the task edits everything about it is
+   * the reasonable guess.
+   */
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  assert.match(form, /\{editing \? null : \(\n\s*<View className="gap-2">\n\s*<Text variant="label" tone="muted">\n\s*Category/,
+    'category is set at creation and not reopened');
+  assert.match(form, /!isCallMethod && !\(editing && isWorkKind\(kind\)\)/, 'no free notes on work');
+  assert.match(form, /\{editing && sending \? \(/, 'and the send is reachable from here');
+  assert.match(form, /Change who it goes to, what it says, or when/);
+});
+
 test('editing a piece of work can change its date and time', () => {
   /*
    * Reported as being unable to update a task, and it was true: the scheduling
@@ -971,7 +997,14 @@ test('the create form asks work how before it asks when', () => {
   );
   const workHandling = form.indexOf('{startsWork ? handlingSection : null}');
   const date = form.indexOf('<MonthCalendar');
-  const otherHandling = form.indexOf('{startsWork ? null : handlingSection}');
+  /*
+   * The second placement now also refuses work that is being *edited*: by then
+   * Aria has already given the help, so re-asking how much would describe a
+   * past that did not happen. How that work goes out lives on its send.
+   */
+  const otherHandling = form.indexOf(
+    '{startsWork || (editing && isWorkKind(kind)) ? null : handlingSection}',
+  );
   assert.ok(workHandling > -1 && otherHandling > -1, 'both placements must exist');
   assert.ok(workHandling < date, 'work is asked how before the calendar');
   assert.ok(otherHandling > date, 'everything else keeps it after the date');

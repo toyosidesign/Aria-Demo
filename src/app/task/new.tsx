@@ -9,7 +9,9 @@ import {
   ListTodo,
   Mail,
   MessageSquare,
+  ChevronRight,
   PenLine,
+  Send,
   Phone,
   Plus,
   Repeat2,
@@ -55,6 +57,7 @@ import {
   TASK_KINDS,
 } from '@/lib/aria-actions';
 import { cn } from '@/lib/cn';
+import { formatRunAt, isPending } from '@/lib/automations';
 import { INSTRUCTION_SECTION, ownInstruction } from '@/lib/sections';
 import { isWorkKind } from '@/lib/task-flow';
 import { isValidEmails } from '@/lib/contacts';
@@ -200,6 +203,10 @@ export default function NewTaskScreen() {
    * they fixed a typo in the title would be an ambush.
    */
   const startsWork = isWorkKind(kind) && !editing;
+  /** The send this task already has waiting, if any. It has its own screen. */
+  const sending = useAriaStore((st) =>
+    editing ? st.automations.find((a) => a.taskId === editing.id && isPending(a)) : undefined,
+  );
 
   // Keep the selected handling valid as the category changes.
   useEffect(() => {
@@ -563,6 +570,17 @@ export default function NewTaskScreen() {
           keyboardDismissMode="on-drag"
           automaticallyAdjustKeyboardInsets
           showsVerticalScrollIndicator={false}>
+          {/*
+            Category is chosen once, when the task is made.
+
+            Changing it later is not editing a task, it is turning one thing
+            into another: an assignment carries a plan, sections Aria wrote and
+            a walkthrough, and a birthday carries a card and a recipient. There
+            is nothing sensible to do with the first set when it becomes the
+            second, and the row was taking up the top of a screen somebody
+            opened to change a date.
+          */}
+          {editing ? null : (
           <View className="gap-2">
             <Text variant="label" tone="muted">
               Category
@@ -608,6 +626,7 @@ export default function NewTaskScreen() {
               })}
             </View>
           </View>
+          )}
 
           {isEventKind(kind) ? (
             <View className="gap-2">
@@ -829,7 +848,48 @@ export default function NewTaskScreen() {
           </View>
 
 
-          {startsWork ? null : handlingSection}
+          {/*
+            Handling is offered when it still decides something.
+
+            For a message it is how it goes out, a text or an email or a card,
+            which is exactly what somebody edits. For a piece of work it is how
+            much help Aria gives, and by the time the task is being edited that
+            has already happened: there are sections written and parts ticked
+            off, and changing the answer now would describe a past that did not
+            occur. How that work goes out lives on the send, on the task screen.
+          */}
+          {startsWork || (editing && isWorkKind(kind)) ? null : handlingSection}
+
+          {/*
+            Where the send is edited, said on the screen somebody guessed wrong on.
+
+            The recipient, the subject and the message that goes out belong to
+            the send, not to the task, and they have their own screen. Somebody
+            opening this form to change who it goes to has already made the
+            reasonable guess that editing the task edits everything about it,
+            and a dead end is a worse answer than a door.
+          */}
+          {editing && sending ? (
+            <View className="gap-2">
+              <Text variant="label" tone="muted">
+                Going out
+              </Text>
+              <Pressable
+                onPress={() => router.replace(`/email-it/${editing.id}` as Href)}
+                className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface p-4 active:opacity-70">
+                <Send size={16} color={c.accent} />
+                <View className="flex-1 gap-0.5">
+                  <Text variant="small" className="font-strong">
+                    {`To ${sending.toEmail ?? sending.toPhone ?? 'them'}, ${formatRunAt(sending.runAt)}`}
+                  </Text>
+                  <Text variant="caption" tone="muted">
+                    Change who it goes to, what it says, or when
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={c.muted} />
+              </Pressable>
+            </View>
+          ) : null}
 
           {showsContact ? (
             <ContactField
@@ -910,7 +970,11 @@ export default function NewTaskScreen() {
               onChange={setDescription}
               label={method === 'email' ? 'What the email says' : 'What the message says'}
             />
-          ) : !isCallMethod ? (
+          ) : !isCallMethod && !(editing && isWorkKind(kind)) ? (
+            /* Kept where it is the message that goes out, dropped where it is a
+               free notes box on work that has already started: Aria's own
+               sections are on the task screen, and a second place to write
+               about the same piece of work is a second place to look. */
             <Input
               label="Notes (optional)"
               placeholder="Any detail that helps…"
