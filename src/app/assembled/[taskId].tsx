@@ -12,7 +12,7 @@ import { useColors } from '@/lib/colors';
 import { formatFull } from '@/lib/dates';
 import { exportWork } from '@/lib/export';
 import { hapticSelect } from '@/lib/haptics';
-import { ASSEMBLED_SECTION } from '@/lib/work-runner';
+import { writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -47,7 +47,7 @@ export default function AssembledScreen() {
     if (!task) return null;
     // The constant, not the string. Two spellings of the same section title is
     // how a document ends up containing its own previous copy.
-    const sections = (task.draftSections ?? []).filter((s) => s.title !== ASSEMBLED_SECTION);
+    const sections = writtenSections(task.draftSections);
     return assemble({
       title: task.title,
       author: profile.name,

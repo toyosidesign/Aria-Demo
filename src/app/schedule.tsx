@@ -20,7 +20,7 @@ import { isValidEmails } from '@/lib/contacts';
 import { hapticSuccess } from '@/lib/haptics';
 import { PRO_FEATURES, PRO_PITCH, promptProUpgrade } from '@/lib/pro';
 import { showToast } from '@/lib/toast';
-import { ASSEMBLED_SECTION } from '@/lib/work-runner';
+import { ASSEMBLED_SECTION, writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -61,7 +61,7 @@ export default function ScheduleScreen() {
   const [body, setBody] = useState(
     params.body ??
       task?.draftSections?.find((sec) => sec.title === ASSEMBLED_SECTION)?.content ??
-      task?.draftSections?.[0]?.content ??
+      writtenSections(task?.draftSections)[0]?.content ??
       '',
   );
   const [date, setDate] = useState(task?.date ?? demoDate);

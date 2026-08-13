@@ -18,7 +18,7 @@ import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/date
 import { sectionsToText } from '@/lib/export';
 import { hapticSuccess } from '@/lib/haptics';
 import { showToast } from '@/lib/toast';
-import { ASSEMBLED_SECTION } from '@/lib/work-runner';
+import { ASSEMBLED_SECTION, writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -61,9 +61,8 @@ export default function EmailItScreen() {
    * finished work it is the brief or an early paragraph, never the piece.
    */
   const initialBody = useMemo(() => {
-    const sections = task?.draftSections ?? [];
-    const assembled = sections.find((s) => s.title === ASSEMBLED_SECTION);
-    return assembled ? assembled.content : sectionsToText(sections);
+    const assembled = (task?.draftSections ?? []).find((s) => s.title === ASSEMBLED_SECTION);
+    return assembled ? assembled.content : sectionsToText(writtenSections(task?.draftSections));
   }, [task?.draftSections]);
   const [body, setBody] = useState(initialBody);
 

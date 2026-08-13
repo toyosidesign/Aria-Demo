@@ -91,10 +91,13 @@ export function ToastHost() {
         }}>
         {/* Nudged to sit on the first line's baseline once the text wraps. */}
         <Icon size={16} color={c.bg} style={{ marginTop: 2 }} />
+        {/* One size down from body text. A toast is glanced at, not read, and
+            at body size a two-clause sentence filled most of the screen. */}
         <Text
+          variant="small"
           className="shrink font-strong leading-5"
           style={{ color: c.bg }}
-          numberOfLines={3}>
+          numberOfLines={2}>
           {message}
         </Text>
       </View>

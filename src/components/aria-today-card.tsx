@@ -14,11 +14,16 @@ import { useColors } from '@/lib/colors';
 import { formatTime } from '@/lib/dates';
 import { type Task } from '@/store/aria-store';
 
-/** A proactive Aria offer surfaced on Today, consent-first: has a clear decline. */
+/**
+ * A proactive Aria offer on Today.
+ *
+ * Consent-first still, but the consent is in the asking rather than in a second
+ * button: nothing happens until it is tapped, and ignoring it is a complete and
+ * costless answer. See the note by the button.
+ */
 export function AriaTodayCard({
   task,
   action,
-  onDismiss,
   /**
    * Opening the task, when something else owns that decision.
    *
@@ -31,7 +36,6 @@ export function AriaTodayCard({
 }: {
   task: Task;
   action: AriaAction;
-  onDismiss: () => void;
   onPress?: () => void;
 }) {
   const c = useColors();
@@ -99,30 +103,29 @@ export function AriaTodayCard({
         {action.needsSend ? ' Nothing goes out without your OK.' : ''}
       </Text>
 
-      <View className="flex-row gap-2 pt-1">
+      {/*
+        One button, because there is only one thing being asked.
+
+        This card used to carry a "Not now" that pushed the task to tomorrow.
+        Declining is already what doing nothing does: the card is a suggestion
+        on a home screen, it costs nothing to scroll past, and the day it sits
+        on is the day the person chose. Spending half the row on a decline made
+        every offer look like it needed defending, and it was loudest on work
+        somebody had already started, where the honest reading of "not now" is
+        just closing the app.
+
+        Moving it to another day is still a swipe on this card, and the task
+        screen still has the date.
+      */}
+      <View className="pt-1">
         <Button
           title={action.cta}
           leftIcon={<Sparkles size={17} color={c.accentInk} />}
           onPress={() =>
             action.readyToSend ? setSendOpen(true) : router.push(`/aria/${task.id}`)
           }
-          className="flex-1"
+          block
         />
-        {/*
-          "Not now" belongs on an offer, not on a reminder.
-          
-          Aria proposing to draft or plan something is a suggestion, and a
-          suggestion needs a clear way to decline, that is the consent-first
-          rule this card was built around. A card that is written and waiting is
-          a different thing: it is you being reminded to send something you
-          already decided to send, and offering to dismiss it invites the one
-          outcome nobody wants, which is the birthday passing quietly.
-          
-          Pushing it to another day is still possible from the task itself.
-        */}
-        {action.readyToSend ? null : (
-          <Button title="Not now" variant="secondary" onPress={onDismiss} />
-        )}
       </View>
 
       {action.readyToSend ? (

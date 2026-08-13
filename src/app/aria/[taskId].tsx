@@ -28,6 +28,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
 import { handInReadiness } from '@/lib/ready';
+import { WORKING_SECTION, workingDraft, writtenSections } from '@/lib/sections';
 import { UNCHANGED_NOTICE } from '@/lib/assistant';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -105,6 +106,7 @@ export default function AriaFlowScreen() {
   const completeTask = useAriaStore((s) => s.completeTask);
   const reopenTask = useAriaStore((s) => s.reopenTask);
   const addDraftSection = useAriaStore((s) => s.addDraftSection);
+  const removeDraftSection = useAriaStore((s) => s.removeDraftSection);
   const toggleSubtask = useAriaStore((s) => s.toggleSubtask);
   const pro = useAriaStore((s) => s.pro);
   // Aria writes and signs as whoever is signed in, never the demo persona.
@@ -138,6 +140,30 @@ export default function AriaFlowScreen() {
   const nextIncompleteSub = (excludeId?: string) =>
     task?.subtasks.find((s) => !s.done && s.id !== excludeId) ?? null;
 
+  /*
+   * Hold the draft where it will survive the screen being closed.
+   *
+   * Accepted work becomes a section and sections sync, so a part somebody
+   * checked off is still there tomorrow on another device. An unaccepted draft
+   * lived in this component and died with it, which is why "Continue" produced
+   * different text and lost every tweak: it was not continuing, it was writing
+   * again from scratch. It is now held as a reserved section, see lib/sections.
+   */
+  function keepWorking(text: string, subId?: string) {
+    setDraft(text);
+    if (!task) return;
+    addDraftSection(task.id, {
+      title: WORKING_SECTION,
+      content: subId ? `${subId}\n${text}` : text,
+    });
+  }
+
+  /** Accepted, so the unfinished copy has nothing left to say. */
+  function clearWorking() {
+    if (!task) return;
+    removeDraftSection(task.id, WORKING_SECTION);
+  }
+
   async function generateSub(sub: { id: string; title: string }, instruction?: string) {
     if (!task) return;
     setActiveSubId(sub.id);
@@ -168,7 +194,7 @@ export default function AriaFlowScreen() {
       return;
     }
 
-    setDraft(res.message);
+    keepWorking(res.message, sub.id);
     push(mk('aria', 'draft', res.message, res.fallback));
     push(
       mk(
@@ -202,7 +228,7 @@ export default function AriaFlowScreen() {
       return;
     }
 
-    setDraft(res.message);
+    keepWorking(res.message);
     push(mk('aria', 'draft', res.message, res.fallback));
     push(
       mk(
@@ -216,10 +242,39 @@ export default function AriaFlowScreen() {
     setPhase('review');
   }
 
-  // Kick off drafting on mount.
+  /*
+   * Opening the screen, which is usually not the beginning.
+   *
+   * This used to greet everybody with "let's work through this together, 6
+   * parts" and write the next part again from scratch, whether they had never
+   * seen it or had four parts behind them. Reported as Continue restarting the
+   * task, and it was: the position was right, but nothing that had happened was
+   * on screen and an unfinished draft was replaced by a different one.
+   *
+   * So it now reads what is stored before it says anything. Ticked parts and
+   * accepted sections say how far in they are; a reserved working section says
+   * whether they stopped mid-draft, and if they did, that exact text comes back
+   * rather than a fresh attempt at it. Regenerating is what loses somebody's
+   * tweaks, and it is indistinguishable from being ignored.
+   */
   useEffect(() => {
     if (startedRef.current || !task || !action) return;
     startedRef.current = true;
+
+    const saved = workingDraft(task.draftSections);
+    const done = task.subtasks.filter((s) => s.done).length;
+    const wrote = writtenSections(task.draftSections).length;
+    const returning = done > 0 || wrote > 0 || !!saved?.content?.trim();
+
+    /** The part a stored draft belongs to, and the text without its marker. */
+    const savedFor = (() => {
+      const raw = saved?.content ?? '';
+      if (!raw.trim()) return null;
+      const [head, ...rest] = raw.split('\n');
+      const sub = task.subtasks.find((s) => s.id === head);
+      return sub ? { sub, text: rest.join('\n') } : { sub: null, text: raw };
+    })();
+
     const walkthrough = action.walkthrough;
     if (walkthrough) {
       const first = task.subtasks.find((s) => !s.done);
@@ -228,14 +283,53 @@ export default function AriaFlowScreen() {
         setPhase('done');
         return;
       }
+
       push(
         mk(
           'aria',
           'text',
-          `Let’s work through this together, ${task.subtasks.length} parts. First up: “${first.title}.”`,
+          returning
+            ? `Picking up where we left off. ${done} of ${task.subtasks.length} parts done, and we were on “${(savedFor?.sub ?? first).title}.”`
+            : `Let’s work through this together, ${task.subtasks.length} parts. First up: “${first.title}.”`,
         ),
       );
+
+      /*
+       * The draft they left, not a new one that happens to be about the same
+       * thing. Only when it belongs to the part still open: an older scrap from
+       * a part since accepted would be putting finished work back in front of
+       * them as though it were unfinished.
+       */
+      if (savedFor && (!savedFor.sub || savedFor.sub.id === first.id)) {
+        const sub = savedFor.sub ?? first;
+        setActiveSubId(sub.id);
+        setDraft(savedFor.text);
+        push(mk('aria', 'draft', savedFor.text));
+        push(
+          mk(
+            'aria',
+            'text',
+            `That’s where we got to on “${sub.title}.” Carry on from here, tweak it with the chips, or tell me what to change.`,
+          ),
+        );
+        setPhase('review');
+        return;
+      }
+
       generateSub(first);
+    } else if (savedFor?.text) {
+      // Same rule off the walkthrough: an unfinished draft comes back as it was.
+      setDraft(savedFor.text);
+      push(mk('aria', 'text', 'Picking up where we left off.'));
+      push(mk('aria', 'draft', savedFor.text));
+      push(
+        mk(
+          'aria',
+          'text',
+          'That’s where we got to. Carry on from here, or tell me what to change.',
+        ),
+      );
+      setPhase('review');
     } else if (action.method === 'card' && task.description?.trim()) {
       // The message was written on the task itself, use it rather than
       // replacing what Maya already decided the card should say.
@@ -335,6 +429,7 @@ export default function AriaFlowScreen() {
   /** Keep it on the task, which is where Aria's own drafts live. */
   function keepOnTask() {
     tap();
+    clearWorking();
     addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
     push(mk('maya', 'text', 'Keep it here.'));
     push(
@@ -357,6 +452,7 @@ export default function AriaFlowScreen() {
    */
   function keepAsDocument() {
     tap();
+    clearWorking();
     addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
     push(mk('maya', 'text', 'Put it in a document.'));
     void exportWork(task!.title, draft);
@@ -373,6 +469,7 @@ export default function AriaFlowScreen() {
   function acceptSubtask() {
     const sub = task!.subtasks.find((s) => s.id === activeSubId);
     push(mk('maya', 'text', 'Looks good.'));
+    clearWorking();
     if (sub && !sub.done) toggleSubtask(task!.id, sub.id);
     addDraftSection(task!.id, { title: sub?.title ?? 'Section', content: draft });
     hapticSuccess();
@@ -987,7 +1084,7 @@ export default function AriaFlowScreen() {
                     leftIcon={<Share2 size={18} color={c.ink} />}
                     block
                     onPress={() =>
-                      void exportWork(task.title, sectionsToText(task.draftSections ?? []))
+                      void exportWork(task.title, sectionsToText(writtenSections(task.draftSections)))
                     }
                   />
                 </>

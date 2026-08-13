@@ -50,6 +50,13 @@ import {
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
 import { dedupeSources, hostOf } from '@/lib/source';
+import {
+  ASSEMBLED_SECTION,
+  WORKING_SECTION,
+  isReserved,
+  workingDraft,
+  writtenSections,
+} from '@/lib/sections';
 import { handInReadiness } from '@/lib/ready';
 import { currentTaskMessages, historyForModel } from '@/lib/chat-scope';
 import { SAVE_QUESTION, saveTarget, wantsSave } from '@/lib/save-intent';
@@ -1229,6 +1236,78 @@ test('a typed answer lands on the right field', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Continuing means continuing');
+
+test('a working draft is never part of the work', () => {
+  /*
+   * The unfinished draft is stored as a section, because sections are the part
+   * of a task that already syncs and nobody has migrated a new column. The
+   * price is that everything reading sections has to know the reserved titles:
+   * a half-written paragraph appearing inside a submitted essay is the kind of
+   * bug that ships silently.
+   */
+  const sections = [
+    { title: 'Introduction', content: 'a' },
+    { title: WORKING_SECTION, content: 'half a sentence' },
+    { title: ASSEMBLED_SECTION, content: 'the whole thing' },
+  ];
+  assert.deepEqual(
+    writtenSections(sections).map((s) => s.title),
+    ['Introduction'],
+  );
+  assert.equal(workingDraft(sections)?.content, 'half a sentence');
+  assert.equal(isReserved(WORKING_SECTION), true);
+  assert.equal(isReserved('Introduction'), false);
+});
+
+test('nothing that hands work to a person includes the reserved sections', () => {
+  /*
+   * One filter, used everywhere, rather than four copies of it with one screen
+   * left behind.
+   */
+  const consumers = [
+    'src/app/assembled/[taskId].tsx',
+    'src/app/hand-in/[taskId].tsx',
+    'src/app/email-it/[taskId].tsx',
+    'src/app/task/[id].tsx',
+    'src/lib/work-runner.ts',
+  ];
+  for (const file of consumers) {
+    const src = readFileSync(path.resolve(import.meta.dirname, '../../', file), 'utf8');
+    assert.match(src, /writtenSections\(/, `${file} must filter sections through one place`);
+  }
+});
+
+test('reopening a started task resumes it rather than starting again', () => {
+  /*
+   * Reported as Continue restarting the task. The position was right, the next
+   * unfinished part, but nothing that had already happened was on screen and
+   * the draft somebody left was replaced by a freshly written one, which is
+   * what loses their tweaks.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const returning = done > 0/, 'it knows whether this is a return');
+  assert.match(screen, /Picking up where we left off/, 'and says so');
+  assert.match(screen, /savedFor && \(!savedFor\.sub \|\| savedFor\.sub\.id === first\.id\)/,
+    'a stored draft is restored only for the part still open');
+  assert.match(screen, /keepWorking\(/, 'every draft shown is stored as it appears');
+  assert.match(screen, /clearWorking\(\)/, 'and retired once accepted');
+});
+
+test('the offer knows the difference between starting and carrying on', () => {
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(actions, /const started = done > 0/, 'progress is what decides it');
+  assert.match(actions, /started \? 'Continue'/, "and a return says Continue");
+  assert.match(actions, /parts done\. Next up/, 'with where they got to');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Sending finished work asks four things');
 
 test('the send screen asks for the address, the subject, the message, and nothing else', () => {
@@ -1301,8 +1380,11 @@ test('the toast text can be narrower than it wants to be', () => {
   );
   assert.match(host, /className="shrink font-strong/, 'the text may be smaller than its content');
   assert.match(host, /maxWidth: '90%'/, 'and the pill is still bounded');
-  assert.match(host, /numberOfLines=\{3\}/, 'three lines, then an ellipsis');
+  assert.match(host, /numberOfLines=\{2\}/, 'two lines, then an ellipsis');
   assert.doesNotMatch(host, /numberOfLines=\{1\}/, 'one line truncated the reports that matter');
+  // A toast is glanced at on the way to something else, so the reports it
+  // carries were shortened to fit rather than the pill grown to hold them.
+  assert.match(host, /variant="small"/, 'one size down from body text');
 });
 
 test('nothing is offered to decline when the button says Done', () => {

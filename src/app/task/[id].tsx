@@ -39,6 +39,7 @@ import { GuideButton } from '@/components/work-panels';
 import { readyToAssemble } from '@/lib/assemble';
 import { rolloverVerdict } from '@/lib/plan';
 import { handInReadiness } from '@/lib/ready';
+import { writtenSections } from '@/lib/sections';
 import { isWorkKind } from '@/lib/task-flow';
 import { SendCardSheet } from '@/components/send-card-sheet';
 import { ReminderActions } from '@/components/reminder-actions';
@@ -120,7 +121,8 @@ export default function TaskDetailScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
 
   async function copyAll() {
-    const sections = task?.draftSections ?? [];
+    // Copying or exporting hands somebody the work, so it is the work only.
+    const sections = writtenSections(task?.draftSections);
     if (!sections.length) return;
     await Clipboard.setStringAsync(sections.map((d) => `${d.title}\n${d.content}`).join('\n\n'));
     setCopied(true);
@@ -129,7 +131,7 @@ export default function TaskDetailScreen() {
 
   /** Hand the whole draft to Notes, Docs, Drive, Files or Mail. */
   function exportAll() {
-    const sections = task?.draftSections ?? [];
+    const sections = writtenSections(task?.draftSections);
     if (!sections.length) return;
     hapticTap();
     void exportWork(task!.title, sectionsToText(sections));
@@ -424,7 +426,10 @@ export default function TaskDetailScreen() {
         ) : null}
 
         {/* Aria's drafted content, kept separate from Notes, copyable */}
-        {task.draftSections && task.draftSections.length > 0 ? (
+        {/* Written work only. An unfinished draft Aria is holding for you, and
+            the compiled document, are both about the work rather than part of
+            it, and listing them here reads as two extra sections nobody wrote. */}
+        {writtenSections(task.draftSections).length > 0 ? (
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center gap-1.5">
@@ -435,7 +440,7 @@ export default function TaskDetailScreen() {
               </View>
             </View>
             <Card className="gap-4">
-              {task.draftSections.map((d, i) => (
+              {writtenSections(task.draftSections).map((d, i) => (
                 <View key={`${d.title}-${i}`} className="gap-1">
                   <Text variant="small" tone="accent" className="font-strong">
                     {d.title}

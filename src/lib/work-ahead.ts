@@ -141,5 +141,13 @@ export function workAheadReport(done: WorkItem[]): string | null {
   const parts: string[] = [];
   if (drafts) parts.push(`${drafts} ${drafts === 1 ? 'message' : 'messages'} written`);
   if (breakdowns) parts.push(`${breakdowns} ${breakdowns === 1 ? 'plan' : 'plans'} broken down`);
-  return `Done while you were away: ${parts.join(', ')}. Have a look when you get a minute.`;
+  /*
+   * Short enough to read at a glance, because that is all a toast gets.
+   *
+   * This used to end "Have a look when you get a minute", which is a sentence
+   * that tells somebody nothing they did not already know and pushed the part
+   * that matters, what was actually done, off the end of the pill. A toast is
+   * read in about a second on the way to something else.
+   */
+  return `While you were away: ${parts.join(', ')}.`;
 }

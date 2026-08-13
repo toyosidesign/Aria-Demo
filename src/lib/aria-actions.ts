@@ -338,13 +338,27 @@ function assignmentAction(task: Task): AriaAction | null {
   if (method === 'remind') return null;
 
   const pending = task.subtasks.filter((s) => !s.done);
+  const done = task.subtasks.length - pending.length;
+
+  /*
+   * Whether this is a beginning or a return.
+   *
+   * Coming back to a piece of work you are already halfway through and being
+   * asked "want me to work through this with you?" is Aria failing to remember
+   * the last two hours. The offer has to know the difference, and it can: parts
+   * are ticked off, or something has been written, or neither has happened yet.
+   */
+  const started = done > 0 || (task.draftSections?.length ?? 0) > 0;
+
   if (method === 'steps' && pending.length > 0) {
     return {
       type: 'assignment',
       method,
       walkthrough: true,
-      offer: `Want me to work through this with you, part by part? First up: “${pending[0].title}.”`,
-      cta: 'Work through it',
+      offer: started
+        ? `${done} of ${task.subtasks.length} parts done. Next up: “${pending[0].title}.”`
+        : `Want me to work through this with you, part by part? First up: “${pending[0].title}.”`,
+      cta: started ? 'Continue' : 'Work through it',
       needsSend: false,
       drafting: `the “${pending[0].title}” section`,
     };
@@ -353,8 +367,10 @@ function assignmentAction(task: Task): AriaAction | null {
     return {
       type: 'assignment',
       method,
-      offer: 'Want me to write a full first draft?',
-      cta: 'Write a draft',
+      offer: started
+        ? 'We have a draft going. Want to pick it back up?'
+        : 'Want me to write a full first draft?',
+      cta: started ? 'Continue' : 'Write a draft',
       needsSend: false,
       drafting: 'a full first draft',
     };
@@ -363,8 +379,10 @@ function assignmentAction(task: Task): AriaAction | null {
   return {
     type: 'assignment',
     method,
-    offer: 'Want me to draft a starting outline for this?',
-    cta: 'Draft an outline',
+    offer: started
+      ? 'We made a start on this. Want to pick it back up?'
+      : 'Want me to draft a starting outline for this?',
+    cta: started ? 'Continue' : 'Draft an outline',
     needsSend: false,
     drafting: 'a starting outline',
   };

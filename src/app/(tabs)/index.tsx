@@ -1,13 +1,10 @@
-import { addDays, parseISO } from 'date-fns';
 import { router } from 'expo-router';
 import {
-  CalendarClock,
   CheckCircle2,
   ChevronRight,
   LayoutGrid,
   Plus,
   Sparkles,
-  X,
 } from 'lucide-react-native';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -25,7 +22,7 @@ import { Text } from '@/components/ui/text';
 import { ariaActionFor } from '@/lib/aria-actions';
 import { buildReview, reviewSummary } from '@/lib/daily-review';
 import { useColors } from '@/lib/colors';
-import { formatLong, toISODate } from '@/lib/dates';
+import { formatLong } from '@/lib/dates';
 import {
   hasReminderFired,
   isReminderOnly,
@@ -52,7 +49,6 @@ export default function TodayScreen() {
   const demoOfferDismissed = useAriaStore((s) => s.demoOfferDismissed);
   const pro = useAriaStore((s) => s.pro);
   const lastReviewedOn = useAriaStore((s) => s.lastReviewedOn);
-  const rescheduleTask = useAriaStore((s) => s.rescheduleTask);
   const markDayReviewed = useAriaStore((s) => s.markDayReviewed);
   /*
    * Handed to every swipeable row so the row's drag beats the page's.
@@ -61,16 +57,15 @@ export default function TodayScreen() {
   const scrollRef = useRef(null);
 
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const [deferred, setDeferred] = useState<{ id: string; title: string } | null>(null);
-
-  // "Not now" on an offer moves the task to tomorrow so it isn't lost, but
-  // tomorrow is a guess, so the confirmation offers a proper day and time too.
-  function defer(task: Task) {
-    // Silent: the banner below is the feedback, and "rescheduled" isn't true
-    // until Maya has actually settled on a day.
-    rescheduleTask(task.id, toISODate(addDays(parseISO(task.date), 1)), { silent: true });
-    setDeferred({ id: task.id, title: task.title });
-  }
+  /*
+   * The defer-to-tomorrow path went with the offer card's "Not now".
+   *
+   * It existed to catch a decline that no longer happens: ignoring a suggestion
+   * is now the whole of declining it, and the day a task sits on is the day the
+   * person chose rather than something Aria should quietly move. Swiping the
+   * card and the task's own date still do this properly, with a date somebody
+   * picked instead of a guess at tomorrow.
+   */
 
   const today = useMemo(() => selectToday(tasks, demoDate), [tasks, demoDate]);
   // Only the topmost fired reminder demonstrates the gesture: the hint is there
@@ -212,44 +207,6 @@ export default function TodayScreen() {
           </Animated.View>
         ) : null}
 
-        {/* "Not now" confirmation, moved to tomorrow, with a way to pick properly */}
-        {deferred ? (
-          <Animated.View
-            entering={FadeIn.duration(250)}
-            exiting={FadeOut.duration(200)}
-            className="gap-3 rounded-2xl border border-accent/25 bg-accent-soft p-4">
-            <View className="flex-row items-center gap-2.5">
-              <AriaAvatar size={26} />
-              <Text variant="small" className="flex-1 leading-5">
-                No problem. I&apos;ve moved “{deferred.title}” to tomorrow. Want a different day or
-                time?
-              </Text>
-              <Pressable onPress={() => setDeferred(null)} hitSlop={8} className="active:opacity-60">
-                <X size={16} color={c.muted} />
-              </Pressable>
-            </View>
-            <View className="flex-row gap-2">
-              <Button
-                title="Pick a day & time"
-                size="sm"
-                leftIcon={<CalendarClock size={16} color={c.accentInk} />}
-                className="flex-1"
-                onPress={() => {
-                  const id = deferred.id;
-                  setDeferred(null);
-                  router.push({ pathname: '/reschedule', params: { id } });
-                }}
-              />
-              <Button
-                title="Tomorrow's fine"
-                variant="secondary"
-                size="sm"
-                onPress={() => setDeferred(null)}
-              />
-            </View>
-          </Animated.View>
-        ) : null}
-
         {/* Today, warm welcome for a fresh account, otherwise the day's tasks */}
         {hasNoTasks ? (
           <Animated.View
@@ -316,7 +273,6 @@ export default function TodayScreen() {
                         <AriaTodayCard
                           task={task}
                           action={action}
-                          onDismiss={() => defer(task)}
                           onPress={onPress}
                         />
                       )}

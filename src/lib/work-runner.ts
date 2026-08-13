@@ -3,6 +3,7 @@ import { assemble, factsFromSections, readyToAssemble } from '@/lib/assemble';
 import { catchUp } from '@/lib/plan';
 import { requestChecklist } from '@/lib/subtasks';
 import { isWorkKind } from '@/lib/task-flow';
+import { ASSEMBLED_SECTION as ASSEMBLED, writtenSections } from '@/lib/sections';
 import { workAhead, workAheadReport, type WorkItem } from '@/lib/work-ahead';
 import { useAriaStore } from '@/store/aria-store';
 
@@ -45,7 +46,9 @@ export interface WorkPass {
 const EMPTY: WorkPass = { prepared: [], replanned: [], assembled: [] };
 
 /** The section an assembled document is kept in, so it is found rather than remade. */
-export const ASSEMBLED_SECTION = 'Assembled document';
+// Re-exported so existing importers keep one name for it. The definition lives
+// in lib/sections.ts, which is pure and holds the rule about what a section is.
+export { ASSEMBLED_SECTION } from '@/lib/sections';
 
 /**
  * Prepare what is worth preparing, and re-date what has slipped.
@@ -144,7 +147,7 @@ export async function runWorkAhead(): Promise<WorkPass> {
     for (const task of store2.tasks) {
       if (task.status !== 'todo' || !isWorkKind(task.kind)) continue;
       if (!readyToAssemble(task.date, today)) continue;
-      const sections = task.draftSections ?? [];
+      const sections = writtenSections(task.draftSections);
       const done = assemble({
         title: task.title,
         author: store2.profile.name,
@@ -157,12 +160,12 @@ export async function runWorkAhead(): Promise<WorkPass> {
       // Nothing written and nothing planned: a cover sheet on its own is not
       // worth announcing, and would read as Aria claiming to have done work.
       if (!done.words) continue;
-      const existing = sections.find((s) => s.title === ASSEMBLED_SECTION);
+      const existing = sections.find((s) => s.title === ASSEMBLED);
       if (existing?.content === done.body) continue;
       useAriaStore.getState().updateTask(task.id, {
         draftSections: [
-          ...sections.filter((s) => s.title !== ASSEMBLED_SECTION),
-          { title: ASSEMBLED_SECTION, content: done.body },
+          ...sections.filter((s) => s.title !== ASSEMBLED),
+          { title: ASSEMBLED, content: done.body },
         ],
       });
       pass.assembled.push({
@@ -188,6 +191,22 @@ export async function runWorkAhead(): Promise<WorkPass> {
  * nothing to do" is the app asking for credit, and it is the fastest way to
  * make somebody turn the feature off.
  */
+/**
+ * A title short enough to leave room for the numbers after it.
+ *
+ * Assignment titles are often a whole instruction ("Compare and contrast the
+ * economic causes of..."), and in a toast that pushes the word count and the
+ * warning count out of sight. Cut on a word boundary so it reads as a title cut
+ * short rather than a string truncated by a machine.
+ */
+function shortTitle(title: string, max = 28): string {
+  const t = title.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > 12 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 export function workPassReport(pass: WorkPass): string | null {
   /*
    * The document leads, when there is one.
@@ -199,17 +218,28 @@ export function workPassReport(pass: WorkPass): string | null {
   if (pass.assembled.length) {
     const a = pass.assembled[0];
     const rest = pass.assembled.length - 1;
-    const others = rest ? ` (and ${rest} more)` : '';
+    const others = rest ? ` (+${rest})` : '';
+    /*
+     * Trimmed to what a toast can carry.
+     *
+     * A title can run to a full sentence of its own, and with the old wording
+     * ("is assembled", "thing to look at before you send it") the useful part,
+     * the word count and what still needs checking, arrived after the pill had
+     * run out of room. The document screen says the rest properly.
+     */
     return a.warnings
-      ? `"${a.title}" is assembled, ${a.words} words${others}. ${a.warnings} thing${a.warnings === 1 ? '' : 's'} to look at before you send it.`
-      : `"${a.title}" is assembled, ${a.words} words${others}. Nothing looks missing.`;
+      ? `${shortTitle(a.title)} assembled${others}, ${a.words} words. ${a.warnings} to check.`
+      : `${shortTitle(a.title)} assembled${others}, ${a.words} words. Nothing missing.`;
   }
   const prepared = workAheadReport(pass.prepared);
   if (!pass.replanned.length) return prepared;
   const behind = pass.replanned.reduce((n, r) => n + r.moved, 0);
   const tight = pass.replanned.some((r) => r.tight);
   const replan =
-    `${behind} ${behind === 1 ? 'step' : 'steps'} had slipped, so I moved ${behind === 1 ? 'it' : 'them'}` +
-    (tight ? ", and one plan no longer fits before its deadline." : '.');
-  return prepared ? `${prepared} ${replan}` : `Done while you were away: ${replan}`;
+    `moved ${behind} slipped ${behind === 1 ? 'step' : 'steps'}` +
+    (tight ? ', one plan no longer fits' : '') +
+    '.';
+  return prepared
+    ? `${prepared.replace(/\.$/, '')}, ${replan}`
+    : `While you were away: ${replan}`;
 }

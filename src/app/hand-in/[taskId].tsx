@@ -20,7 +20,7 @@ import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/date
 import { hapticSuccess } from '@/lib/haptics';
 import { isValidEmails } from '@/lib/contacts';
 import { showToast } from '@/lib/toast';
-import { ASSEMBLED_SECTION } from '@/lib/work-runner';
+import { writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
 
 /**
@@ -64,7 +64,7 @@ export default function HandInScreen() {
   /** The document as it stands, which is what would actually go out. */
   const document = useMemo(() => {
     if (!task) return null;
-    const sections = (task.draftSections ?? []).filter((s) => s.title !== ASSEMBLED_SECTION);
+    const sections = writtenSections(task.draftSections);
     return assemble({
       title: task.title,
       author: profile.name,

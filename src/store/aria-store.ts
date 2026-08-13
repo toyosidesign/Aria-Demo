@@ -691,6 +691,8 @@ interface AriaState {
   }) => string;
   updateTask: (id: string, patch: Partial<Task>) => void;
   addDraftSection: (taskId: string, section: DraftSection) => void;
+  /** Drop a section by title. Used to retire a working draft once accepted. */
+  removeDraftSection: (taskId: string, title: string) => void;
   addSubtasks: (taskId: string, titles: string[]) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   completeTask: (id: string, opts?: { byAria?: boolean }) => void;
@@ -1170,6 +1172,16 @@ export const useAriaStore = create<AriaState>()(
                 : [...existing, section];
             return { ...t, draftSections: next };
           }),
+        }));
+        syncTask(get, taskId);
+      },
+      removeDraftSection: (taskId, title) => {
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, draftSections: (t.draftSections ?? []).filter((d) => d.title !== title) }
+              : t,
+          ),
         }));
         syncTask(get, taskId);
       },
