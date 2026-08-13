@@ -33,7 +33,13 @@ export const ASSEMBLED_SECTION = 'Assembled document';
 /** Where Aria got to, unfinished and unaccepted. Never part of the work. */
 export const WORKING_SECTION = 'Working draft';
 
-const RESERVED = new Set<string>([ASSEMBLED_SECTION, WORKING_SECTION]);
+/**
+ * What the person asked Aria to do, in their words, when they chose "Something
+ * else". Instructions about the work rather than any of the work itself.
+ */
+export const INSTRUCTION_SECTION = 'How Aria should handle it';
+
+const RESERVED = new Set<string>([ASSEMBLED_SECTION, WORKING_SECTION, INSTRUCTION_SECTION]);
 
 /** True for the bookkeeping sections, which are about the work, not of it. */
 export function isReserved(title: string): boolean {
@@ -49,6 +55,11 @@ export function isReserved(title: string): boolean {
  */
 export function writtenSections<T extends Section>(sections: T[] | undefined): T[] {
   return (sections ?? []).filter((s) => !isReserved(s.title));
+}
+
+/** The instruction they typed, when they chose to write their own. */
+export function ownInstruction<T extends Section>(sections: T[] | undefined): string {
+  return (sections ?? []).find((s) => s.title === INSTRUCTION_SECTION)?.content?.trim() ?? '';
 }
 
 /** The unfinished draft, if one was left behind. */

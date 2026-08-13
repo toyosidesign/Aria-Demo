@@ -92,7 +92,17 @@ export type TaskMethod =
   | 'outline'
   | 'draft'
   | 'remind'
-  | 'plan';
+  | 'plan'
+  /**
+   * However they said, in their own words.
+   *
+   * The three ways Aria could help an assignment were three ways *Aria* had
+   * thought of. Real work does not always look like step by step, an outline or
+   * a draft: it is "turn my notes into a slide deck", "check my references
+   * against the marking criteria", "rewrite this in plain English". The
+   * instruction is kept with the task, see INSTRUCTION_SECTION in lib/sections.
+   */
+  | 'other';
 
 export interface Subtask {
   id: string;

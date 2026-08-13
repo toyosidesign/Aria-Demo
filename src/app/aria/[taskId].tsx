@@ -28,7 +28,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
 import { handInReadiness } from '@/lib/ready';
-import { WORKING_SECTION, workingDraft, writtenSections } from '@/lib/sections';
+import { WORKING_SECTION, ownInstruction, workingDraft, writtenSections } from '@/lib/sections';
 import { UNCHANGED_NOTICE } from '@/lib/assistant';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -176,6 +176,8 @@ export default function AriaFlowScreen() {
       senderName,
       senderContext,
       instruction,
+      // Their words outrank everything this route would otherwise decide.
+      ownInstruction: ownInstruction(task.draftSections),
       previousDraft: instruction ? draft : undefined,
     });
     setTyping(false);
@@ -218,6 +220,7 @@ export default function AriaFlowScreen() {
       senderName,
       senderContext,
       instruction,
+      ownInstruction: ownInstruction(task.draftSections),
       previousDraft: instruction ? draft : undefined,
     });
     setTyping(false);

@@ -83,6 +83,7 @@ const METHOD_ICON: Record<TaskMethod, LucideIcon> = {
   draft: PenLine,
   remind: Bell,
   plan: ListTodo,
+  other: PenLine,
 };
 
 export default function TaskDetailScreen() {

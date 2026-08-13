@@ -1,3 +1,4 @@
+import { ownInstruction, writtenSections } from '@/lib/sections';
 import type { Source } from '@/lib/source';
 import { defaultMethodFor, type Task, type TaskKind, type TaskMethod } from '@/store/aria-store';
 import { postJson } from '@/lib/api-client';
@@ -61,6 +62,7 @@ export const METHOD_LABELS: Record<TaskMethod, string> = {
   draft: 'Draft it',
   remind: 'Just remind me',
   plan: 'Plan the steps',
+  other: 'Something else',
 };
 
 /** Which handling options to offer for a given kind/contact in the Create screen.
@@ -84,10 +86,14 @@ export const EVENT_METHODS: TaskMethod[] = ['sms', 'email', 'call', 'photo', 'ca
  * Aria is useful for here. Email and text are ways of reaching a person, and the
  * person an assignment goes to is a submission portal, not a contact.
  *
- * What is left is three genuinely different amounts of help: work through it
- * with me, give me the shape of it, or write a first pass I will rework.
+ * What is left is three genuinely different amounts of help, work through it
+ * with me, give me the shape of it, or write a first pass I will rework, and
+ * then the honest fourth: none of those, here is what I actually want. Three
+ * options are three things Aria thought of, and real coursework routinely asks
+ * for something else entirely: turn these notes into slides, check my
+ * references against the criteria, rewrite this in plain English.
  */
-export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft'];
+export const ASSIGNMENT_METHODS: TaskMethod[] = ['steps', 'outline', 'draft', 'other'];
 export const TASK_METHODS: TaskMethod[] = [
   'remind',
   'plan',
@@ -348,7 +354,31 @@ function assignmentAction(task: Task): AriaAction | null {
    * the last two hours. The offer has to know the difference, and it can: parts
    * are ticked off, or something has been written, or neither has happened yet.
    */
-  const started = done > 0 || (task.draftSections?.length ?? 0) > 0;
+  const started = done > 0 || writtenSections(task.draftSections).length > 0;
+
+  /*
+   * Their instruction, said back to them rather than paraphrased.
+   *
+   * Somebody who typed what they wanted should see that sentence on the card,
+   * not Aria's summary of it: the summary is where a promise starts drifting
+   * from what was asked, and this is the one option whose whole worth is being
+   * followed exactly.
+   */
+  if (method === 'other') {
+    const asked = ownInstruction(task.draftSections);
+    return {
+      type: 'assignment',
+      method,
+      offer: asked
+        ? started
+          ? `We are partway through: “${asked}”`
+          : `You asked me to: “${asked}”`
+        : 'You wanted this handled your own way. Tell me how and I will get on with it.',
+      cta: started ? 'Continue' : 'Get on with it',
+      needsSend: false,
+      drafting: 'it, exactly as you described',
+    };
+  }
 
   if (method === 'steps' && pending.length > 0) {
     return {
@@ -458,6 +488,13 @@ export interface DraftRequest {
   subtaskTitle?: string;
   /** Research help: return notes/key points for the subtask rather than prose. */
   research?: boolean;
+  /**
+   * How they said to handle it, in their own words.
+   *
+   * Overrides every shape this route would otherwise choose. See the note in
+   * api/draft+api.ts: the whole worth of the option is that it is obeyed.
+   */
+  ownInstruction?: string;
   /** Explain the topic, using how this student said they learn best. */
   explain?: boolean;
   /**

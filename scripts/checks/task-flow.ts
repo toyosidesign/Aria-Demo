@@ -52,8 +52,10 @@ import { offlineAnswer } from '@/lib/offline-answer';
 import { dedupeSources, hostOf } from '@/lib/source';
 import {
   ASSEMBLED_SECTION,
+  INSTRUCTION_SECTION,
   WORKING_SECTION,
   isReserved,
+  ownInstruction,
   workingDraft,
   writtenSections,
 } from '@/lib/sections';
@@ -879,6 +881,10 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
    * text are ways of reaching a person, and the recipient of an assignment is a
    * submission portal.
    *
+   * "Something else" joined them later and belongs: it is not a fourth channel
+   * for reaching somebody, it is the same question answered in their own words
+   * when none of the three fit.
+   *
    * Read out of `lib/aria-actions.ts` by source, because that module imports
    * the store and cannot be loaded here.
    */
@@ -889,7 +895,14 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
   const list = actions.match(/ASSIGNMENT_METHODS: TaskMethod\[\] = \[([^\]]*)\]/);
   assert.ok(list, 'ASSIGNMENT_METHODS must still exist');
   const methods = [...list[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(methods, ['steps', 'outline', 'draft'], 'three amounts of help, nothing else');
+  assert.deepEqual(
+    methods,
+    ['steps', 'outline', 'draft', 'other'],
+    'three amounts of help, plus their own words, and nothing about sending',
+  );
+  for (const wrong of ['remind', 'email', 'sms', 'card', 'call']) {
+    assert.ok(!methods.includes(wrong), `${wrong} is not a way to handle a piece of work`);
+  }
   for (const gone of ['remind', 'email', 'sms']) {
     assert.ok(!methods.includes(gone), `${gone} is not a way of handling work`);
   }
@@ -1233,6 +1246,98 @@ test('a typed answer lands on the right field', () => {
   });
   // A tap step typed into: nothing, rather than a wrong field.
   assert.deepEqual(applyTypedAnswer('date', 'tomorrow'), {});
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Work can be handled the way they asked, not only the ways Aria knows');
+
+test('"Something else" is one of the ways work can be handled', () => {
+  /*
+   * Three options were three things Aria had thought of. Real coursework asks
+   * for other things: turn these notes into slides, check my references against
+   * the criteria, rewrite this in plain English.
+   */
+  // Read as text: lib/aria-actions.ts reaches the store, and anything that
+  // imports it dies without a React Native runtime. Same rule as work-client.
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(
+    actions,
+    /ASSIGNMENT_METHODS: TaskMethod\[\] = \['steps', 'outline', 'draft', 'other'\]/,
+    'work can be handled their way',
+  );
+  assert.match(actions, /other: 'Something else'/);
+  // Not on a reminder: there is nothing there to instruct.
+  assert.match(actions, /if \(kind === 'reminder'\) return \['remind'\]/);
+});
+
+test('the instruction is kept, and kept out of the work', () => {
+  /*
+   * It travels as a reserved section for the same reason the working draft
+   * does: sections are the part of a task that syncs. Reserved, so an
+   * instruction never turns up inside an essay.
+   */
+  const sections = [
+    { title: INSTRUCTION_SECTION, content: 'Ten slides, twenty words each.' },
+    { title: 'Slide 1', content: 'a' },
+  ];
+  assert.equal(ownInstruction(sections), 'Ten slides, twenty words each.');
+  assert.deepEqual(
+    writtenSections(sections).map((s) => s.title),
+    ['Slide 1'],
+  );
+  assert.equal(isReserved(INSTRUCTION_SECTION), true);
+});
+
+test('the card says their sentence back, not a summary of it', () => {
+  /*
+   * A summary is where a promise starts drifting from what was asked, and this
+   * is the one option whose entire worth is being followed exactly.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(actions, /You asked me to: “\$\{asked\}”/, 'their words, verbatim');
+  assert.match(actions, /drafting: 'it, exactly as you described'/);
+});
+
+test('the route is told to obey it rather than improve on it', () => {
+  /*
+   * The failure to design against: a model asked to be helpful rounds an
+   * unusual instruction toward a familiar one, and "ten slides, twenty words
+   * each" quietly becomes an essay plan.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /req\.ownInstruction\?\.trim\(\)/, 'their instruction is read first');
+  assert.match(route, /Follow that instruction to the letter/);
+  assert.match(route, /do not improve on the format/);
+  assert.match(route, /ask one specific question and nothing else/, 'asks rather than guesses');
+
+  // And it is bounded on the way in, like every other free-text field.
+  const schemas = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/api-schemas.ts'),
+    'utf8',
+  );
+  assert.match(schemas, /ownInstruction: z\.string\(\)\.max\(2000\)\.optional\(\)/);
+});
+
+test('choosing it without saying anything cannot be saved', () => {
+  /*
+   * An empty instruction would have Aria guess, which is the one thing this
+   * option exists to prevent.
+   */
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  assert.match(form, /const instructionMissing = ownWords && instruction\.trim\(\)\.length === 0;/);
+  assert.match(form, /instructionMissing \|\|/, 'and it blocks saving');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

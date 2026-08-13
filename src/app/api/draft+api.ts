@@ -43,6 +43,35 @@ function buildPrompt(req: DraftRequest): string {
   const messaging = isMessageMethod(req.method);
 
   if (!messaging && (req.kind === 'assignment' || req.kind === 'project')) {
+    /*
+     * Their instruction, first, and above everything this route would otherwise
+     * have decided.
+     *
+     * "Something else" means the three shapes Aria offers were not what they
+     * wanted, so the value of the option is entirely in being obeyed. A model
+     * asked to be helpful will round an unusual instruction toward a familiar
+     * one, "ten slides, twenty words each" quietly becoming an essay plan, and
+     * that is the failure to design against. Hence: to the letter, no
+     * substitutions, and where something needed genuinely was not said, ask one
+     * specific question instead of choosing on their behalf.
+     */
+    if (req.ownInstruction?.trim()) {
+      lines.push(
+        `They told you exactly how they want "${req.title}" handled. Their words:`,
+        req.ownInstruction.trim(),
+        '',
+        'Follow that instruction to the letter. Every constraint in it is real: counts, formats, lengths, structure, tone, what to leave out. Do not substitute a more familiar task for the one they described, do not add sections they did not ask for, and do not improve on the format.',
+        'If something you genuinely need was not said, ask one specific question and nothing else. Do not guess it and do not produce a half answer alongside the question.',
+        'No preamble and no sign-off. Give them the thing they asked for.',
+      );
+      if (req.subtaskTitle) lines.push(`This turn is about: "${req.subtaskTitle}".`);
+      if (req.description) lines.push(`Context they added:\n${req.description}`);
+      if (learner) lines.push(learner);
+      if (req.instruction) lines.push(`They have now asked you to: ${req.instruction}`);
+      if (req.previousDraft) lines.push(`What you gave them last time:\n${req.previousDraft}`);
+      return lines.join('\n');
+    }
+
     if (req.reflect) {
       /*
        * Say it back, add nothing.

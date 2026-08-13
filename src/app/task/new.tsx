@@ -54,6 +54,7 @@ import {
   TASK_KINDS,
 } from '@/lib/aria-actions';
 import { cn } from '@/lib/cn';
+import { INSTRUCTION_SECTION, ownInstruction } from '@/lib/sections';
 import { isWorkKind } from '@/lib/task-flow';
 import { isValidEmails } from '@/lib/contacts';
 import { defaultTemplateFor } from '@/lib/cards';
@@ -99,6 +100,7 @@ const METHOD_ICONS: Record<TaskMethod, LucideIcon> = {
   draft: PenLine,
   remind: Bell,
   plan: ListTodo,
+  other: PenLine,
 };
 
 const KIND_VALUES: TaskKind[] = TASK_KINDS.map((k) => k.value);
@@ -108,6 +110,8 @@ export default function NewTaskScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const addTask = useAriaStore((s) => s.addTask);
   const updateTask = useAriaStore((s) => s.updateTask);
+  const addDraftSection = useAriaStore((s) => s.addDraftSection);
+  const removeDraftSection = useAriaStore((s) => s.removeDraftSection);
   const tasks = useAriaStore((s) => s.tasks);
   const profileName = useAriaStore((s) => s.profile.name);
 
@@ -157,6 +161,8 @@ export default function NewTaskScreen() {
     editing?.contactPhone ?? params.contactPhone ?? '',
   );
   const [description, setDescription] = useState(editing?.description ?? '');
+  /** Their own instruction, when "Something else" is the answer. */
+  const [instruction, setInstruction] = useState(ownInstruction(editing?.draftSections));
   /*
    * Kept, though nothing on this screen edits them any more.
    *
@@ -293,6 +299,14 @@ export default function NewTaskScreen() {
    * demands a recipient.
    */
   const titleMissing = title.trim().length === 0;
+  /*
+   * "Something else" is only an option if the something is actually said.
+   *
+   * Choosing it and leaving the box empty would have Aria guess, which is the
+   * one thing this option exists to stop.
+   */
+  const ownWords = method === 'other';
+  const instructionMissing = ownWords && instruction.trim().length === 0;
   // A call collapses the contact block down to just a number, there is no name
   // or email field on screen to require.
   const needsContactName =
@@ -308,6 +322,7 @@ export default function NewTaskScreen() {
 
   const anythingMissing =
     titleMissing ||
+    instructionMissing ||
     contactNameMissing ||
     emailMissing ||
     phoneMissing ||
@@ -320,6 +335,10 @@ export default function NewTaskScreen() {
     attemptedSave && missing ? message : undefined;
 
   const titleError = show(titleMissing, 'Give the task a name so you can find it later.');
+  const instructionError = show(
+    instructionMissing,
+    'Say what you want done, and I will follow it exactly.',
+  );
   const contactNameError = show(contactNameMissing, 'Who is this for?');
   const emailError = show(emailMissing, 'Add the address to send this to.');
   const phoneError = show(phoneMissing, 'Add a number so Aria can reach them.');
@@ -383,11 +402,28 @@ export default function NewTaskScreen() {
       repeat,
       subtasks: cleanSubtasks,
     };
+    /*
+     * The instruction travels as a section, because sections sync.
+     *
+     * Same reasoning as the working draft in lib/sections.ts: it is the only
+     * part of a task that reaches the server without a migration nobody can run
+     * from here, and it is reserved, so it never turns up inside the work.
+     */
+    const saveInstruction = (id: string) => {
+      if (ownWords && instruction.trim()) {
+        addDraftSection(id, { title: INSTRUCTION_SECTION, content: instruction.trim() });
+      } else {
+        removeDraftSection(id, INSTRUCTION_SECTION);
+      }
+    };
+
     if (editing) {
       updateTask(editing.id, fields);
+      saveInstruction(editing.id);
       showToast('Task updated', 'check');
     } else {
       const id = addTask(fields);
+      saveInstruction(id);
       /*
        * Straight into the work, rather than back to a list.
        *
@@ -482,6 +518,27 @@ export default function NewTaskScreen() {
                 I&apos;ll just remind you at the time you set. Nothing to draft or send.
               </Text>
             )}
+
+            {/*
+              Their words, kept as they wrote them.
+
+              The other three options tell Aria the shape of the help. This one
+              tells it the task, so the box is not a hint or a preference: it is
+              the instruction, and it is followed to the letter. Anything Aria
+              genuinely needs and has not been told, it asks for rather than
+              deciding on somebody's behalf.
+            */}
+            {ownWords ? (
+              <Input
+                label="What should I do?"
+                placeholder="Turn my notes into a 10 slide deck, one idea per slide, no more than 20 words a slide"
+                value={instruction}
+                onChangeText={setInstruction}
+                multiline
+                style={{ minHeight: 96 }}
+                error={instructionError}
+              />
+            ) : null}
     </>
   );
 
