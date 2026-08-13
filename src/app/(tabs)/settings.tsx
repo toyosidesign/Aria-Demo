@@ -163,6 +163,20 @@ export default function SettingsScreen() {
               {mail.detail}
             </Text>
           </View>
+
+          {/*
+            Which build the phone is actually running, in development only.
+
+            "It has not updated" and "it has updated and this is what it looks
+            like" are the same picture from here, and the difference has cost
+            hours twice now. Metro stamps this at bundle time, so a device
+            holding a cached copy shows the older commit and says so.
+          */}
+          {__DEV__ ? (
+            <Text variant="caption" tone="faint" className="text-center">
+              build {process.env.EXPO_PUBLIC_BUILD_STAMP ?? 'unstamped'}
+            </Text>
+          ) : null}
         </View>
 
         {/* Appearance */}

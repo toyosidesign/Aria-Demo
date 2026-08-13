@@ -37,7 +37,6 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { GuideSheet } from '@/components/guide-sheet';
 import { GuideButton } from '@/components/work-panels';
-import { readyToAssemble } from '@/lib/assemble';
 import { formatRunAt, isPending } from '@/lib/automations';
 import { goBack } from '@/lib/nav';
 import { rolloverVerdict } from '@/lib/plan';
@@ -404,75 +403,53 @@ export default function TaskDetailScreen() {
         ) : null}
 
         {/*
-          Finished work is pushed out from here, not scheduled at setup.
+          ── One next step, not three doors ──────────────────────────────────
 
-          Setting an assignment up asks two questions and then begins, so the
-          day and hour it has to be in by are still unanswered while the work is
-          being done. That is the right order: you know when you will be
-          finished once you have started, and not before. This is where that
-          answer is given, and it is the moment the task becomes something with
-          a deadline and an alarm.
+          This screen had grown three overlapping ways into the same piece of
+          work: "When does it go out?", which opened a second calendar; "Ready
+          to hand in", which opened the document; and the pencil, which opened
+          the whole task form. Three cards, three destinations, no order between
+          them, and a person deciding which of them meant "carry on".
+
+          Work only ever has one next step, and which one it is follows from
+          what has actually happened. So the screen says that step and nothing
+          else: carry on while parts are open, read the document once they are
+          not, and send it when it has been read. The deadline is a line inside
+          the card rather than a card of its own, because it is information, and
+          the pencil is where it changes.
         */}
         {isWorkKind(task.kind) && task.status === 'todo' ? (
           <View className="gap-2">
             <View className="flex-row items-center gap-1.5">
               <CalendarClock size={14} color={c.accent} />
               <Text variant="label" tone="accent">
-                {task.time ? 'Going out' : 'When does it go out?'}
+                Where this is up to
               </Text>
             </View>
             <Card className="gap-3">
               <Text className="text-[14px] leading-[20px]">
+                {handIn.ready
+                  ? 'Every part is done and there is something written, so this is ready to read through.'
+                  : `${handIn.blocker}, so there is still work to do on it.`}
+              </Text>
+              <Text variant="small" tone="muted">
                 {task.time
-                  ? `Due ${formatFull(task.date)} at ${formatTime(task.time)}. I'll chime then, and have the document ready the day before.`
-                  : /*
-                     * Said with where the work actually stands.
-                     *
-                     * Offering a hand-in date to somebody two steps into six
-                     * reads as Aria thinking they are finished. Naming what is
-                     * still open keeps the offer honest, and keeps it an offer:
-                     * a deadline is often known long before the work is done,
-                     * and refusing to take it would be its own kind of wrong.
-                     */
-                    handIn.ready
-                    ? "This is ready to go out. Set the day and hour and I'll take it from there."
-                    : `${handIn.blocker}, so this isn't ready to go out yet. If you already know when it has to be in, set it and I'll work backwards from it.`}
+                  ? `Due ${formatFull(task.date)} at ${formatTime(task.time)}.`
+                  : `Due ${formatFull(task.date)}. No time set: the pencil above is where that changes.`}
               </Text>
-              <Button
-                title={task.time ? 'Change when it goes out' : 'Set when it goes out'}
-                variant={task.time || !handIn.ready ? 'secondary' : 'primary'}
-                onPress={() => router.push(`/hand-in/${task.id}` as Href)}
-              />
-            </Card>
-          </View>
-        ) : null}
-
-        {/*
-          The assembled document gets its own way in, above the raw sections.
-
-          It is the one thing on this screen with a deadline attached, and it
-          reads differently from the drafts it was built out of: those are
-          working material, this is the thing that gets handed in. Shown for any
-          piece of work whose deadline is close, whether or not a pass has
-          already compiled it, because the screen assembles it fresh anyway.
-        */}
-        {isWorkKind(task.kind) && task.status === 'todo' && readyToAssemble(task.date, demoDate) ? (
-          <View className="gap-2">
-            <View className="flex-row items-center gap-1.5">
-              <FileText size={14} color={c.accent} />
-              <Text variant="label" tone="accent">
-                Ready to hand in
-              </Text>
-            </View>
-            <Card className="gap-3">
-              <Text className="text-[14px] leading-[20px]">
-                I&apos;ve put everything this work produced into one document, named and with a
-                cover sheet. Read it before it goes anywhere.
-              </Text>
-              <Button
-                title="Open the document"
-                onPress={() => router.push(`/assembled/${task.id}`)}
-              />
+              {handIn.ready ? (
+                <Button
+                  title="Read the document"
+                  leftIcon={<FileText size={16} color={c.accentInk} />}
+                  onPress={() => router.push(`/assembled/${task.id}` as Href)}
+                />
+              ) : (
+                <Button
+                  title={action ? 'Carry on with it' : 'Open it with Aria'}
+                  leftIcon={<Sparkles size={16} color={c.accentInk} />}
+                  onPress={() => router.push(`/aria/${task.id}` as Href)}
+                />
+              )}
             </Card>
           </View>
         ) : null}

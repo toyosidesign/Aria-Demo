@@ -10,7 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -1444,6 +1444,48 @@ test('the startup check does not nag about Resend on a Gmail deployment', () => 
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('A piece of work has one next step');
+
+test('the task screen offers one step, chosen by what has happened', () => {
+  /*
+   * Reported as the steps being disjointed, with three of them named: "When
+   * does it go out?", "Ready to hand in", and the edit pencil. Three cards,
+   * three destinations, no order between them, and somebody left deciding
+   * which one meant carry on.
+   *
+   * Work only ever has one next step and which it is follows from the state:
+   * carry on while parts are open, read the document once they are not, send it
+   * when it has been read. The deadline is a line inside the card, because it
+   * is information, and the pencil is where it changes.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /Where this is up to/, 'one section');
+  assert.match(screen, /handIn\.ready \? \(/, 'and the step follows from readiness');
+  assert.match(screen, /title="Read the document"/);
+  assert.match(screen, /title=\{action \? 'Carry on with it' : 'Open it with Aria'\}/);
+  // Against what renders, not against the note explaining why it no longer does.
+  const rendered = screen.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  assert.ok(!rendered.includes('When does it go out?'), 'the second calendar is gone');
+  assert.ok(!rendered.includes('Ready to hand in'), 'and so is the third door');
+});
+
+test('the hand-in screen is gone, not merely unlinked', () => {
+  /*
+   * It asked for a day, a time, a note and an optional email, which is the
+   * task's own date and time, the notes box, and the send screen. Leaving the
+   * file behind would leave a second calendar one deep link away, and the next
+   * person to add a button would find it and use it.
+   */
+  assert.equal(
+    existsSync(path.resolve(import.meta.dirname, '../../src/app/hand-in/[taskId].tsx')),
+    false,
+  );
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Editing a scheduled send edits the send');
 
 test('a task with a send waiting says so, and offers to edit that', () => {
@@ -1526,7 +1568,7 @@ test('dismissAll is guarded the same way', () => {
    * rather than an empty stack. Arriving from a notification is exactly the
    * case where there is nothing to dismiss.
    */
-  for (const file of ['src/app/email-it/[taskId].tsx', 'src/app/hand-in/[taskId].tsx']) {
+  for (const file of ['src/app/email-it/[taskId].tsx']) {
     const src = readFileSync(path.resolve(import.meta.dirname, '../../', file), 'utf8');
     assert.match(src, /if \(router\.canGoBack\(\)\) router\.dismissAll\?\.\(\);/, file);
   }
@@ -1772,7 +1814,6 @@ test('nothing that hands work to a person includes the reserved sections', () =>
    */
   const consumers = [
     'src/app/assembled/[taskId].tsx',
-    'src/app/hand-in/[taskId].tsx',
     'src/app/email-it/[taskId].tsx',
     'src/app/task/[id].tsx',
     'src/lib/work-runner.ts',
@@ -1997,7 +2038,7 @@ test('unfinished work is offered the next step, not an ending', () => {
     'utf8',
   );
   assert.match(task, /handInReadiness\(task\)/, 'the task screen asks the same question');
-  assert.match(task, /hand-in\/\$\{task\.id\}/, 'and is where a deadline is set');
+  assert.match(task, /Where this is up to/, 'and answers it with one step rather than three doors');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
