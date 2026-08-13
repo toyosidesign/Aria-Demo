@@ -27,6 +27,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { AriaAvatar } from '@/components/aria-avatar';
 import { AriaBubble } from '@/components/aria-bubble';
 import { ScriptedNote } from '@/components/scripted-note';
+import { uuidv4 } from '@/lib/id';
 import { looksLikeQuestion } from '@/lib/question';
 import { handInReadiness } from '@/lib/ready';
 import { WORKING_SECTION, ownInstruction, workingDraft, writtenSections } from '@/lib/sections';
@@ -87,9 +88,16 @@ const ASSIGNMENT_REWRITES = [
   { label: 'Add an example', instruction: 'add a concrete example' },
 ];
 
-let msgId = 0;
+/*
+ * Ids are uuids now, not a counter.
+ *
+ * Two reasons, both real. They are a primary key in Postgres since migration
+ * 006, and the counter restarted at every mount, so a thread restored from
+ * storage and then added to produced two messages called "m1": React keyed them
+ * together and the server would have treated the second as an edit of the first.
+ */
 const mk = (from: Msg['from'], kind: Msg['kind'], text: string, scripted?: boolean): Msg => ({
-  id: `m${msgId++}`,
+  id: uuidv4(),
   from,
   kind,
   text,

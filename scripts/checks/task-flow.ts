@@ -1341,6 +1341,69 @@ test('the thread is stored per task, not in the screen', () => {
   );
 });
 
+test('a thread reaches the server, and a missing table never wipes one', () => {
+  /*
+   * The work already synced: parts, sections, the instruction, the unfinished
+   * draft. The conversation about it did not, so a second device resumed the
+   * work and opened an empty chat, and the reasoning behind the work existed on
+   * one handset. Migration 006 is the table; these are the rules around it.
+   */
+  const sync = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/sync.ts'), 'utf8');
+  assert.match(sync, /from\('work_messages'\)\.upsert/, 'messages are written through');
+  assert.match(sync, /workChats: Record<string, WorkChat> \| null/, 'null means could not fetch');
+  assert.match(sync, /messagesRes\.error\n\s*\? null/, 'an un-migrated project degrades');
+
+  const store = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'),
+    'utf8',
+  );
+  assert.match(
+    store,
+    /data\.workChats\n\s*\? \{ \.\.\.localChats, \.\.\.data\.workChats \}\n\s*: localChats/,
+    'local threads survive a failed or empty fetch',
+  );
+  assert.match(store, /deleteAllWorkChats\(\)/, 'and a clear-out reaches the server');
+  /*
+   * The tables arrived after the app did, so conversations from before them
+   * exist on one phone. Shipping without a backfill would work perfectly from
+   * the day it shipped and lose everything before it, which is the same bug
+   * with a date on it.
+   */
+  assert.match(sync, /export async function backfillWorkChats/, 'older threads are handed up');
+  assert.match(sync, /if \(remote\[taskId\]\?\.messages\.length\) continue;/,
+    'and never over one the server already has');
+});
+
+test('a message id is a uuid, because it is now a primary key', () => {
+  /*
+   * The counter restarted at every mount, so a restored thread plus one new
+   * message produced two called "m1": React keyed them together and the server
+   * would have read the second as an edit of the first.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /id: uuidv4\(\),/);
+  assert.ok(!/id: `m\$\{msgId/.test(screen), 'no per-mount counter');
+});
+
+test('the migration exists, and locks the rows to their owner', () => {
+  /*
+   * A student's conversation about their coursework is the most personal thing
+   * in this schema, and the check is in the database rather than in a client
+   * remembering to filter.
+   */
+  const sql = readFileSync(
+    path.resolve(import.meta.dirname, '../../supabase/migrations/006_work_messages.sql'),
+    'utf8',
+  );
+  assert.match(sql, /create table if not exists public\.work_messages/, 'safe to run twice');
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /auth\.uid\(\) = user_id/, 'your rows and nobody else\'s');
+  assert.match(sql, /notify pgrst, 'reload schema'/, 'or the API keeps serving the old shape');
+});
+
 test('clearing data takes the per-task threads with it', () => {
   /*
    * A conversation about a task that no longer exists is orphaned, and after a

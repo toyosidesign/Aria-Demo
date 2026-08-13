@@ -48,6 +48,11 @@ import {
   upsertProfile,
   upsertTask,
   upsertTasks,
+  upsertWorkChatState,
+  upsertWorkMessage,
+  deleteWorkChat,
+  deleteAllWorkChats,
+  backfillWorkChats,
 } from '@/lib/sync';
 
 /**
@@ -1051,6 +1056,20 @@ export const useAriaStore = create<AriaState>()(
         const localTasks = get().tasks;
         const localContacts = get().contacts;
         const localAutomations = get().automations;
+        /*
+         * Remote threads win where they exist, local ones survive where they do
+         * not.
+         *
+         * `null` means the fetch failed or the tables are not there, which must
+         * keep every local thread. An empty object means the account genuinely
+         * has none synced yet, and the device's own threads still stand: this
+         * is the same rule tasks follow, and it is what stops signing in on a
+         * second phone from deleting the first one's conversations.
+         */
+        const localChats = get().workChats;
+        const mergedChats = data.workChats
+          ? { ...localChats, ...data.workChats }
+          : localChats;
         const remembered = get().lastUser;
         const remote = data.profile ? definedFields(data.profile) : {};
         // A profile row created by the signup trigger carries only an email, so
@@ -1078,7 +1097,17 @@ export const useAriaStore = create<AriaState>()(
            * forever, and, worse, leave it looking due to the run screen.
            */
           automations: data.automations.length ? data.automations : s.automations,
+          workChats: mergedChats,
         }));
+        /*
+         * Hand up whatever the server has never seen.
+         *
+         * Conversations that happened before the tables existed live only on
+         * this device. Shipping the sync without this would work perfectly from
+         * today and silently lose everything before it, which is the same bug
+         * being fixed, just with a date attached.
+         */
+        if (data.workChats) void backfillWorkChats(localChats, data.workChats);
         setNotificationsEnabled(get().settings.notifications);
         const profile = get().profile;
         if (profile.name || profile.email) {
@@ -1335,8 +1364,15 @@ export const useAriaStore = create<AriaState>()(
         );
       },
       deleteTask: (id) => {
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+        set((s) => {
+          const workChats = { ...s.workChats };
+          delete workChats[id];
+          return { tasks: s.tasks.filter((t) => t.id !== id), workChats };
+        });
         deleteTaskRow(id);
+        // The conversation goes with the task it was about. Done explicitly
+        // rather than by a cascade, see the note in migration 006.
+        deleteWorkChat(id);
         void cancelTaskAlarm(id);
         showToast('Task deleted', 'trash');
       },
@@ -1417,6 +1453,7 @@ export const useAriaStore = create<AriaState>()(
         });
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
+        void deleteAllWorkChats();
         // Clearing the list locally is not enough now that the cron holds a
         // copy: rows left behind would still send, for tasks that no longer
         // exist in the app the student is looking at.
@@ -1480,6 +1517,7 @@ export const useAriaStore = create<AriaState>()(
         void reconcileAlarms(tasks);
         void replaceAllTasks(tasks);
         void upsertContacts(contacts);
+        void deleteAllWorkChats();
       },
       clearAllData: () => {
         set({
@@ -1505,6 +1543,10 @@ export const useAriaStore = create<AriaState>()(
         void replaceAllTasks([]);
         void replaceAllContacts([]);
         void replaceAllAutomations([]);
+        // Same reasoning as the automations above: threads left on the server
+        // would come back the next time this person signed in, which is not
+        // what "clear everything" means to anybody.
+        void deleteAllWorkChats();
       },
       markDayReviewed: (date) => set({ lastReviewedOn: date }),
       dismissDemoOffer: () => set({ demoOfferDismissed: true }),
@@ -1512,7 +1554,10 @@ export const useAriaStore = create<AriaState>()(
         set((st) => ({ chat: [...st.chat, message].slice(-CHAT_LIMIT) })),
       clearChat: () => set({ chat: [] }),
 
-      pushWorkMessage: (taskId, message) =>
+      pushWorkMessage: (taskId, message) => {
+        // Written through as it is said, and queued through the same outbox as
+        // everything else when there is no signal. See lib/sync.ts.
+        upsertWorkMessage(taskId, message, new Date().toISOString());
         set((st) => {
           const existing = st.workChats[taskId] ?? { messages: [] };
           return {
@@ -1527,20 +1572,25 @@ export const useAriaStore = create<AriaState>()(
               },
             },
           };
-        }),
-      setWorkChatState: (taskId, state) =>
+        });
+      },
+      setWorkChatState: (taskId, state) => {
+        upsertWorkChatState(taskId, state.phase, state.activeSubId);
         set((st) => ({
           workChats: {
             ...st.workChats,
             [taskId]: { messages: st.workChats[taskId]?.messages ?? [], ...state },
           },
-        })),
-      clearWorkChat: (taskId) =>
+        }));
+      },
+      clearWorkChat: (taskId) => {
+        deleteWorkChat(taskId);
         set((st) => {
           const next = { ...st.workChats };
           delete next[taskId];
           return { workChats: next };
-        }),
+        });
+      },
     }),
     {
       name: 'aria-store-v1',

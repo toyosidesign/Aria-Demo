@@ -14,6 +14,8 @@ import type {
   TaskMethod,
   Priority,
   TaskStatus,
+  WorkChat,
+  WorkMessage,
 } from '@/store/aria-store';
 
 const SETTINGS_DEFAULTS: Settings = {
@@ -337,6 +339,9 @@ type Op = (
   | { table: 'contacts'; kind: 'upsert'; row: ContactRow }
   | { table: 'profiles'; kind: 'upsert'; row: ProfileRow }
   | { table: 'automations'; kind: 'upsert'; row: AutomationRow }
+  | { table: 'work_messages'; kind: 'upsert'; row: WorkMessageRow }
+  | { table: 'work_messages'; kind: 'deleteTask'; taskId: string }
+  | { table: 'work_chat_state'; kind: 'upsert'; row: WorkChatStateRow }
   /**
    * A status move, expressed as a *conditional* update rather than an upsert.
    *
@@ -410,6 +415,18 @@ async function runOp(op: Op): Promise<boolean> {
     }
     if (op.table === 'profiles' && op.kind === 'upsert') {
       const { error } = await supabase.from('profiles').upsert(op.row);
+      return !error;
+    }
+    if (op.table === 'work_messages' && op.kind === 'upsert') {
+      const { error } = await supabase.from('work_messages').upsert(op.row);
+      return !error;
+    }
+    if (op.table === 'work_messages' && op.kind === 'deleteTask') {
+      const { error } = await supabase.from('work_messages').delete().eq('task_id', op.taskId);
+      return !error;
+    }
+    if (op.table === 'work_chat_state' && op.kind === 'upsert') {
+      const { error } = await supabase.from('work_chat_state').upsert(op.row);
       return !error;
     }
     if (op.table === 'automations' && op.kind === 'upsert') {
@@ -508,6 +525,54 @@ export function upsertProfile(
  * the only copy of "email Mum on Friday" is on a phone that will be in a bag on
  * Friday morning.
  */
+/**
+ * A message, written through as it is said.
+ *
+ * Queued through the same outbox as everything else, so a thread continued on a
+ * train arrives when the signal does. Silent when there is no session: the
+ * device keeps its own copy either way, and the screen has nothing useful to do
+ * about it mid-sentence.
+ */
+export function upsertWorkMessage(taskId: string, message: WorkMessage, saidAt: string) {
+  if (!currentUserId) return;
+  void write({
+    table: 'work_messages',
+    kind: 'upsert',
+    row: {
+      id: message.id,
+      user_id: currentUserId,
+      task_id: taskId,
+      sender: message.from,
+      kind: message.kind,
+      body: message.text,
+      scripted: message.scripted ?? false,
+      said_at: saidAt,
+    },
+  });
+}
+
+/** Where the screen was left. One row per task, rewritten in place. */
+export function upsertWorkChatState(taskId: string, phase?: string, activeSubId?: string) {
+  if (!currentUserId) return;
+  void write({
+    table: 'work_chat_state',
+    kind: 'upsert',
+    row: {
+      task_id: taskId,
+      user_id: currentUserId,
+      phase: phase ?? null,
+      active_sub_id: activeSubId ?? null,
+      updated_at: new Date().toISOString(),
+    },
+  });
+}
+
+/** Delete a task's thread, when the task itself is going. */
+export function deleteWorkChat(taskId: string) {
+  if (!currentUserId) return;
+  void write({ table: 'work_messages', kind: 'deleteTask', taskId });
+}
+
 export function upsertAutomation(automation: Automation) {
   if (!currentUserId) {
     /*
@@ -656,6 +721,75 @@ export async function replaceAllTasks(tasks: Task[]) {
 }
 
 /**
+ * Push threads the server has never seen.
+ *
+ * The tables arrived after the app did, so every conversation that happened
+ * before migration 006 exists only on the phone it happened on. Once the tables
+ * are there, hydrate hands them over: without this the feature would work
+ * perfectly from the moment it shipped and silently lose everything that came
+ * before, which to the person using it is the same bug they reported.
+ *
+ * Only for tasks the server holds nothing for. A thread it already has is the
+ * merged one, and re-pushing a device's older copy over it would undo whatever
+ * was said on the other device.
+ */
+export async function backfillWorkChats(
+  local: Record<string, WorkChat>,
+  remote: Record<string, WorkChat>,
+) {
+  if (!isSupabaseConfigured || !currentUserId) return;
+  const rows: WorkMessageRow[] = [];
+  const stamp = Date.now();
+  for (const [taskId, chat] of Object.entries(local)) {
+    if (remote[taskId]?.messages.length) continue;
+    chat.messages.forEach((m, i) => {
+      rows.push({
+        id: m.id,
+        user_id: currentUserId!,
+        task_id: taskId,
+        sender: m.from,
+        kind: m.kind,
+        body: m.text,
+        scripted: m.scripted ?? false,
+        /*
+         * Ordered by position, backdated from now.
+         *
+         * The device never recorded when any of these were said, and inventing
+         * one timestamp for all of them would let the server return them in any
+         * order. A millisecond apart keeps the conversation in the order it
+         * happened, which is the only thing the column is for.
+         */
+        said_at: new Date(stamp - (chat.messages.length - i)).toISOString(),
+      });
+    });
+  }
+  if (!rows.length) return;
+  try {
+    await supabase.from('work_messages').upsert(rows);
+  } catch {
+    /* best effort: the device keeps its copy either way */
+  }
+}
+
+/**
+ * Every conversation, on a clear-out.
+ *
+ * Wiping the local threads without this leaves rows nobody can see: the student
+ * clears their data, signs in again, and the chat they deleted comes back from
+ * the server. Best effort like its neighbours, since a failure here must not
+ * stop the local wipe from happening.
+ */
+export async function deleteAllWorkChats() {
+  if (!isSupabaseConfigured || !currentUserId) return;
+  try {
+    await supabase.from('work_messages').delete().eq('user_id', currentUserId);
+    await supabase.from('work_chat_state').delete().eq('user_id', currentUserId);
+  } catch {
+    /* best effort */
+  }
+}
+
+/**
  * And for automations, on a reset or a clear-out.
  *
  * Wiping the local list without this would leave the cron holding rows nobody
@@ -695,6 +829,32 @@ export async function replaceAllContacts(contacts: Contact[]) {
 // ---------------------------------------------------------------------------
 // Hydrate, pull the signed-in user's data from Supabase.
 // ---------------------------------------------------------------------------
+/**
+ * One line of a task's conversation, as it sits in Postgres.
+ *
+ * One row per message rather than a thread per task: the same account can be
+ * open on two devices and both append, and a whole-thread column would have
+ * each write silently overwrite the other's messages. See migration 006.
+ */
+export interface WorkMessageRow {
+  id: string;
+  user_id: string;
+  task_id: string;
+  sender: string;
+  kind: string;
+  body: string;
+  scripted: boolean;
+  said_at: string;
+}
+
+export interface WorkChatStateRow {
+  task_id: string;
+  user_id: string;
+  phase: string | null;
+  active_sub_id: string | null;
+  updated_at: string;
+}
+
 export interface HydrateResult {
   /** Null when the user has no profile row yet, keep whatever is local. */
   profile: Profile | null;
@@ -704,6 +864,14 @@ export interface HydrateResult {
   tasks: Task[];
   contacts: Contact[];
   automations: Automation[];
+  /**
+   * Per-task conversations, keyed by task id.
+   *
+   * Null, not empty, when the tables are not there. An un-migrated project must
+   * read as "could not fetch these" so hydrate keeps the local threads, rather
+   * than as "this account has none", which would wipe them.
+   */
+  workChats: Record<string, WorkChat> | null;
 }
 
 /** Create the initial profile row on signup (name + defaults, not onboarded). */
@@ -726,10 +894,35 @@ export async function signOutRemote() {
   }
 }
 
+/** Rows back into the shape the store and the screen already speak. */
+function buildWorkChats(
+  messages: WorkMessageRow[],
+  states: WorkChatStateRow[],
+): Record<string, WorkChat> {
+  const chats: Record<string, WorkChat> = {};
+  for (const row of messages) {
+    const chat = (chats[row.task_id] ??= { messages: [] });
+    chat.messages.push({
+      id: row.id,
+      from: row.sender === 'maya' ? 'maya' : 'aria',
+      kind: row.kind === 'draft' ? 'draft' : 'text',
+      text: row.body,
+      scripted: row.scripted || undefined,
+    });
+  }
+  for (const st of states) {
+    const chat = (chats[st.task_id] ??= { messages: [] });
+    chat.phase = st.phase ?? undefined;
+    chat.activeSubId = st.active_sub_id ?? undefined;
+  }
+  return chats;
+}
+
 export async function fetchAll(userId: string): Promise<HydrateResult | null> {
   if (!isSupabaseConfigured) return null;
   try {
-    const [profileRes, tasksRes, contactsRes, automationsRes] = await Promise.all([
+    const [profileRes, tasksRes, contactsRes, automationsRes, messagesRes, chatStateRes] =
+      await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('tasks').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
       supabase.from('contacts').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
@@ -738,6 +931,14 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('work_messages')
+        .select('*')
+        .eq('user_id', userId)
+        // The order they were said in, which is the only order that means
+        // anything in a conversation.
+        .order('said_at', { ascending: true }),
+      supabase.from('work_chat_state').select('*').eq('user_id', userId),
     ]);
 
     // Supabase reports failures as { data: null, error } rather than throwing.
@@ -762,6 +963,23 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
       ? []
       : ((automationsRes.data as AutomationRow[] | null) ?? []).map(rowToAutomation);
 
+    /*
+     * Threads degrade the same way automations do, and for the same reason.
+     *
+     * A device running against a project where 006 has not been applied gets an
+     * error for tables that genuinely are not there. Failing the whole hydrate
+     * would take tasks and contacts down with it and brick the app, so this
+     * reads as null, meaning "could not fetch", and hydrate keeps whatever the
+     * device already has. Never an empty object: that would say the account has
+     * no conversations and wipe them.
+     */
+    const workChats = messagesRes.error
+      ? null
+      : buildWorkChats(
+          (messagesRes.data as WorkMessageRow[] | null) ?? [],
+          chatStateRes.error ? [] : ((chatStateRes.data as WorkChatStateRow[] | null) ?? []),
+        );
+
     const prof = profileRes.data ? rowToProfile(profileRes.data as ProfileRow) : null;
 
     return {
@@ -771,6 +989,7 @@ export async function fetchAll(userId: string): Promise<HydrateResult | null> {
       tasks: ((tasksRes.data as TaskRow[] | null) ?? []).map(rowToTask),
       contacts: ((contactsRes.data as ContactRow[] | null) ?? []).map(rowToContact),
       automations,
+      workChats,
     };
   } catch {
     return null;
