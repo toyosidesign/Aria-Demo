@@ -91,7 +91,6 @@ export default function EmailItScreen() {
       ? `${String(scheduled.getHours()).padStart(2, '0')}:${String(scheduled.getMinutes()).padStart(2, '0')}`
       : (task?.time ?? '09:00'),
   );
-  const [changing, setChanging] = useState(false);
 
   if (!task) {
     return (
@@ -140,8 +139,6 @@ export default function EmailItScreen() {
     if (why || !time) {
       hapticWarning();
       showToast(why ?? 'Pick a time, so I know when to send it.', 'clock');
-      // The moment is the one blocker whose control is folded away by default.
-      if (!time || past) setChanging(true);
       return;
     }
 
@@ -220,7 +217,18 @@ export default function EmailItScreen() {
           style={{ minHeight: 180 }}
         />
 
-        <View className="gap-2 rounded-2xl border border-border bg-surface p-4">
+        {/*
+          The day and the hour, on the form rather than behind it.
+
+          These were folded away on the reasoning that the task already carries
+          a deadline and asking again is asking somebody to repeat themselves.
+          That is true of the deadline and false of this: when it goes *out* is
+          a decision people make here, at the moment they decide who it goes to,
+          and a picker behind a "Change" link is one people do not find. The
+          summary line stays, because a calendar is not a sentence and somebody
+          scanning wants the answer, not the controls.
+        */}
+        <View className="gap-3 rounded-2xl border border-border bg-surface p-4">
           <View className="flex-row items-center gap-2">
             <CalendarClock size={15} color={c.accent} />
             <Text variant="small" className="flex-1 font-strong">
@@ -228,20 +236,10 @@ export default function EmailItScreen() {
                 ? `Goes out ${formatFull(date)} at ${formatTime(time)}`
                 : `Goes out ${formatFull(date)}`}
             </Text>
-            <Button
-              title={changing ? 'Done' : 'Change'}
-              variant="ghost"
-              size="sm"
-              onPress={() => setChanging((v) => !v)}
-            />
           </View>
 
-          {changing ? (
-            <View className="gap-3 pt-1">
-              <MonthCalendar value={date} onSelect={setDate} />
-              <TimeField value={time} onChange={setTime} />
-            </View>
-          ) : null}
+          <MonthCalendar value={date} onSelect={setDate} />
+          <TimeField value={time} onChange={setTime} />
 
           {past ? (
             <InlineError>

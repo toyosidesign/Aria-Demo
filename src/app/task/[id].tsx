@@ -462,53 +462,51 @@ export default function TaskDetailScreen() {
 
 
         {/*
-          ── One next step, not three doors ──────────────────────────────────
+          ── The end of the checklist, and nothing before it ─────────────────
 
-          This screen had grown three overlapping ways into the same piece of
-          work: "When does it go out?", which opened a second calendar; "Ready
-          to hand in", which opened the document; and the pencil, which opened
-          the whole task form. Three cards, three destinations, no order between
-          them, and a person deciding which of them meant "carry on".
+          The list above is the progress display: it says which parts are done,
+          which are next and how many are left, item by item, which a card
+          summarising the same thing can only repeat less precisely. So there is
+          no card until the list is finished.
 
-          Work only ever has one next step, and which one it is follows from
-          what has actually happened. So the screen says that step and nothing
-          else: carry on while parts are open, read the document once they are
-          not, and send it when it has been read. The deadline is a line inside
-          the card rather than a card of its own, because it is information, and
-          the pencil is where it changes.
+          When it is, there are exactly two things anybody wants, and they are
+          different acts rather than two names for one. Send it, which needs a
+          recipient and a moment and therefore a form. Or keep it, which needs
+          nothing and happens on the tap.
         */}
-        {isWorkKind(task.kind) && task.status === 'todo' ? (
+        {isWorkKind(task.kind) && task.status === 'todo' && handIn.ready ? (
           <View className="gap-2">
             <View className="flex-row items-center gap-1.5">
-              <CalendarClock size={14} color={c.accent} />
+              <CheckCircle2 size={14} color={c.accent} />
               <Text variant="label" tone="accent">
-                Where this is up to
+                Every part is done
               </Text>
             </View>
             <Card className="gap-3">
               <Text className="text-[14px] leading-[20px]">
-                {handIn.ready
-                  ? 'Every part is done and there is something written, so this is ready to read through.'
-                  : `${handIn.blocker}, so there is still work to do on it.`}
+                I have put all of it into one document, named the way a marker expects. Send it to
+                somebody at a time you pick, or keep a copy now.
               </Text>
-              <Text variant="small" tone="muted">
-                {task.time
-                  ? `Due ${formatFull(task.date)} at ${formatTime(task.time)}.`
-                  : `Due ${formatFull(task.date)}. No time set: the pencil above is where that changes.`}
-              </Text>
-              {handIn.ready ? (
-                <Button
-                  title="Read the document"
-                  leftIcon={<FileText size={16} color={c.accentInk} />}
-                  onPress={() => router.push(`/assembled/${task.id}` as Href)}
-                />
-              ) : (
-                <Button
-                  title={action ? 'Carry on with it' : 'Open it with Aria'}
-                  leftIcon={<Sparkles size={16} color={c.accentInk} />}
-                  onPress={() => router.push(`/aria/${task.id}` as Href)}
-                />
-              )}
+              <Button
+                title="Send it"
+                leftIcon={<Send size={16} color={c.accentInk} />}
+                onPress={() => router.push(`/email-it/${task.id}` as Href)}
+              />
+              <Button
+                title="Save as a document"
+                variant="secondary"
+                leftIcon={<FileText size={16} color={c.ink} />}
+                onPress={() => {
+                  hapticTap();
+                  void exportWork(task.title, sectionsToText(writtenSections(task.draftSections)));
+                }}
+              />
+              <Button
+                title="Read it first"
+                variant="ghost"
+                size="sm"
+                onPress={() => router.push(`/assembled/${task.id}` as Href)}
+              />
             </Card>
           </View>
         ) : null}

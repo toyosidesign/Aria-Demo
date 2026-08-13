@@ -1447,32 +1447,6 @@ test('the startup check does not nag about Resend on a Gmail deployment', () => 
 // ───────────────────────────────────────────────────────────────────────────────
 section('A piece of work has one next step');
 
-test('the task screen offers one step, chosen by what has happened', () => {
-  /*
-   * Reported as the steps being disjointed, with three of them named: "When
-   * does it go out?", "Ready to hand in", and the edit pencil. Three cards,
-   * three destinations, no order between them, and somebody left deciding
-   * which one meant carry on.
-   *
-   * Work only ever has one next step and which it is follows from the state:
-   * carry on while parts are open, read the document once they are not, send it
-   * when it has been read. The deadline is a line inside the card, because it
-   * is information, and the pencil is where it changes.
-   */
-  const screen = readFileSync(
-    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
-    'utf8',
-  );
-  assert.match(screen, /Where this is up to/, 'one section');
-  assert.match(screen, /handIn\.ready \? \(/, 'and the step follows from readiness');
-  assert.match(screen, /title="Read the document"/);
-  assert.match(screen, /title=\{action \? 'Carry on with it' : 'Open it with Aria'\}/);
-  // Against what renders, not against the note explaining why it no longer does.
-  const rendered = screen.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
-  assert.ok(!rendered.includes('When does it go out?'), 'the second calendar is gone');
-  assert.ok(!rendered.includes('Ready to hand in'), 'and so is the third door');
-});
-
 test('the hand-in screen is gone, not merely unlinked', () => {
   /*
    * It asked for a day, a time, a note and an optional email, which is the
@@ -1928,22 +1902,27 @@ test('a send that cannot go yet says why, rather than going grey', () => {
   assert.match(screen, /function blocker\(\): string \| null/, 'it knows what is missing');
   assert.match(screen, /Add the address this should go to\./);
   assert.match(screen, /There is nothing to send yet/);
-  assert.match(screen, /if \(!time \|\| past\) setChanging\(true\);/, 'and opens the folded control');
+  // Nothing is folded away any more, so naming the missing thing is the whole
+  // job: the calendar and the clock are already on screen above the button.
+  assert.match(screen, /That moment has already passed/, 'including the moment');
 });
 
-test('the moment it goes out is on screen even though it is not asked for', () => {
+test('the day and the hour are on the form, not behind it', () => {
   /*
-   * A scheduled send whose moment is nowhere to be seen is one people assume
-   * went out immediately. It is stated as a sentence, taken from the day the
-   * work is due, with the pickers folded away behind "Change" for the case
-   * where the deadline is not the moment.
+   * They were folded behind a "Change" link on the reasoning that the task
+   * already carries a deadline. True of the deadline and false of this: when it
+   * goes *out* is decided here, alongside who it goes to, and a picker behind a
+   * link is one people do not find. The summary line stays, because a calendar
+   * is not a sentence and somebody scanning wants the answer.
    */
   const screen = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
     'utf8',
   );
   assert.match(screen, /Goes out \$\{formatFull\(date\)\}/, 'said in words');
-  assert.match(screen, /changing \? 'Done' : 'Change'/, 'and changeable without being asked');
+  assert.match(screen, /<MonthCalendar value=\{date\} onSelect=\{setDate\} \/>/, 'and shown');
+  assert.match(screen, /<TimeField value=\{time\} onChange=\{setTime\} \/>/);
+  assert.ok(!screen.includes("changing ? 'Done' : 'Change'"), 'nothing is folded away');
   assert.match(screen, /const past =/, 'never into the past');
 });
 
@@ -2046,6 +2025,26 @@ test('finishing is offered on the last part, and only there', () => {
 // ───────────────────────────────────────────────────────────────────────────────
 section('The plan is where the eye lands');
 
+test('the checklist is the progress display, with no card repeating it', () => {
+  /*
+   * A card summarising "3 of 6 done, next is X" can only say less precisely
+   * what the list above already says item by item. So the list is the progress
+   * display and nothing appears above it until it is finished, at which point
+   * there are exactly two things anybody wants: send it, which needs a
+   * recipient and a moment, or keep it, which needs nothing.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  const rendered = screen.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+  assert.ok(!rendered.includes('Where this is up to'), 'no card repeating the list');
+  assert.match(screen, /handIn\.ready \? \(/, 'the offer waits for the last part');
+  assert.match(screen, /title="Send it"/);
+  assert.match(screen, /title="Save as a document"/);
+  assert.match(screen, /title="Read it first"/);
+});
+
 test('the checklist sits above the step it produces', () => {
   /*
    * It used to sit under Aria's drafts, the send, the notes and the proactive
@@ -2059,10 +2058,10 @@ test('the checklist sits above the step it produces', () => {
     'utf8',
   );
   const checklist = screen.indexOf('{/* Checklist, tap an item for research help */}');
-  const nextStep = screen.indexOf('One next step, not three doors');
+  const nextStep = screen.indexOf('Every part is done');
   const drafts = screen.indexOf("{/* Aria's drafted content");
   assert.ok(checklist > 0 && nextStep > 0 && drafts > 0, 'all three sections still exist');
-  assert.ok(checklist < nextStep, 'the plan comes before the step it produces');
+  assert.ok(checklist < nextStep, 'the plan comes before what it unlocks');
   assert.ok(checklist < drafts, 'and before the drafts it produced');
 });
 
@@ -2276,7 +2275,9 @@ test('unfinished work is offered the next step, not an ending', () => {
     'utf8',
   );
   assert.match(task, /handInReadiness\(task\)/, 'the task screen asks the same question');
-  assert.match(task, /Where this is up to/, 'and answers it with one step rather than three doors');
+  // It answers by showing nothing: the checklist above is the progress display,
+  // and the ways of sending appear only once it is finished.
+  assert.match(task, /handIn\.ready \? \(/, 'and waits for the last part before offering an end');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
