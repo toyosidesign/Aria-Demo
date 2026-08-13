@@ -11,11 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { toRunAt } from '@/lib/automations';
+import { isPending, toRunAt } from '@/lib/automations';
 import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { isValidEmails } from '@/lib/contacts';
-import { effectiveToday, formatFull, formatTime, isPastMoment } from '@/lib/dates';
+import { effectiveToday, formatFull, formatTime, isPastMoment, toISODate } from '@/lib/dates';
 import { sectionsToText } from '@/lib/export';
 import { hapticSuccess } from '@/lib/haptics';
 import { showToast } from '@/lib/toast';
@@ -52,8 +52,21 @@ export default function EmailItScreen() {
   const demoDate = useAriaStore((s) => s.demoDate);
   const scheduleAutomation = useAriaStore((s) => s.scheduleAutomation);
 
-  const [email, setEmail] = useState(task?.contactEmail ?? '');
-  const [subject, setSubject] = useState(task?.title ?? '');
+  /*
+   * The send already scheduled for this task, when there is one.
+   *
+   * Opening this screen on a task that is already going out is editing, not
+   * scheduling a second one. Without this the same essay would arrive twice:
+   * once from the row somebody thought they had corrected, and once from the
+   * one they actually created.
+   */
+  const pending = useAriaStore((s) =>
+    s.automations.find((a) => a.taskId === taskId && isPending(a)),
+  );
+  const cancelAutomation = useAriaStore((s) => s.cancelAutomation);
+
+  const [email, setEmail] = useState(pending?.toEmail ?? task?.contactEmail ?? '');
+  const [subject, setSubject] = useState(pending?.subject ?? task?.title ?? '');
 
   /*
    * The document, if one has been assembled, and everything written otherwise.
@@ -62,13 +75,22 @@ export default function EmailItScreen() {
    * finished work it is the brief or an early paragraph, never the piece.
    */
   const initialBody = useMemo(() => {
+    // What is already scheduled wins: it is the thing that will actually be
+    // sent, edits and all, and rebuilding it from sections would quietly throw
+    // away whatever was changed here last time.
+    if (pending?.body) return pending.body;
     const assembled = (task?.draftSections ?? []).find((s) => s.title === ASSEMBLED_SECTION);
     return assembled ? assembled.content : sectionsToText(writtenSections(task?.draftSections));
-  }, [task?.draftSections]);
+  }, [task?.draftSections, pending?.body]);
   const [body, setBody] = useState(initialBody);
 
-  const [date, setDate] = useState(task?.date ?? demoDate);
-  const [time, setTime] = useState<string | null>(task?.time ?? '09:00');
+  const scheduled = pending ? new Date(pending.runAt) : null;
+  const [date, setDate] = useState(scheduled ? toISODate(scheduled) : (task?.date ?? demoDate));
+  const [time, setTime] = useState<string | null>(
+    scheduled
+      ? `${String(scheduled.getHours()).padStart(2, '0')}:${String(scheduled.getMinutes()).padStart(2, '0')}`
+      : (task?.time ?? '09:00'),
+  );
   const [changing, setChanging] = useState(false);
 
   if (!task) {
@@ -89,6 +111,15 @@ export default function EmailItScreen() {
 
   function send() {
     if (!ready || !time || !task) return;
+
+    /*
+     * Replace rather than add.
+     *
+     * Cancelled first, and only then rescheduled: the old row is the one the
+     * cron is holding, and leaving it in place would send the version somebody
+     * had just corrected alongside the correction.
+     */
+    if (pending) cancelAutomation(pending.id);
 
     scheduleAutomation({
       taskId: task.id,
@@ -119,7 +150,7 @@ export default function EmailItScreen() {
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-2">
         <HeaderButton icon={X} onPress={() => goBack('/(tabs)/tasks')} />
         <Text variant="subtitle" className="flex-1">
-          Email it
+          {pending ? 'Edit what goes out' : 'Email it'}
         </Text>
       </View>
 
@@ -189,7 +220,7 @@ export default function EmailItScreen() {
 
       <View className="border-t border-border px-5 pb-6 pt-3">
         <Button
-          title="Schedule it"
+          title={pending ? 'Save the change' : 'Schedule it'}
           block
           size="lg"
           disabled={!ready}

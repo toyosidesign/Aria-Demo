@@ -21,6 +21,7 @@ import {
   Mail,
   MessageSquare,
   PenLine,
+  Send,
   Phone,
   Repeat2,
   RotateCcw,
@@ -37,6 +38,7 @@ import { AriaAvatar } from '@/components/aria-avatar';
 import { GuideSheet } from '@/components/guide-sheet';
 import { GuideButton } from '@/components/work-panels';
 import { readyToAssemble } from '@/lib/assemble';
+import { formatRunAt, isPending } from '@/lib/automations';
 import { goBack } from '@/lib/nav';
 import { rolloverVerdict } from '@/lib/plan';
 import { handInReadiness } from '@/lib/ready';
@@ -97,6 +99,8 @@ export default function TaskDetailScreen() {
   const completeTask = useAriaStore((s) => s.completeTask);
   const reopenTask = useAriaStore((s) => s.reopenTask);
   const deleteTask = useAriaStore((s) => s.deleteTask);
+  const automations = useAriaStore((s) => s.automations);
+  const cancelAutomation = useAriaStore((s) => s.cancelAutomation);
   const updateTask = useAriaStore((s) => s.updateTask);
   const addSubtasks = useAriaStore((s) => s.addSubtasks);
   /*
@@ -183,6 +187,8 @@ export default function TaskDetailScreen() {
   const isAssignmentKind = task.kind === 'assignment' || task.kind === 'project';
   /** Whether the work is actually finished enough to hand in. See lib/ready.ts. */
   const handIn = handInReadiness(task);
+  /** The send this task already has waiting, if any. */
+  const sending = automations.find((a) => a.taskId === task.id && isPending(a));
   const needsChecklist = isAssignmentKind && task.subtasks.length === 0 && task.status === 'todo';
   /*
    * The step the plan says is next, and how much it has been avoided.
@@ -349,6 +355,50 @@ export default function TaskDetailScreen() {
             </Text>
             <Card>
               <Text className="text-[14px] leading-[20px]">{task.description}</Text>
+            </Card>
+          </View>
+        ) : null}
+
+        {/*
+          What is actually going out, and how to change it.
+
+          The header pencil edits the *task*: its title, its date, its notes. On
+          a task with a send already scheduled that is the wrong thing to reach
+          for, and reaching for it landed somebody in a form that looks like
+          creating a task, which is what was reported. The recipient, the
+          subject, the message and the moment are a different object with a
+          different screen, so they get their own card and their own edit.
+        */}
+        {sending ? (
+          <View className="gap-2">
+            <View className="flex-row items-center gap-1.5">
+              <Send size={14} color={c.accent} />
+              <Text variant="label" tone="accent">
+                Going out
+              </Text>
+            </View>
+            <Card className="gap-3">
+              <Text className="text-[14px] leading-[20px]">
+                {`To ${sending.toEmail ?? sending.toPhone ?? 'them'}, ${formatRunAt(sending.runAt)}.`}
+              </Text>
+              {sending.subject ? (
+                <Text variant="small" tone="muted" numberOfLines={1}>
+                  {sending.subject}
+                </Text>
+              ) : null}
+              <View className="flex-row gap-2">
+                <Button
+                  title="Edit what goes out"
+                  className="flex-1"
+                  leftIcon={<PenLine size={16} color={c.accentInk} />}
+                  onPress={() => router.push(`/email-it/${task.id}` as Href)}
+                />
+                <Button
+                  title="Cancel it"
+                  variant="secondary"
+                  onPress={() => cancelAutomation(sending.id)}
+                />
+              </View>
             </Card>
           </View>
         ) : null}

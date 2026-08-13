@@ -1313,6 +1313,46 @@ test('offline, a question gets an admission rather than a fresh paragraph', () =
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Editing a scheduled send edits the send');
+
+test('a task with a send waiting says so, and offers to edit that', () => {
+  /*
+   * Reported as the edit button on a scheduled task opening something that
+   * looks like creating a task. It was: the header pencil edits the *task*, and
+   * on a task that is going out on Friday the thing somebody wants to change is
+   * the recipient, the subject, the message or the moment. Different object,
+   * different screen.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const sending = automations\.find/, 'the task knows about its send');
+  assert.match(screen, /title="Edit what goes out"/);
+  assert.match(screen, /email-it\/\$\{task\.id\}/, 'and edits it where it was written');
+  assert.match(screen, /title="Cancel it"/, 'with a way to call it off');
+});
+
+test('editing a scheduled send replaces it rather than adding a second', () => {
+  /*
+   * The bug this prevents is worse than the one reported: two rows, so the
+   * essay arrives twice, once as corrected and once as it was. The old row is
+   * the one the cron holds, so it is cancelled before the new one exists.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const pending = useAriaStore/, 'it looks for one first');
+  assert.match(screen, /if \(pending\) cancelAutomation\(pending\.id\);/, 'and retires it');
+  const cancelAt = screen.indexOf('cancelAutomation(pending.id)');
+  const scheduleAt = screen.indexOf('scheduleAutomation({');
+  assert.ok(cancelAt > 0 && cancelAt < scheduleAt, 'cancelled before the replacement is made');
+  assert.match(screen, /if \(pending\?\.body\) return pending\.body;/, 'edits are not thrown away');
+  assert.match(screen, /pending \? 'Save the change' : 'Schedule it'/, 'and it says which it is');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Every way out of a screen works');
 
 test('nothing calls router.back() directly', () => {
@@ -1658,7 +1698,9 @@ test('the send screen asks for the address, the subject, the message, and nothin
   for (const field of ['label="Email address"', 'label="Subject"', 'label="Message Aria will send"']) {
     assert.ok(screen.includes(field), `the send screen must ask for ${field}`);
   }
-  assert.match(screen, /title="Schedule it"/, 'and commit with one button');
+  // One commit button, whichever word it is wearing: scheduling the first time,
+  // saving the change when the task already has a send waiting.
+  assert.match(screen, /pending \? 'Save the change' : 'Schedule it'/, 'and commit with one button');
 
   for (const absent of ['AUTO_CHANNELS', 'ContactField', 'toPhone', 'PRO_PITCH']) {
     assert.ok(!screen.includes(absent), `${absent} belongs to the general screen, not this one`);
