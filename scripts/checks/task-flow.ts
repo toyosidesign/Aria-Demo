@@ -909,6 +909,29 @@ test('an assignment cannot be handled as a reminder, an email or a text', () => 
   }
 });
 
+test('editing a piece of work can change its date and time', () => {
+  /*
+   * Reported as being unable to update a task, and it was true: the scheduling
+   * half of the form was hidden for every assignment and project, including
+   * when opening an existing one to correct it, so there was no way to change
+   * the date or time of a piece of work from anywhere in the app.
+   *
+   * Setting up is what skips those questions. Editing is the opposite: it is
+   * the moment somebody has come back specifically to change one of them.
+   */
+  const form = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
+    'utf8',
+  );
+  assert.match(form, /const startsWork = isWorkKind\(kind\) && !editing;/);
+  assert.match(form, /\{startsWork \? null : \(/, 'the calendar returns when editing');
+  assert.match(form, /\{startsWork \? handlingSection : null\}/, 'handling leads only at setup');
+  assert.ok(
+    !/\{isWorkKind\(kind\) \? null : \(/.test(form),
+    'nothing hides scheduling from an existing task',
+  );
+});
+
 test('setting work up does not ask when, only what and how', () => {
   /*
    * A date, a time, a repeat, a priority and a notes box are the questions you
@@ -921,9 +944,11 @@ test('setting work up does not ask when, only what and how', () => {
     path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
     'utf8',
   );
-  // Everything between the guard and its close is hidden for work.
-  const guard = form.indexOf('{isWorkKind(kind) ? null : (');
-  assert.ok(guard > -1, 'work must skip the scheduling half of the form');
+  // Everything between the guard and its close is hidden while work is being
+  // set up. `startsWork`, not `isWorkKind`: editing an existing piece of work
+  // is exactly when the calendar has to come back. See the test above.
+  const guard = form.indexOf('{startsWork ? null : (');
+  assert.ok(guard > -1, 'setting work up must skip the scheduling half of the form');
   const hidden = form.slice(guard, form.indexOf('</>\n          )}', guard));
   for (const field of ['<MonthCalendar', '<TimeField', 'Priority', 'Repeat', 'Notes (optional)']) {
     assert.ok(hidden.includes(field), `${field} must be inside the part work skips`);
@@ -944,9 +969,9 @@ test('the create form asks work how before it asks when', () => {
     path.resolve(import.meta.dirname, '../../src/app/task/new.tsx'),
     'utf8',
   );
-  const workHandling = form.indexOf('{isWorkKind(kind) ? handlingSection : null}');
+  const workHandling = form.indexOf('{startsWork ? handlingSection : null}');
   const date = form.indexOf('<MonthCalendar');
-  const otherHandling = form.indexOf('{isWorkKind(kind) ? null : handlingSection}');
+  const otherHandling = form.indexOf('{startsWork ? null : handlingSection}');
   assert.ok(workHandling > -1 && otherHandling > -1, 'both placements must exist');
   assert.ok(workHandling < date, 'work is asked how before the calendar');
   assert.ok(otherHandling > date, 'everything else keeps it after the date');
@@ -1315,19 +1340,24 @@ test('offline, a question gets an admission rather than a fresh paragraph', () =
 // ───────────────────────────────────────────────────────────────────────────────
 section('Mail goes out by whichever route this deployment has');
 
-test('the most deliberately configured route wins', () => {
+test('the most deliberately configured route wins, and HTTPS beats SMTP', () => {
   /*
-   * SMTP, then a Gmail app password, then Resend. Nobody sets either of the
-   * first two by accident, and the alternative rule, "use Resend if it is
-   * configured", leaves this project exactly where it started: a working key
-   * that silently refuses every recipient except the account holder.
+   * Brevo over 443, then SMTP, then a Gmail app password, then Resend.
+   *
+   * HTTPS goes first because SMTP is blocked in a great many places. Measured
+   * on this machine: 443 reaches Brevo and ports 25, 465 and 587 all time out,
+   * and a timeout is the worst failure of the lot, since there is no error from
+   * the provider and nothing in a log except a wait. Most serverless hosts are
+   * the same. Resend goes last because a configured key that silently refuses
+   * every recipient but one is where this project started.
    */
   const mailer = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/mailer.ts'), 'utf8');
-  const order = ["return 'smtp'", "return 'gmail'", "return 'resend'"].map((s) =>
+  const order = ["return 'brevo'", "return 'smtp'", "return 'gmail'", "return 'resend'"].map((s) =>
     mailer.indexOf(s),
   );
-  assert.ok(order.every((i) => i > 0), 'all three routes exist');
+  assert.ok(order.every((i) => i > 0), 'all four routes exist');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'and are checked in that order');
+  assert.match(mailer, /api\.brevo\.com\/v3\/smtp\/email/, 'the HTTPS route is the real one');
 });
 
 test('plain SMTP exists, because Gmail is not available to everyone', () => {

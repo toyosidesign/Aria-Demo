@@ -18,9 +18,15 @@ import nodemailer from 'nodemailer';
  *
  * And Gmail is not available to everyone: Workspace admins turn app passwords
  * off and Advanced Protection removes them, with Google saying only that "the
- * setting you are looking for is not available for your account". So the third
- * route is plain SMTP, which every free provider speaks and most will use with
- * a single verified sender address rather than a whole verified domain.
+ * setting you are looking for is not available for your account". So there is
+ * plain SMTP too, which every free provider speaks and most will use with a
+ * single verified sender address rather than a whole verified domain.
+ *
+ * And then SMTP itself turns out to be blocked in a lot of places: ports 25,
+ * 465 and 587 are closed on many networks and on most serverless hosts, and the
+ * failure is a timeout rather than a refusal, so it looks like nothing at all.
+ * Brevo's transactional API carries the same message over 443, which is why it
+ * is tried first.
  *
  * ── Which one wins ──────────────────────────────────────────────────────────
  *
@@ -31,7 +37,7 @@ import nodemailer from 'nodemailer';
  * recipient but one.
  */
 
-export type MailProvider = 'smtp' | 'gmail' | 'resend' | 'none';
+export type MailProvider = 'brevo' | 'smtp' | 'gmail' | 'resend' | 'none';
 
 export interface MailResult {
   sent: boolean;
@@ -58,6 +64,20 @@ const gmailPass = () => process.env.GMAIL_APP_PASSWORD?.replace(/\s+/g, '');
  * one set of variables covers them and this app never needs to know which was
  * chosen.
  */
+/*
+ * The same provider, over HTTPS instead of SMTP.
+ *
+ * Ports 25, 465 and 587 are blocked on a great many networks and on most
+ * serverless hosts, and the failure is a connection timeout: no error from the
+ * provider, no bounce, nothing in a log except a wait. Measured here, where
+ * 443 reaches Brevo and all three SMTP ports time out.
+ *
+ * Their transactional API takes the same message over 443, which goes wherever
+ * ordinary web traffic goes. Preferred over SMTP for exactly that reason: it is
+ * the same email by a route that is much harder to block.
+ */
+const brevoKey = () => process.env.BREVO_API_KEY?.trim();
+
 const smtpHost = () => process.env.SMTP_HOST?.trim();
 const smtpUser = () => process.env.SMTP_USER?.trim();
 const smtpPass = () => process.env.SMTP_PASS?.trim();
@@ -66,6 +86,7 @@ const smtpFrom = () => process.env.SMTP_FROM?.trim() || smtpUser();
 
 /** What this deployment can do, asked without sending anything. */
 export function mailProvider(): MailProvider {
+  if (brevoKey() && smtpFrom()) return 'brevo';
   if (smtpHost() && smtpUser() && smtpPass()) return 'smtp';
   if (gmailUser() && gmailPass()) return 'gmail';
   if (process.env.RESEND_API_KEY && process.env.ARIA_FROM_EMAIL) return 'resend';
@@ -81,7 +102,7 @@ export function mailProvider(): MailProvider {
  */
 export function canEmailAnyone(): boolean {
   const provider = mailProvider();
-  if (provider === 'smtp' || provider === 'gmail') return true;
+  if (provider === 'brevo' || provider === 'smtp' || provider === 'gmail') return true;
   if (provider === 'none') return false;
   const from = process.env.ARIA_FROM_EMAIL ?? '';
   // resend.dev is their shared sandbox sender, and it is the giveaway: mail
@@ -124,6 +145,29 @@ export async function sendMail(msg: {
   replyTo?: string;
 }): Promise<MailResult> {
   const provider = mailProvider();
+
+  if (provider === 'brevo') {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': brevoKey()!, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // The sender has to be an address Brevo has verified, which is the
+          // same rule the SMTP route follows. Named, so it arrives as Aria.
+          sender: { name: 'Aria', email: smtpFrom() },
+          to: msg.to.map((email) => ({ email })),
+          subject: msg.subject,
+          textContent: msg.text,
+          ...(msg.replyTo ? { replyTo: { email: msg.replyTo } } : {}),
+        }),
+      });
+      if (res.ok) return { sent: true, provider };
+      const detail = await res.text().catch(() => '');
+      return { sent: false, provider, error: `HTTP ${res.status} ${detail}`.trim() };
+    } catch (err) {
+      return { sent: false, provider, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
 
   if (provider === 'gmail' || provider === 'smtp') {
     try {

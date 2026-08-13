@@ -659,7 +659,7 @@ export default function NewTaskScreen() {
             front of the one that changes everything after it, which is the
             order an event needs and not this one.
           */}
-          {isWorkKind(kind) ? handlingSection : null}
+          {startsWork ? handlingSection : null}
 
           {/*
             ── Work is not scheduled here ──────────────────────────────────────
@@ -674,8 +674,16 @@ export default function NewTaskScreen() {
             asks two things, what it is and how much help you want, and then
             begins. When it is ready, the task screen is where you pick the day
             and time to push it out.
+
+            ── But editing is not setting up ───────────────────────────────────
+
+            Gated on `startsWork`, which is work being created, not work. Coming
+            back to an existing assignment to correct its date is exactly the
+            moment the calendar has to be there, and hiding it here left no way
+            to change the date or time of a piece of work from anywhere in the
+            app. Reported as being unable to update a task, and it was true.
           */}
-          {isWorkKind(kind) ? null : (
+          {startsWork ? null : (
           <>
           <View className="gap-2">
             <Text variant="label" tone="muted">
@@ -821,7 +829,7 @@ export default function NewTaskScreen() {
           </View>
 
 
-          {isWorkKind(kind) ? null : handlingSection}
+          {startsWork ? null : handlingSection}
 
           {showsContact ? (
             <ContactField
