@@ -239,6 +239,19 @@ Search before you answer. Give the actual answer in two to four sentences, speci
      * something the app cannot do is worse than no offer, because it arrives
      * with a button.
      */
+    /*
+     * A task with a date nothing can parse is repaired, not passed on.
+     *
+     * The schema requires the field and says what it means; it cannot require
+     * that the string is a real day, and an empty one reached a card that
+     * formats it, which threw inside render and took the whole chat screen
+     * down. Today is the honest fallback: they are about to review it anyway,
+     * and a task on the wrong day is recoverable in a way a blank screen is not.
+     */
+    parsed.tasks = (parsed.tasks ?? []).map((t) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(t?.date ?? '') ? t : { ...t, date: body.today },
+    );
+
     parsed.actions = (parsed.actions ?? []).filter((a) => a?.id && isKnownAction(a.id));
 
     /*

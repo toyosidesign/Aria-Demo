@@ -27,12 +27,37 @@ export function realToday(): string {
   return toISODate(new Date());
 }
 
+/**
+ * A date that can be shown, or nothing, but never a crash.
+ *
+ * `format(new Date(NaN))` throws RangeError, and these run inside render. A bad
+ * date reaching one of them, and one did, from a model that returned a task
+ * with an empty date, takes down the whole screen: the chat went blank, and the
+ * cause was three layers away in a card nobody was looking at.
+ *
+ * Sanitising upstream is still the fix, and the route does it. This is the
+ * floor: a screen may show a date wrongly, or not at all, but it may not
+ * disappear because of one.
+ */
+function safely(iso: string, pattern: string): string {
+  const d = parseISO(iso ?? '');
+  if (Number.isNaN(d.getTime())) {
+    // `__DEV__` is a Metro global and this module is loaded by the check
+    // suites in plain Node, where naming it is a ReferenceError.
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.warn(`[aria] not a date: ${JSON.stringify(iso)}`);
+    }
+    return '';
+  }
+  return format(d, pattern);
+}
+
 export function formatFull(iso: string) {
-  return format(parseISO(iso), 'EEE, MMM d');
+  return safely(iso, 'EEE, MMM d');
 }
 
 export function formatLong(iso: string) {
-  return format(parseISO(iso), 'EEEE, MMMM d, yyyy');
+  return safely(iso, 'EEEE, MMMM d, yyyy');
 }
 
 export function formatMonthYear(date: Date) {
@@ -226,7 +251,10 @@ export function dateToTime(d: Date): string {
 
 /** "14:30" → "2:30 PM" for display. */
 export function formatTime(t: string): string {
-  const [h, m] = t.split(':').map(Number);
+  const [h, m] = (t ?? '').split(':').map(Number);
+  // Same floor as the dates above: a malformed time renders as nothing rather
+  // than as "NaN:NaN AM", which reads as the app being broken.
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return '';
   const ampm = h >= 12 ? 'PM' : 'AM';
   const hh = ((h + 11) % 12) + 1;
   return `${hh}:${String(m).padStart(2, '0')} ${ampm}`;

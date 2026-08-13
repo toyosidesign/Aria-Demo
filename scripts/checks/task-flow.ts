@@ -57,6 +57,7 @@ import {
   helpAsked,
   isKnownAction,
 } from '@/lib/capabilities';
+import { formatFull, formatLong, formatTime } from '@/lib/dates';
 import { dedupeSources, hostOf } from '@/lib/source';
 import { looksLikeQuestion } from '@/lib/question';
 import {
@@ -2077,6 +2078,46 @@ test('work left mid-answer has a door back into the writing', () => {
     'offered only while something is outstanding',
   );
   assert.match(screen, /router\.push\(`\/aria\/\$\{task\.id\}` as Href\)/, 'and opens the writing');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('A bad date never takes a screen down');
+
+test('formatting an unusable date returns nothing rather than throwing', () => {
+  /*
+   * The chat went blank, and the cause was three layers away: the model
+   * returned a task with an empty date, a pending card formatted it, and
+   * `format(new Date(NaN))` throws RangeError inside render, which unmounts the
+   * screen. A date shown wrongly is a bug; a screen that disappears is a
+   * different category of thing.
+   */
+  assert.equal(formatFull(''), '');
+  assert.equal(formatFull('not a date'), '');
+  assert.equal(formatLong(''), '');
+  assert.equal(formatTime(''), '');
+  assert.equal(formatTime('nonsense'), '');
+  // And a real one still works, which is the half that matters most.
+  assert.match(formatFull('2026-08-14'), /Aug 14/);
+  assert.equal(formatTime('09:05'), '9:05 AM');
+});
+
+test('a task with an unusable date is repaired before it is shown', () => {
+  /*
+   * The floor above is a floor. The fix is that nothing unusable arrives: the
+   * schema can require the field and say what it means, but not that the string
+   * is a real day. Today is the honest fallback, since they are about to review
+   * it anyway and a task on the wrong day is recoverable in a way a blank
+   * screen is not.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/assistant+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$/, 'the route checks the shape');
+  assert.match(route, /: \{ \.\.\.t, date: body\.today \}/, 'and repairs rather than drops');
+
+  const client = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/assistant.ts'), 'utf8');
+  assert.match(client, /: \{ \.\.\.t, date: today \}/, 'and again on the way in');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

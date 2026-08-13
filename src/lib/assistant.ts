@@ -72,6 +72,11 @@ export async function requestAssistant(
     });
     if (!res.ok) throw new Error(`assistant failed: ${res.status}`);
     const data = (await res.json()) as AssistantResponse;
+    // Repaired here as well as at the route: this is the last point before a
+    // card renders it, and a date that cannot be parsed throws inside render.
+    data.tasks = (data.tasks ?? []).map((t) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(t?.date ?? '') ? t : { ...t, date: today },
+    );
     if (!data || typeof data.reply !== 'string' || !Array.isArray(data.tasks)) {
       throw new Error('bad shape');
     }
