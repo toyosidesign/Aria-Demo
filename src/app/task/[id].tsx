@@ -484,8 +484,8 @@ export default function TaskDetailScreen() {
             </View>
             <Card className="gap-3">
               <Text className="text-[14px] leading-[20px]">
-                I have put all of it into one document, named the way a marker expects. Send it to
-                somebody at a time you pick, or keep a copy now.
+                I have put all of it into one document, named the way a marker expects. Send it now,
+                schedule it for a moment you pick, or keep a copy.
               </Text>
               <Button
                 title="Send it"

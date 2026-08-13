@@ -1497,7 +1497,11 @@ test('editing a scheduled send replaces it rather than adding a second', () => {
   const scheduleAt = screen.indexOf('scheduleAutomation({');
   assert.ok(cancelAt > 0 && cancelAt < scheduleAt, 'cancelled before the replacement is made');
   assert.match(screen, /if \(pending\?\.body\) return pending\.body;/, 'edits are not thrown away');
-  assert.match(screen, /pending \? 'Save the change' : 'Schedule it'/, 'and it says which it is');
+  assert.match(
+    screen,
+    /pending \? 'Save the change' : 'Schedule it for later'/,
+    'and it says which it is',
+  );
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -1874,9 +1878,10 @@ test('the send screen asks for the address, the subject, the message, and nothin
   for (const field of ['label="Email address"', 'label="Subject"', 'label="Message Aria will send"']) {
     assert.ok(screen.includes(field), `the send screen must ask for ${field}`);
   }
-  // One commit button, whichever word it is wearing: scheduling the first time,
-  // saving the change when the task already has a send waiting.
-  assert.match(screen, /pending \? 'Save the change' : 'Schedule it'/, 'and commit with one button');
+  // Two commits, and only two: now, or at a moment they pick. See the section
+  // on sending now for why both have to exist.
+  assert.match(screen, /title="Send it now"/);
+  assert.match(screen, /pending \? 'Save the change' : 'Schedule it for later'/);
 
   for (const absent of ['AUTO_CHANNELS', 'ContactField', 'toPhone', 'PRO_PITCH']) {
     assert.ok(!screen.includes(absent), `${absent} belongs to the general screen, not this one`);
@@ -1899,7 +1904,7 @@ test('a send that cannot go yet says why, rather than going grey', () => {
     'utf8',
   );
   assert.ok(!/disabled=\{!ready\}/.test(screen), 'the button is never dead');
-  assert.match(screen, /function blocker\(\): string \| null/, 'it knows what is missing');
+  assert.match(screen, /function blocker\(opts: \{ needsTime\?: boolean \} = \{\}\)/, 'it knows what is missing');
   assert.match(screen, /Add the address this should go to\./);
   assert.match(screen, /There is nothing to send yet/);
   // Nothing is folded away any more, so naming the missing thing is the whole
@@ -1940,6 +1945,46 @@ test('the writing screen no longer offers a second calendar', () => {
   assert.ok(!screen.includes('title="Schedule for later"'), 'no scheduling CTA on the work screen');
   assert.ok(!screen.includes('Set when it goes out anyway'), 'nor its quieter twin');
   assert.match(screen, /email-it\/\$\{task\.id\}/, 'the email CTA goes to the focused screen');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Finished work can go now or later');
+
+test('sending now is offered beside scheduling', () => {
+  /*
+   * Half of what people do with a finished assignment is send it, and the other
+   * half is send it later: written on Tuesday, due Friday, and the tutor should
+   * not get it on Tuesday. Only the second was possible, so "send it" meant
+   * "pick a time" and the answer to "can I just send this?" was no.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /title="Send it now"/);
+  assert.match(screen, /pending \? 'Save the change' : 'Schedule it for later'/);
+  // Now needs no moment, which is the whole difference between them.
+  assert.match(screen, /blocker\(\{ needsTime: false \}\)/);
+  assert.match(screen, /if \(needsTime && !time\)/);
+});
+
+test('sending now still leaves a record, and never claims a send that failed', () => {
+  /*
+   * It goes through an automation rather than straight at the route: that row
+   * is what the activity screen reads, what completes the task, and what
+   * somebody can point at afterwards. And the toast follows the outcome, since
+   * a cheerful "Sent" over a rejected message is the one lie this app must not
+   * tell.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/email-it/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const id = scheduleAutomation\(/, 'a row exists first');
+  assert.match(screen, /await runAutomation\(/, 'then it is run');
+  assert.match(screen, /settleAutomation\(id, \{ status: outcome\.status/, 'and settled either way');
+  assert.match(screen, /if \(outcome\.status === 'sent'\)/, 'the toast follows what happened');
+  assert.match(screen, /if \(pending\) cancelAutomation\(pending\.id\);/, 'no duplicate send');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

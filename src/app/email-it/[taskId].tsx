@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { isPending, toRunAt } from '@/lib/automations';
+import { runAutomation } from '@/lib/automation-runner';
 import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { isValidEmails } from '@/lib/contacts';
@@ -51,6 +52,8 @@ export default function EmailItScreen() {
   const task = useAriaStore((s) => s.tasks.find((t) => t.id === taskId));
   const demoDate = useAriaStore((s) => s.demoDate);
   const scheduleAutomation = useAriaStore((s) => s.scheduleAutomation);
+  const settleAutomation = useAriaStore((s) => s.settleAutomation);
+  const [sending, setSending] = useState(false);
 
   /*
    * The send already scheduled for this task, when there is one.
@@ -114,16 +117,79 @@ export default function EmailItScreen() {
    * that is not there. Four conditions can hold this one back and three of them
    * are invisible from the bottom of the screen.
    */
-  function blocker(): string | null {
+  function blocker(opts: { needsTime?: boolean } = {}): string | null {
+    const needsTime = opts.needsTime !== false;
     if (!isValidEmails(email)) {
       return email.trim()
         ? "That address doesn't look right, so I have left it alone."
         : 'Add the address this should go to.';
     }
     if (!body.trim()) return 'There is nothing to send yet. Add the message.';
-    if (!time) return 'Pick a time, so I know when to send it.';
-    if (past) return 'That moment has already passed. Pick a later day or time.';
+    if (needsTime && !time) return 'Pick a time, so I know when to send it.';
+    if (needsTime && past) return 'That moment has already passed. Pick a later day or time.';
     return null;
+  }
+
+  /**
+   * Out the door now, rather than at a moment somebody has to choose.
+   *
+   * Half of what people want to do with a finished assignment is send it, and
+   * the other half is send it *later*: written on Tuesday, due Friday, and the
+   * tutor should not get it on Tuesday. Only the second was possible, so
+   * "send it" meant "pick a time", and the answer to "can I just send this?"
+   * was no.
+   *
+   * It still goes through an automation rather than straight to the route: that
+   * is the record of what Aria did, it is what the activity screen reads, and
+   * it is what completes the task. A send with no row behind it is a send
+   * nobody can point at afterwards.
+   */
+  async function sendNow() {
+    if (!task) return;
+    const why = blocker({ needsTime: false });
+    if (why) {
+      hapticWarning();
+      showToast(why, 'clock');
+      return;
+    }
+
+    setSending(true);
+    if (pending) cancelAutomation(pending.id);
+    const id = scheduleAutomation({
+      taskId: task.id,
+      taskTitle: task.title,
+      channel: 'email',
+      runAt: new Date().toISOString(),
+      subject: subject.trim() || task.title,
+      body: body.trim(),
+      toEmail: email.trim(),
+    });
+
+    const outcome = await runAutomation({
+      id,
+      taskId: task.id,
+      taskTitle: task.title,
+      channel: 'email',
+      runAt: new Date().toISOString(),
+      status: 'scheduled',
+      subject: subject.trim() || task.title,
+      body: body.trim(),
+      toEmail: email.trim(),
+      createdAt: new Date().toISOString(),
+    });
+    settleAutomation(id, { status: outcome.status, error: outcome.error });
+    setSending(false);
+
+    if (outcome.status === 'sent') {
+      hapticSuccess();
+      showToast(`Sent to ${email.trim()}`, 'check');
+    } else {
+      hapticWarning();
+      // The provider's reason is in the server log; this is the part a person
+      // can act on, and it must not claim a send that did not happen.
+      showToast(outcome.note, 'clock');
+    }
+    router.replace(`/task/${task.id}`);
   }
 
   function send() {
@@ -249,15 +315,29 @@ export default function EmailItScreen() {
         </View>
       </ScrollView>
 
-      <View className="border-t border-border px-5 pb-6 pt-3">
-        {/* Never disabled. See `blocker`: pressing it explains what is missing
-            and opens the control that is folded away, which is more use than a
-            grey rectangle. */}
+      {/*
+        Two endings, because "send it" and "send it later" are both real.
+
+        Now is the louder one: an assignment somebody is looking at, finished,
+        with the address filled in, is usually one they want gone. Later is a
+        deliberate act and reads as one. Neither is ever disabled, see
+        `blocker`: pressing explains what is missing.
+      */}
+      <View className="gap-2 border-t border-border px-5 pb-6 pt-3">
         <Button
-          title={pending ? 'Save the change' : 'Schedule it'}
+          title="Send it now"
           block
           size="lg"
+          loading={sending}
           leftIcon={<Send size={18} color={c.accentInk} />}
+          onPress={() => void sendNow()}
+        />
+        <Button
+          title={pending ? 'Save the change' : 'Schedule it for later'}
+          variant="secondary"
+          block
+          size="lg"
+          leftIcon={<CalendarClock size={18} color={c.ink} />}
           onPress={send}
         />
       </View>
