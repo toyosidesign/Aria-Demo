@@ -143,9 +143,25 @@ function buildPrompt(req: DraftRequest): string {
       );
       if (req.description) lines.push(`Notes so far: ${req.description}`);
     } else if (req.subtaskTitle) {
-      lines.push(
-        `For the assignment "${req.title}", write the "${req.subtaskTitle}" section. Produce the actual draft prose for just that section: a few tight paragraphs a student could build on. No outline, no preamble, no headings.`,
-      );
+      /*
+       * One part, written the way they asked for the whole thing.
+       *
+       * Every method walks the checklist now, and the method says what Aria
+       * produces for each item rather than how many items it touches. Handing
+       * an outline to somebody who asked for a draft, or four paragraphs to
+       * somebody who asked for the shape, is the answer to a question they did
+       * not ask, and it was what "outline" and "draft" quietly did to every
+       * part when only "steps" walked the list.
+       */
+      if (req.method === 'outline') {
+        lines.push(
+          `For the assignment "${req.title}", give the shape of the "${req.subtaskTitle}" part. Four to six short lines: what it has to cover and in what order, each one a point rather than a sentence of the essay. No prose paragraphs, no preamble.`,
+        );
+      } else {
+        lines.push(
+          `For the assignment "${req.title}", write the "${req.subtaskTitle}" section. Produce the actual draft prose for just that section: a few tight paragraphs a student could build on. No outline, no preamble, no headings.`,
+        );
+      }
       if (req.description) lines.push(`Notes so far: ${req.description}`);
     } else if (req.method === 'draft') {
       lines.push(

@@ -51,7 +51,7 @@ import { CardCanvas } from '@/components/card-canvas';
 import { PhotoCanvas } from '@/components/photo-canvas';
 import { cardTemplate, renderCard } from '@/lib/cards';
 import { cardSharingAvailable, shareCardImage } from '@/lib/card-image';
-import { exportWork, sectionsToText } from '@/lib/export';
+import { exportDocument, exportWork, sectionsToText } from '@/lib/export';
 import { emailSubject, openEmailDraft, openSmsDraft, openWhatsAppDraft } from '@/lib/send';
 import { useColors } from '@/lib/colors';
 import { hapticSuccess, hapticTap } from '@/lib/haptics';
@@ -1263,7 +1263,12 @@ export default function AriaFlowScreen() {
                     leftIcon={<Share2 size={18} color={c.ink} />}
                     block
                     onPress={() =>
-                      void exportWork(task.title, sectionsToText(writtenSections(task.draftSections)))
+                      void exportDocument({
+                        name: task.title,
+                        title: task.title,
+                        author: senderName,
+                        sections: writtenSections(task.draftSections),
+                      })
                     }
                   />
                   {/*

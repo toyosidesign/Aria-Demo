@@ -56,7 +56,7 @@ import { Text } from '@/components/ui/text';
 import { HeaderButton } from '@/components/header-button';
 import { ensureAlarmPermission, runPreview } from '@/lib/alarms';
 import { ariaActionFor, METHOD_LABELS } from '@/lib/aria-actions';
-import { exportWork, sectionsToText } from '@/lib/export';
+import { exportDocument, exportWork, sectionsToText } from '@/lib/export';
 import { hapticTap } from '@/lib/haptics';
 import { openCall } from '@/lib/send';
 import { showToast } from '@/lib/toast';
@@ -115,6 +115,8 @@ export default function TaskDetailScreen() {
    * reason too: name, email and avatar have no business in a system prompt
    * about coursework.
    */
+  // The name on the cover of anything saved from here.
+  const authorName = useAriaStore((s) => s.profile.name);
   const studying = useAriaStore((s) => s.profile.studying);
   const level = useAriaStore((s) => s.profile.level);
   const interests = useAriaStore((s) => s.profile.interests);
@@ -498,7 +500,12 @@ export default function TaskDetailScreen() {
                 leftIcon={<FileText size={16} color={c.ink} />}
                 onPress={() => {
                   hapticTap();
-                  void exportWork(task.title, sectionsToText(writtenSections(task.draftSections)));
+                  void exportDocument({
+                    name: task.title,
+                    title: task.title,
+                    author: authorName,
+                    sections: writtenSections(task.draftSections),
+                  });
                 }}
               />
               <Button

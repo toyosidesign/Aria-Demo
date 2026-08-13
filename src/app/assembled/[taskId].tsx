@@ -11,7 +11,7 @@ import { assemble, factsFromSections } from '@/lib/assemble';
 import { goBack } from '@/lib/nav';
 import { useColors } from '@/lib/colors';
 import { formatFull } from '@/lib/dates';
-import { exportWork } from '@/lib/export';
+import { exportDocument } from '@/lib/export';
 import { hapticSelect } from '@/lib/haptics';
 import { writtenSections } from '@/lib/sections';
 import { useAriaStore } from '@/store/aria-store';
@@ -173,7 +173,12 @@ export default function AssembledScreen() {
              * that fires early or sends the wrong draft costs a grade nobody
              * can recover.
              */
-            void exportWork(document.filename.replace(/\.txt$/, ''), document.body);
+            void exportDocument({
+              name: document.filename.replace(/\.txt$/, ''),
+              title: task.title,
+              author: profile.name,
+              sections: writtenSections(task.draftSections),
+            });
           }}
         />
         <Button title="Not yet" variant="ghost" size="sm" block onPress={() => goBack('/(tabs)/tasks')} />

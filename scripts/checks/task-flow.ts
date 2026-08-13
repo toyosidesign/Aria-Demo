@@ -1739,7 +1739,8 @@ test('the card says their sentence back, not a summary of it', () => {
     'utf8',
   );
   assert.match(actions, /You asked me to: “\$\{asked\}”/, 'their words, verbatim');
-  assert.match(actions, /drafting: 'it, exactly as you described'/);
+  // And per part, since every method walks the checklist now.
+  assert.match(actions, /other: \{ verb: 'Get on with it', produces: '“%s”, the way you asked' \}/);
 });
 
 test('the route is told to obey it rather than improve on it', () => {
@@ -1945,6 +1946,102 @@ test('the writing screen no longer offers a second calendar', () => {
   assert.ok(!screen.includes('title="Schedule for later"'), 'no scheduling CTA on the work screen');
   assert.ok(!screen.includes('Set when it goes out anyway'), 'nor its quieter twin');
   assert.match(screen, /email-it\/\$\{task\.id\}/, 'the email CTA goes to the focused screen');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('What gets saved is a document');
+
+test('saving produces a word-processor file, not a text file', () => {
+  /*
+   * A .txt is what a note is and what an essay is not: no headings, no
+   * paragraphs a marker can comment on, and it opens in a text editor rather
+   * than in the thing somebody submits from. RTF is plain text with markup, so
+   * it costs a few lines and no dependency, and Word, Pages and Docs all open
+   * it and save straight back out as .docx.
+   */
+  const exp = readFileSync(path.resolve(import.meta.dirname, '../../src/lib/export.ts'), 'utf8');
+  assert.match(exp, /export async function exportDocument/);
+  assert.match(exp, /\.rtf`/, 'with the extension that makes it open');
+  assert.match(exp, /mimeType: 'application\/rtf'/);
+  assert.match(exp, /\\\\b\\\\fs28/, 'section titles are headings');
+
+  // Escaping, in the order that matters: braces and backslashes are RTF's own
+  // syntax and have to go first, or the escapes below get escaped in turn.
+  const backslash = exp.indexOf("replace(/[\\\\{}]/g");
+  const unicode = exp.indexOf('replace(/[^\\x00-\\x7F]/g');
+  assert.ok(backslash > 0 && unicode > backslash, 'syntax characters escape first');
+
+  // And a fallback, because a document nobody can open is worse than a
+  // paragraph they can paste.
+  assert.match(exp, /return exportWork\(/, 'no share sheet still yields the text');
+});
+
+test('every place that saves work saves the document', () => {
+  for (const screen of [
+    'src/app/task/[id].tsx',
+    'src/app/aria/[taskId].tsx',
+    'src/app/assembled/[taskId].tsx',
+  ]) {
+    const src = readFileSync(path.resolve(import.meta.dirname, '../../', screen), 'utf8');
+    assert.match(src, /exportDocument\(\{/, `${screen} saves a document`);
+    assert.match(src, /author:/, 'with a name on the cover');
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Every way of handling work walks the same checklist');
+
+test('the method decides what is written for a part, not how many parts', () => {
+  /*
+   * The method used to decide the shape of the whole session: step by step
+   * walked the checklist and the other three wrote one thing and stopped. So an
+   * assignment set to "Draft it" had a plan on screen that nothing ever
+   * touched, and choosing a different amount of help quietly cost you the
+   * part-by-part flow, which is the thing that makes any of it manageable.
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  for (const method of ['steps', 'draft', 'outline', 'other']) {
+    assert.ok(new RegExp(`${method}: \\{ verb:`).test(actions), `${method} has its own product`);
+  }
+  assert.match(actions, /\/\/ Every method walks the plan now, so every method is a walkthrough\.\n\s*walkthrough: true,/);
+  assert.ok(
+    !/method === 'steps' && pending\.length > 0/.test(actions),
+    'the walkthrough is no longer only for step by step',
+  );
+});
+
+test('an outline part is a shape, a draft part is prose', () => {
+  /*
+   * Handing an outline to somebody who asked for a draft, or four paragraphs to
+   * somebody who asked for the shape, answers a question they did not ask.
+   */
+  const route = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/api/draft+api.ts'),
+    'utf8',
+  );
+  assert.match(route, /if \(req\.method === 'outline'\) \{/, 'outline is its own instruction');
+  assert.match(route, /each one a point rather than a sentence of the essay/);
+  assert.match(route, /Produce the actual draft prose for just that section/);
+});
+
+test('work with no plan is offered a plan, and finished work is offered nothing', () => {
+  /*
+   * Every method needs a checklist to walk, so a piece of work without one has
+   * nothing to walk: breaking it into parts is the first useful thing. And when
+   * every part is ticked there is no offer at all, because proposing to write
+   * again is proposing to redo finished work. What happens then lives on the
+   * task screen, under "Every part is done".
+   */
+  const actions = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/lib/aria-actions.ts'),
+    'utf8',
+  );
+  assert.match(actions, /if \(!task\.subtasks\.length\) \{/, 'no plan yet is its own case');
+  assert.match(actions, /cta: 'Break it into parts'/);
+  assert.match(actions, /Every part is ticked, so there is nothing left to write/);
 });
 
 // ───────────────────────────────────────────────────────────────────────────────

@@ -124,6 +124,92 @@ async function shareAsText(title: string, text: string): Promise<ExportResult | 
  * `title` leads the exported text as well as naming the sheet, because most
  * targets keep only the body, and an untitled note is unfindable a week later.
  */
+/**
+ * The same work as a document a word processor will open.
+ *
+ * ── Why RTF and not .docx ───────────────────────────────────────────────────
+ *
+ * A .txt file is what a note is, and what an essay is not: it has no headings,
+ * no paragraphs a marker can comment on, and it opens in a text editor rather
+ * than in the thing somebody is going to submit from. A .docx is a zip of XML
+ * and needs a library that has to run inside React Native.
+ *
+ * RTF is neither. It is plain text with markup, so it is a few lines of string
+ * building and no dependency at all, and Word, Pages and Google Docs all open
+ * it and save straight back out as .docx. For a student that is the whole
+ * difference: the file arrives as a document they can hand in rather than as
+ * something they have to retype.
+ */
+function rtf(text: string): string {
+  return (
+    text
+      // Backslash and braces are RTF's own syntax, so they go first or the
+      // escapes below get escaped in turn.
+      .replace(/[\\{}]/g, (m) => `\\${m}`)
+      // Anything outside ASCII becomes a numeric escape. A curly quote or an
+      // accented name left raw renders as mojibake in Word, which looks like
+      // Aria cannot spell.
+      .replace(/[^\x00-\x7F]/g, (ch) => `\\u${ch.charCodeAt(0)}?`)
+      .replace(/\n/g, '\\par ')
+  );
+}
+
+export async function exportDocument(opts: {
+  /** Without an extension: this adds its own. */
+  name: string;
+  title: string;
+  author?: string;
+  sections: { title: string; content: string }[];
+}): Promise<ExportResult> {
+  const body = opts.sections
+    .filter((sec) => sec.content.trim())
+    .map((sec) => `{\\b\\fs28 ${rtf(sec.title)}}\\par\\par ${rtf(sec.content.trim())}\\par\\par `)
+    .join('');
+
+  if (!body) {
+    showToast('Nothing to save yet');
+    return 'dismissed';
+  }
+
+  const doc =
+    `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Times New Roman;}}\\fs24 ` +
+    `{\\b\\fs36 ${rtf(opts.title)}}\\par ` +
+    (opts.author ? `${rtf(opts.author)}\\par ` : '') +
+    `\\par ${body}}`;
+
+  const FS = getFS();
+  const Sharing = getSharing();
+  if (FS && Sharing) {
+    try {
+      if (await Sharing.isAvailableAsync()) {
+        const file = new FS.File(FS.Paths.cache, `${fileNameFor(opts.name).replace(/\.txt$/, '')}.rtf`);
+        file.create({ overwrite: true, intermediates: true });
+        file.write(doc);
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/rtf',
+          UTI: 'public.rtf',
+          dialogTitle: `Save “${opts.title}”`,
+        });
+        return 'shared';
+      }
+    } catch {
+      /* falls through to the plain-text paths below */
+    }
+  }
+
+  /*
+   * No share sheet, so the text itself.
+   *
+   * A document nobody can open is worse than a paragraph they can paste, and
+   * this is the same ladder `exportWork` already climbs: file, then text, then
+   * clipboard. Losing the formatting is the right thing to lose.
+   */
+  return exportWork(
+    opts.title,
+    opts.sections.map((sec) => `${sec.title}\n\n${sec.content.trim()}`).join('\n\n'),
+  );
+}
+
 export async function exportWork(title: string, body: string): Promise<ExportResult> {
   const trimmed = body.trim();
   if (!trimmed) {

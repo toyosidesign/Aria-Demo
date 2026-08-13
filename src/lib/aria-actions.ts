@@ -340,6 +340,25 @@ function messageAction(task: Task, who: string | undefined): AriaAction {
   };
 }
 
+/**
+ * What each way of handling work produces for one part of it.
+ *
+ * The method used to decide the *shape of the whole session*: step by step
+ * walked the checklist, and the other three wrote one thing and stopped. So an
+ * assignment set to "Draft it" had a plan on screen that nothing ever touched,
+ * and picking a different amount of help quietly cost you the part-by-part
+ * flow, which is the thing that makes any of it manageable.
+ *
+ * The checklist is the spine for all of them now. The method decides what Aria
+ * writes for each part, which is what it was always describing.
+ */
+const PER_PART: Record<string, { verb: string; produces: string }> = {
+  steps: { verb: 'Work through it', produces: 'the “%s” section' },
+  draft: { verb: 'Draft it', produces: 'a full draft of “%s”' },
+  outline: { verb: 'Outline it', produces: 'the shape of “%s”' },
+  other: { verb: 'Get on with it', produces: '“%s”, the way you asked' },
+};
+
 function assignmentAction(task: Task): AriaAction | null {
   const method = task.method ?? 'steps';
   if (method === 'remind') return null;
@@ -356,68 +375,60 @@ function assignmentAction(task: Task): AriaAction | null {
    * are ticked off, or something has been written, or neither has happened yet.
    */
   const started = done > 0 || writtenSections(task.draftSections).length > 0;
+  const asked = ownInstruction(task.draftSections);
 
   /*
-   * Their instruction, said back to them rather than paraphrased.
+   * No plan yet, so the plan is the offer.
    *
-   * Somebody who typed what they wanted should see that sentence on the card,
-   * not Aria's summary of it: the summary is where a promise starts drifting
-   * from what was asked, and this is the one option whose whole worth is being
-   * followed exactly.
+   * Every method now works through the checklist, which means a piece of work
+   * without one has nothing to work through. Breaking it into parts is the
+   * first thing Aria can usefully do, and the task screen is where that
+   * happens, so this points there rather than writing something to fill the
+   * silence.
    */
-  if (method === 'other') {
-    const asked = ownInstruction(task.draftSections);
+  if (!task.subtasks.length) {
     return {
       type: 'assignment',
       method,
-      offer: asked
-        ? started
-          ? `We are partway through: “${asked}”`
-          : `You asked me to: “${asked}”`
-        : 'You wanted this handled your own way. Tell me how and I will get on with it.',
-      cta: started ? 'Continue' : 'Get on with it',
+      offer:
+        method === 'other' && asked
+          ? `You asked me to: “${asked}” Let me break it into parts first, then I will work through them.`
+          : 'Let me break this into parts first, then I will work through them one at a time.',
+      cta: 'Break it into parts',
       needsSend: false,
-      drafting: 'it, exactly as you described',
+      drafting: 'a plan',
     };
   }
 
-  if (method === 'steps' && pending.length > 0) {
+  if (pending.length > 0) {
+    const per = PER_PART[method] ?? PER_PART.steps;
+    const next = pending[0].title;
     return {
       type: 'assignment',
       method,
+      // Every method walks the plan now, so every method is a walkthrough.
       walkthrough: true,
       offer: started
-        ? `${done} of ${task.subtasks.length} parts done. Next up: “${pending[0].title}.”`
-        : `Want me to work through this with you, part by part? First up: “${pending[0].title}.”`,
-      cta: started ? 'Continue' : 'Work through it',
+        ? `${done} of ${task.subtasks.length} parts done. Next up: “${next}.”`
+        : method === 'other' && asked
+          ? `You asked me to: “${asked}” Starting with “${next}.”`
+          : `Want me to work through this part by part? First up: “${next}.”`,
+      cta: started ? 'Continue' : per.verb,
       needsSend: false,
-      drafting: `the “${pending[0].title}” section`,
+      drafting: per.produces.replace('%s', next),
     };
   }
-  if (method === 'draft') {
-    return {
-      type: 'assignment',
-      method,
-      offer: started
-        ? 'We have a draft going. Want to pick it back up?'
-        : 'Want me to write a full first draft?',
-      cta: started ? 'Continue' : 'Write a draft',
-      needsSend: false,
-      drafting: 'a full first draft',
-    };
-  }
-  // outline, or "steps" with no subtasks yet
-  return {
-    type: 'assignment',
-    method,
-    offer: started
-      ? 'We made a start on this. Want to pick it back up?'
-      : 'Want me to draft a starting outline for this?',
-    cta: started ? 'Continue' : 'Draft an outline',
-    needsSend: false,
-    drafting: 'a starting outline',
-  };
+
+  /*
+   * Every part is ticked, so there is nothing left to write.
+   *
+   * What happens next is sending it or keeping it, and both live on the task
+   * screen under "Every part is done". An offer here would be Aria proposing
+   * to redo work somebody has already finished.
+   */
+  return null;
 }
+
 
 function taskAction(task: Task): AriaAction | null {
   const method = task.method ?? 'remind';
