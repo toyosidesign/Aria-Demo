@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, NotebookPen, Send, Share2, Sparkles, X } from 'lucide-react-native';
+import { Check, Send, Share2, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -228,21 +228,6 @@ export default function ResearchScreen() {
     submit(text);
   }
 
-  /**
-   * Keep the research and step away.
-   *
-   * Nothing is ticked or completed: saving your working notes is not the same as
-   * declaring the work finished, and this is the option for someone who intends
-   * to come back to it. "Mark done" is what closes the item off.
-   */
-  function saveToDraft() {
-    if (!notes) return;
-    hapticTap();
-    addDraftSection(task!.id, { title: sub!.title, content: notes });
-    showToast('Saved to draft', 'check');
-    router.replace('/(tabs)');
-  }
-
   /** Satisfied: check the item off, keep the research, and return to the task. */
   function markDone() {
     hapticSuccess();
@@ -360,23 +345,23 @@ export default function ResearchScreen() {
             </Pressable>
           </View>
 
-          <View className="flex-row gap-2">
-            <Button
-              title="Save to draft"
-              variant="secondary"
-              className="flex-1"
-              leftIcon={<NotebookPen size={17} color={c.ink} />}
-              disabled={!notes || typing}
-              onPress={saveToDraft}
-            />
-            <Button
-              title={sub.done ? 'Back to task' : 'Mark done'}
-              className="flex-1"
-              leftIcon={<Check size={18} color={c.accentInk} />}
-              disabled={typing}
-              onPress={markDone}
-            />
-          </View>
+          {/*
+            One ending, because there was only ever one decision here.
+
+            "Save to draft" and "Mark done" both kept the notes; the only
+            difference was whether the item was ticked. That is not a choice
+            somebody arrives at this screen wanting to make, and offering it
+            twice made a research chat look like it had two outcomes. Checking
+            off keeps the notes, and the checkbox on the task screen unticks it
+            again if that was premature.
+          */}
+          <Button
+            title={sub.done ? 'Back to task' : 'Mark done'}
+            block
+            leftIcon={<Check size={18} color={c.accentInk} />}
+            disabled={typing}
+            onPress={markDone}
+          />
         </View>
       </KeyboardAvoidingView>
     </Screen>

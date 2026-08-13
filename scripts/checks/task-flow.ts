@@ -49,6 +49,7 @@ import {
 } from '@/lib/task-flow';
 import { NARROWING, localGuide, needsMore } from '@/lib/guide';
 import { offlineAnswer } from '@/lib/offline-answer';
+import { assemble, factsFromSections } from '@/lib/assemble';
 import { dedupeSources, hostOf } from '@/lib/source';
 import { looksLikeQuestion } from '@/lib/question';
 import {
@@ -1960,6 +1961,47 @@ test('the writing screen no longer offers a second calendar', () => {
   assert.ok(!screen.includes('title="Schedule for later"'), 'no scheduling CTA on the work screen');
   assert.ok(!screen.includes('Set when it goes out anyway'), 'nor its quieter twin');
   assert.match(screen, /email-it\/\$\{task\.id\}/, 'the email CTA goes to the focused screen');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
+section('Every part becomes one document');
+
+test('the parts compile into a single document, and only the parts', () => {
+  /*
+   * The question worth being able to answer plainly: yes, each checklist item
+   * Aria writes is kept as a section on the task, and the document is those
+   * sections in order, under one cover sheet with one filename. That document
+   * is what the email carries and what the share sheet saves.
+   *
+   * And only those. The unfinished draft, the instruction somebody typed and an
+   * older compiled copy all live in the same list, and any of them appearing
+   * inside a submitted essay is the quiet disaster this filter exists for.
+   */
+  const parts = [
+    { title: 'Introduction', content: 'The case for rent controls. '.repeat(10) },
+    { title: 'Major cities', content: 'Berlin, Vienna, New York. '.repeat(10) },
+    { title: WORKING_SECTION, content: 'half a sentence' },
+    { title: INSTRUCTION_SECTION, content: 'Ten slides, twenty words each.' },
+    { title: ASSEMBLED_SECTION, content: 'an older compiled copy' },
+  ];
+  const written = writtenSections(parts);
+  const doc = assemble({
+    title: 'Rent controls essay',
+    author: 'Toyosi',
+    deadline: '2026-08-20',
+    facts: factsFromSections(written),
+    sections: written,
+    steps: [
+      { title: 'Introduction', done: true },
+      { title: 'Major cities', done: true },
+    ],
+  });
+
+  assert.ok(doc.body.includes('Introduction') && doc.body.includes('Major cities'));
+  assert.ok(!doc.body.includes('half a sentence'), 'the unfinished draft stays out');
+  assert.ok(!doc.body.includes('Ten slides'), 'so does the instruction');
+  assert.ok(!doc.body.includes('an older compiled copy'), 'and the previous compile');
+  assert.match(doc.filename, /Toyosi - Rent controls essay/, 'named the way a marker expects');
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
