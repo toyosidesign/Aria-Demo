@@ -1172,6 +1172,23 @@ export default function AriaFlowScreen() {
                     {upNext ? `Next: ${upNext.title}` : 'Nothing left on the plan'}
                     {readiness.blocker ? ` · ${readiness.blocker}` : ''}
                   </Text>
+                  {/*
+                    A way out of a plan that is longer than the work.
+
+                    Finishing is what unlocks sending now, so a part nobody
+                    intends to do would hold the whole assignment shut, and the
+                    escape somebody would actually take is ticking it off
+                    untouched. The plan lives on the task screen, where any part
+                    can be dropped, so this is a door to it rather than a second
+                    copy of the list.
+                  */}
+                  <Button
+                    title="Change the plan"
+                    variant="ghost"
+                    size="sm"
+                    block
+                    onPress={() => router.replace(`/task/${task.id}` as Href)}
+                  />
                 </>
               ) : null}
 
@@ -1184,7 +1201,24 @@ export default function AriaFlowScreen() {
                 submission address. Saving it is the other half, and they are
                 different acts rather than two names for one.
               */}
-              {phase === 'done' && isAssignmentKind && (task.draftSections?.length ?? 0) > 0 ? (
+              {/*
+                Sending waits until the work is actually finished.
+
+                These used to appear beside "Keep going", so a plan three parts
+                into six offered to email the assignment. Aria assembling four
+                sections out of six and handing them to a tutor is the single
+                most expensive thing this app could get wrong, and it read as
+                permission: the button was there, so it must be ready.
+
+                Finished means every part ticked and something written, see
+                lib/ready.ts, and a part nobody intends to do can be dropped
+                from the plan on the task screen rather than ticked off
+                untouched.
+              */}
+              {phase === 'done' &&
+              isAssignmentKind &&
+              readiness.ready &&
+              writtenSections(task.draftSections).length > 0 ? (
                 <>
                   {/* Promoted now that scheduling has gone: sending it is the
                       likeliest ending for a finished piece of work, and with

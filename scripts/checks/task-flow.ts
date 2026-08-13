@@ -1963,6 +1963,53 @@ test('the writing screen no longer offers a second calendar', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Unfinished work cannot be sent');
+
+test('the ways of sending appear only once the work is finished', () => {
+  /*
+   * Reported: somebody three parts into six was able to email the assignment.
+   * The buttons sat beside "Keep going", which reads as permission, and Aria
+   * handing four sections out of six to a tutor is the most expensive thing
+   * this app could get wrong.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  const gate = /\{phase === 'done' &&\n\s*isAssignmentKind &&\n\s*readiness\.ready &&\n\s*writtenSections\(task\.draftSections\)\.length > 0 \? \(/;
+  assert.match(screen, gate, 'finished, and with something written');
+  const gateAt = screen.search(gate);
+  assert.ok(gateAt > 0 && gateAt < screen.indexOf('Email it, at a time I pick'), 'it guards them');
+});
+
+test('a plan longer than the work can be trimmed', () => {
+  /*
+   * The other half, and it has to exist or the first half is a trap: if
+   * finishing unlocks sending, a part nobody intends to do holds the whole
+   * assignment shut. The escape somebody would actually take is ticking it off
+   * untouched, and then every tick on the list means less.
+   */
+  const store = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/store/aria-store.ts'),
+    'utf8',
+  );
+  assert.match(store, /removeSubtask: \(taskId, subtaskId\) =>/, 'a part can leave the plan');
+
+  const row = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/components/subtask-research.tsx'),
+    'utf8',
+  );
+  assert.match(row, /removeSubtask\(task\.id, st\.id\)/, 'from the checklist itself');
+  assert.match(row, /Alert\.alert\(`Drop "\$\{st\.title\}"\?`/, 'asked before it goes');
+
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /title="Change the plan"/, 'and reachable from the work itself');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('A long title does not break the thing holding it');
 
 test('a button label can be narrower than its text', () => {

@@ -744,6 +744,16 @@ interface AriaState {
   removeDraftSection: (taskId: string, title: string) => void;
   addSubtasks: (taskId: string, titles: string[]) => void;
   toggleSubtask: (taskId: string, subtaskId: string) => void;
+  /**
+   * Take a step off the plan.
+   *
+   * A plan Aria wrote is a proposal, not a contract. Somebody who decides a
+   * part is not needed has to be able to say so, or the only way to finish an
+   * assignment is to do work they have judged pointless, and the alternative
+   * they will actually pick is ticking it off untouched, which makes every tick
+   * on the list mean less.
+   */
+  removeSubtask: (taskId: string, subtaskId: string) => void;
   completeTask: (id: string, opts?: { byAria?: boolean }) => void;
   reopenTask: (id: string) => void;
   /** `silent` when the move is provisional and the UI is still asking where to
@@ -1272,6 +1282,16 @@ export const useAriaStore = create<AriaState>()(
           tasks: s.tasks.map((t) =>
             t.id === taskId
               ? { ...t, subtasks: [...t.subtasks, ...titles.map((title) => newDraftSubtask(title))] }
+              : t,
+          ),
+        }));
+        syncTask(get, taskId);
+      },
+      removeSubtask: (taskId, subtaskId) => {
+        set((s) => ({
+          tasks: s.tasks.map((t) =>
+            t.id === taskId
+              ? { ...t, subtasks: t.subtasks.filter((st) => st.id !== subtaskId) }
               : t,
           ),
         }));
