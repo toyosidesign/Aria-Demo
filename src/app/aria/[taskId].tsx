@@ -488,13 +488,15 @@ export default function AriaFlowScreen() {
   const readiness = handInReadiness(task);
   const upNext = nextIncompleteSub(activeSubId ?? undefined);
   const rewrites = action.type === 'assignment' ? ASSIGNMENT_REWRITES : REWRITES;
-  const acceptLabel = isWalkthrough
-    ? nextIncompleteSub(activeSubId ?? undefined)
-      ? 'Check off & continue'
-      : 'Check off & finish'
-    : action.needsSend
-      ? 'Send it'
-      : 'Done';
+  /*
+   * One word on work, whatever part it is and however far in.
+   *
+   * The button used to change with the state, "Check off & continue", "Check
+   * off & finish", "Done", so the same act wore three labels and the last one
+   * announced an ending nobody had asked for yet. On a piece of work it is
+   * always the same act: this part is done, now say where it goes.
+   */
+  const acceptLabel = isAssignmentKind ? 'Done' : action.needsSend ? 'Send it' : 'Done';
 
   function redraft(instruction: string) {
     if (isWalkthrough) {
@@ -531,10 +533,28 @@ export default function AriaFlowScreen() {
   }
 
   /** Keep it on the task, which is where Aria's own drafts live. */
+  /**
+   * File this part under its own name, and tick it off.
+   *
+   * On a piece of work the section is named for the part it is, not for the
+   * method that produced it: "Methods", not "Draft". That name is what the
+   * document is assembled from and what the checklist matches against, so a
+   * part filed under the wrong one is a part the plan never notices was done.
+   */
+  function filePart() {
+    if (!task) return;
+    const sub = task.subtasks.find((st) => st.id === activeSubId);
+    const title = isAssignmentKind && sub ? sub.title : draftSectionTitle(action!.method);
+    clearWorking();
+    addDraftSection(task.id, { title, content: draft });
+    // Ticked here rather than on the tap that opened this question: until they
+    // have said where it goes, the part is still in their hands.
+    if (sub && !sub.done) toggleSubtask(task.id, sub.id);
+  }
+
   function keepOnTask() {
     tap();
-    clearWorking();
-    addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
+    filePart();
     push(mk('maya', 'text', 'Keep it here.'));
     push(
       mk(
@@ -557,10 +577,16 @@ export default function AriaFlowScreen() {
    */
   function keepAsDocument() {
     tap();
-    clearWorking();
-    addDraftSection(task!.id, { title: draftSectionTitle(action!.method), content: draft });
+    filePart();
     push(mk('maya', 'text', 'Put it in a document.'));
-    void exportWork(task!.title, draft);
+    void exportDocument({
+      name: task!.title,
+      title: task!.title,
+      author: senderName,
+      sections: isAssignmentKind
+        ? writtenSections(useAriaStore.getState().tasks.find((t) => t.id === task!.id)?.draftSections)
+        : [{ title: draftSectionTitle(action!.method), content: draft }],
+    });
     push(
       mk(
         'aria',
@@ -570,6 +596,23 @@ export default function AriaFlowScreen() {
     );
     sayWhatIsNext();
     setPhase('done');
+  }
+
+  /**
+   * Out by email, which is the ending that leaves the app.
+   *
+   * The part is filed first, so what the send screen assembles includes the one
+   * just written, and so closing that screen without sending has still kept the
+   * work. Sending is a decision made there, with a recipient in front of them,
+   * not implied by tapping a word here.
+   */
+  function keepAndEmail() {
+    tap();
+    filePart();
+    push(mk('maya', 'text', 'Email it.'));
+    push(mk('aria', 'text', 'Right. Tell me who it goes to and whether it goes now or later.'));
+    setPhase('done');
+    router.push(`/email-it/${task!.id}` as Href);
   }
 
   function acceptSubtask() {
@@ -599,6 +642,28 @@ export default function AriaFlowScreen() {
 
   function accept() {
     tap();
+    /*
+     * Every part of a piece of work ends the same way: where does this go?
+     *
+     * Checking off used to happen on the tap, silently, and the writing went
+     * onto the task whether or not that was where somebody wanted it. Asking is
+     * one tap and it is the difference between Aria filing your work and you
+     * deciding where your work lives. The part is ticked once they have said,
+     * which is also what makes closing the app mid-answer safe: nothing is
+     * finished until the question is answered.
+     */
+    if (isAssignmentKind) {
+      push(mk('maya', 'text', 'That works.'));
+      push(
+        mk(
+          'aria',
+          'text',
+          'Where would you like it? I can keep it here, put it in a document, or email it.',
+        ),
+      );
+      setPhase('keep');
+      return;
+    }
     if (isWalkthrough) {
       acceptSubtask();
       return;
@@ -1003,7 +1068,7 @@ export default function AriaFlowScreen() {
           {phase === 'keep' ? (
             <View className="gap-2">
               <Button
-                title="Keep it on this task"
+                title="Keep it here"
                 leftIcon={<Check size={18} color={c.accentInk} />}
                 block
                 onPress={keepOnTask}
@@ -1015,6 +1080,18 @@ export default function AriaFlowScreen() {
                 block
                 onPress={keepAsDocument}
               />
+              {/* Only where there is something to send. A card is already going
+                  to somebody by its own route, and offering a second one would
+                  be two ways to send the same thing. */}
+              {isAssignmentKind ? (
+                <Button
+                  title="Email it"
+                  variant="secondary"
+                  leftIcon={<Mail size={18} color={c.ink} />}
+                  block
+                  onPress={keepAndEmail}
+                />
+              ) : null}
             </View>
           ) : null}
 

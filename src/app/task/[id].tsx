@@ -476,6 +476,37 @@ export default function TaskDetailScreen() {
 
 
         {/*
+          The way back into the conversation, for work that is mid-answer.
+
+          Home offers "Continue" and lands here, which is right: the checklist is
+          the work. But a part Aria had written and was waiting to be told where
+          to put lives in the chat, and this screen had no door to it, so
+          Continue led to a list with the half-finished part sitting invisibly
+          behind it. The checklist rows open research; this opens the writing.
+
+          Only while something is outstanding. Once every part is ticked the
+          card below is the answer, and two offers at once is the thing this
+          screen keeps being trimmed for.
+        */}
+        {isAssignmentKind && action && task.status === 'todo' && !handIn.ready ? (
+          <View className="gap-3 rounded-2xl border border-accent/30 bg-accent-soft p-4">
+            <View className="flex-row items-center gap-2">
+              <AriaAvatar size={26} />
+              <Text variant="subtitle" tone="accent" className="text-[16px] leading-[22px]">
+                Aria
+              </Text>
+            </View>
+            <Text className="text-[14px] leading-[20px]">{action.offer}</Text>
+            <Button
+              title={action.cta}
+              leftIcon={<Sparkles size={18} color={c.accentInk} />}
+              onPress={() => router.push(`/aria/${task.id}` as Href)}
+              block
+            />
+          </View>
+        ) : null}
+
+        {/*
           ── The end of the checklist, and nothing before it ─────────────────
 
           The list above is the progress display: it says which parts are done,

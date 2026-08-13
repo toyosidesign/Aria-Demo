@@ -1989,6 +1989,77 @@ test('every place that saves work saves the document', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────
+section('Every part of a piece of work ends the same way');
+
+test('the button says Done on work, whatever part it is', () => {
+  /*
+   * It used to change with the state: "Check off & continue", "Check off &
+   * finish", "Done", so one act wore three labels and the last announced an
+   * ending nobody had asked for. On work it is always the same act: this part
+   * is done, now say where it goes.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const acceptLabel = isAssignmentKind \? 'Done'/);
+  assert.ok(!screen.includes("'Check off & continue'"), 'no third name for the same act');
+});
+
+test('Done asks where it goes, and only then ticks the part off', () => {
+  /*
+   * Checking off used to happen on the tap, silently, and the writing landed on
+   * the task whether or not that was where somebody wanted it. Asking costs one
+   * tap and is the difference between Aria filing your work and you deciding
+   * where it lives. It is also what makes closing the app mid-answer safe:
+   * nothing is finished until the question is answered.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /if \(isAssignmentKind\) \{[\s\S]{0,400}setPhase\('keep'\);/, 'Done opens the question');
+  assert.match(screen, /I can keep it here, put it in a document, or email it\./);
+  for (const ending of ['title="Keep it here"', 'title="Save it as a document"', 'title="Email it"']) {
+    assert.ok(screen.includes(ending), `${ending} is one of the three`);
+  }
+  // The tick lives in the filing, not in the tap that asked.
+  assert.match(screen, /function filePart\(\)[\s\S]{0,600}toggleSubtask\(task\.id, sub\.id\)/);
+});
+
+test('a part is filed under its own name, not under the method', () => {
+  /*
+   * "Methods", not "Draft". That name is what the document is assembled from
+   * and what the checklist matches against, so a part filed under the wrong one
+   * is a part the plan never notices was done.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
+    'utf8',
+  );
+  assert.match(screen, /const title = isAssignmentKind && sub \? sub\.title : draftSectionTitle/);
+});
+
+test('work left mid-answer has a door back into the writing', () => {
+  /*
+   * Home offers "Continue" and lands on the task, which is right: the checklist
+   * is the work. But a part Aria had written and was waiting to be told where
+   * to put lives in the chat, and this screen had no way to it, so Continue led
+   * to a list with the half-finished part sitting invisibly behind it.
+   */
+  const screen = readFileSync(
+    path.resolve(import.meta.dirname, '../../src/app/task/[id].tsx'),
+    'utf8',
+  );
+  assert.match(
+    screen,
+    /isAssignmentKind && action && task\.status === 'todo' && !handIn\.ready \? \(/,
+    'offered only while something is outstanding',
+  );
+  assert.match(screen, /router\.push\(`\/aria\/\$\{task\.id\}` as Href\)/, 'and opens the writing');
+});
+
+// ───────────────────────────────────────────────────────────────────────────────
 section('Asking under a draft is a chat, and it can read');
 
 test('a question may search, like every other question in the app', () => {
