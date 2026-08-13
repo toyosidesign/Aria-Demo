@@ -2006,25 +2006,33 @@ test('the button says Done on work, whatever part it is', () => {
   assert.ok(!screen.includes("'Check off & continue'"), 'no third name for the same act');
 });
 
-test('Done asks where it goes, and only then ticks the part off', () => {
+test('Done files the part and carries on, without becoming a menu', () => {
   /*
-   * Checking off used to happen on the tap, silently, and the writing landed on
-   * the task whether or not that was where somebody wanted it. Asking costs one
-   * tap and is the difference between Aria filing your work and you deciding
-   * where it lives. It is also what makes closing the app mid-answer safe:
-   * nothing is finished until the question is answered.
+   * Asking "where should this go?" produced three buttons where there had been
+   * one, which is a worse screen than the one it replaced: pressing a button to
+   * be given more buttons is the shape of a menu, not of finishing something.
+   * And "keep it here" was never a choice, it is what always happens.
+   *
+   * The work is on the task either way. A document and an email are ways of
+   * taking a copy out, and they belong at the end, where what is taken out is
+   * the whole piece rather than one part of it.
    */
   const screen = readFileSync(
     path.resolve(import.meta.dirname, '../../src/app/aria/[taskId].tsx'),
     'utf8',
   );
-  assert.match(screen, /if \(isAssignmentKind\) \{[\s\S]{0,400}setPhase\('keep'\);/, 'Done opens the question');
-  assert.match(screen, /I can keep it here, put it in a document, or email it\./);
-  for (const ending of ['title="Keep it here"', 'title="Save it as a document"', 'title="Email it"']) {
-    assert.ok(screen.includes(ending), `${ending} is one of the three`);
-  }
-  // The tick lives in the filing, not in the tap that asked.
+  assert.match(screen, /if \(isAssignmentKind\) \{[\s\S]{0,900}keepOnTask\(\);\n\s*return;/, 'Done files it');
+  assert.ok(!screen.includes('title="Keep it here"'), 'no button for what always happens');
+  assert.ok(!screen.includes('title="Email it"'), 'and no per-part send');
+  assert.ok(
+    !screen.includes('I can keep it here, put it in a document, or email it.'),
+    'nor the question that offered them',
+  );
+  // Filing is what ticks the part off, so nothing is finished until it is filed.
   assert.match(screen, /function filePart\(\)[\s\S]{0,600}toggleSubtask\(task\.id, sub\.id\)/);
+  // The two ways out still exist, at the end, on finished work.
+  assert.match(screen, /title="Email it, at a time I pick"/);
+  assert.match(screen, /title="Save as a document"/);
 });
 
 test('a part is filed under its own name, not under the method', () => {

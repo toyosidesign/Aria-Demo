@@ -553,14 +553,14 @@ export default function AriaFlowScreen() {
   }
 
   function keepOnTask() {
-    tap();
     filePart();
-    push(mk('maya', 'text', 'Keep it here.'));
     push(
       mk(
         'aria',
         'text',
-        'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
+        isAssignmentKind
+          ? 'Saved and ticked off.'
+          : 'Saved. You’ll find it on this task under “Aria’s draft”, and tasks holding one are marked Draft in your lists.',
       ),
     );
     sayWhatIsNext();
@@ -596,23 +596,6 @@ export default function AriaFlowScreen() {
     );
     sayWhatIsNext();
     setPhase('done');
-  }
-
-  /**
-   * Out by email, which is the ending that leaves the app.
-   *
-   * The part is filed first, so what the send screen assembles includes the one
-   * just written, and so closing that screen without sending has still kept the
-   * work. Sending is a decision made there, with a recipient in front of them,
-   * not implied by tapping a word here.
-   */
-  function keepAndEmail() {
-    tap();
-    filePart();
-    push(mk('maya', 'text', 'Email it.'));
-    push(mk('aria', 'text', 'Right. Tell me who it goes to and whether it goes now or later.'));
-    setPhase('done');
-    router.push(`/email-it/${task!.id}` as Href);
   }
 
   function acceptSubtask() {
@@ -653,15 +636,19 @@ export default function AriaFlowScreen() {
      * finished until the question is answered.
      */
     if (isAssignmentKind) {
+      /*
+       * Done files it and moves on. It does not ask where it goes.
+       *
+       * Asking produced three buttons where there had been one, which is a
+       * worse screen than the one it replaced: pressing a button to be given
+       * more buttons is the shape of a menu, not of finishing something. And
+       * "keep it here" was not a choice at all, it is what always happens. The
+       * work is on the task either way; a document and an email are ways of
+       * taking a copy out, and they belong at the end, where the thing being
+       * taken out is the whole piece rather than one part of it.
+       */
       push(mk('maya', 'text', 'That works.'));
-      push(
-        mk(
-          'aria',
-          'text',
-          'Where would you like it? I can keep it here, put it in a document, or email it.',
-        ),
-      );
-      setPhase('keep');
+      keepOnTask();
       return;
     }
     if (isWalkthrough) {
@@ -1065,13 +1052,22 @@ export default function AriaFlowScreen() {
           ) : null}
 
           {/* Accepted, and choosing where it goes. */}
+          {/*
+            Still asked on a note or a plan, which genuinely has two homes.
+
+            Work does not: it is kept on the task and the copies come at the end.
+          */}
           {phase === 'keep' ? (
             <View className="gap-2">
               <Button
-                title="Keep it here"
+                title="Keep it on this task"
                 leftIcon={<Check size={18} color={c.accentInk} />}
                 block
-                onPress={keepOnTask}
+                onPress={() => {
+                  tap();
+                  push(mk('maya', 'text', 'Keep it here.'));
+                  keepOnTask();
+                }}
               />
               <Button
                 title="Save it as a document"
@@ -1080,18 +1076,6 @@ export default function AriaFlowScreen() {
                 block
                 onPress={keepAsDocument}
               />
-              {/* Only where there is something to send. A card is already going
-                  to somebody by its own route, and offering a second one would
-                  be two ways to send the same thing. */}
-              {isAssignmentKind ? (
-                <Button
-                  title="Email it"
-                  variant="secondary"
-                  leftIcon={<Mail size={18} color={c.ink} />}
-                  block
-                  onPress={keepAndEmail}
-                />
-              ) : null}
             </View>
           ) : null}
 
